@@ -29,6 +29,7 @@
 //   2. Không bao giờ ghi đè dữ liệu đã có trên GitHub (chỉ điền chỗ còn thiếu; ghi bằng khoá SHA).
 //   3. Bài nộp trắc nghiệm (type='quiz') KHÔNG đụng tới (dữ liệu của nó vốn đã nằm ở GitHub).
 //   4. Với --run, tự BACKUP phần sắp xoá ra file backup-mongo-to-github-<thời gian>.json.
+//      Thêm --no-backup để KHÔNG tạo file backup (dữ liệu vẫn được ghi GitHub + đọc lại kiểm tra trước khi xoá ở Mongo).
 //   5. Bản ghi lỗi/thiếu dữ liệu chỉ bị bỏ qua + in cảnh báo, KHÔNG xoá gì ở Mongo.
 // ============================================================
 require('dotenv').config();
@@ -67,6 +68,7 @@ const ONLY = (argVal('only') ? argVal('only').split(',') : ALL_KINDS)
     .map((s) => s.trim())
     .filter((s) => ALL_KINDS.includes(s));
 const LIMIT = Number(argVal('limit')) || 0;
+const NO_BACKUP = argv.includes('--no-backup');   // bỏ file backup-*.json (xem ghi chú ở đầu file)
 
 const WRITE_DELAY_MS = 1000;            // GitHub khuyến nghị ≤ 1 lần ghi/giây
 const RECENT_MS = 15 * 60 * 1000;       // bài đang chấm dở trong 15 phút gần nhất → bỏ qua
@@ -641,14 +643,18 @@ async function handleOrphans() {
     }
 
     // Backup toàn bộ document trước khi drop
-    const backup = { createdAt: new Date().toISOString(), collections: {} };
-    for (const n of wanted) backup.collections[n] = await db.collection(n).find({}).toArray();
-    const file = `backup-orphan-collections-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    let text;
-    try { text = mongoose.mongo.BSON.EJSON.stringify(backup, null, 2, { relaxed: false }); }
-    catch (_) { text = JSON.stringify(backup, null, 2); }
-    fs.writeFileSync(file, text, 'utf8');
-    console.log(`💾 Đã backup ra file: ${file}`);
+    if (NO_BACKUP) {
+        console.log('⏭️  --no-backup: bỏ qua bước backup collection dư thừa.');
+    } else {
+        const backup = { createdAt: new Date().toISOString(), collections: {} };
+        for (const n of wanted) backup.collections[n] = await db.collection(n).find({}).toArray();
+        const file = `backup-orphan-collections-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        let text;
+        try { text = mongoose.mongo.BSON.EJSON.stringify(backup, null, 2, { relaxed: false }); }
+        catch (_) { text = JSON.stringify(backup, null, 2); }
+        fs.writeFileSync(file, text, 'utf8');
+        console.log(`💾 Đã backup ra file: ${file}`);
+    }
 
     for (const n of wanted) {
         await db.collection(n).drop();
@@ -793,7 +799,8 @@ function writeBackup(plan) {
     console.log('');
 
     // Bước 2: backup (chỉ khi chạy thật)
-    if (RUN && ONLY.some((k) => plan[k] && plan[k].length)) writeBackup(plan);
+    if (RUN && !NO_BACKUP && ONLY.some((k) => plan[k] && plan[k].length)) writeBackup(plan);
+    else if (RUN && NO_BACKUP) console.log('⏭️  --no-backup: không tạo file backup.');
 
     // Bước 3: xử lý tuần tự (prompts → lessons → submissions)
     for (const kind of ALL_KINDS) {
