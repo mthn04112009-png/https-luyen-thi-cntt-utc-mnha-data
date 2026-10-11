@@ -8,7 +8,8 @@ const { sendOTP } = require('../services/mailService');
 // ============================================================
 // HẰNG SỐ
 // ============================================================
-const OTP_TTL_MS = 10 * 60 * 1000;
+// Thời gian sống của OTP lấy từ models/OTP.js (10 phút, Mongo tự xoá bằng TTL index)
+const { OTP_TTL_MS } = OTP;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 

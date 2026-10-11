@@ -131,6 +131,10 @@ function connectDB() {
             })
             .then(() => {
                 console.log(`[${new Date().toISOString()}] MongoDB connected`);
+                // ★ Đảm bảo TTL index của OTP (autoIndex tắt ở production)
+                require("./models/OTP")
+                    .ensureTTLIndex()
+                    .catch((e) => console.error("[OTP] ensureTTLIndex lỗi:", e.message));
             })
             .catch((error) => {
                 logError("MONGODB CONNECTION FAILED", error);
