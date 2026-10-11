@@ -3123,5 +3123,773 @@
 </div>
 
 
+<!-- SLIDE 53: Biến cơ sở và biến phi cơ sở -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4 - PHƯƠNG ÁN CỰC BIÊN</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Biến cơ sở và biến phi cơ sở</h1>
+
+        <!-- Khung công thức chính -->
+        <div style="background: #64748b; border-radius: 8px; padding: 18px 24px; text-align: center; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <span style="font-family:'Cambria Math','Times New Roman',serif; font-size: 20px; font-weight: 700; color: #ffffff;">
+                max \(\langle c,x \rangle\) &nbsp; với &nbsp; \(Ax = b, \quad x \ge 0\) &nbsp;&nbsp;&nbsp; \((A \text{ cỡ } m \times n)\)
+            </span>
+        </div>
+
+        <!-- Định lý -->
+        <div class="highlight-card" style="background: #ffffff; padding: 18px 24px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
+                Định lý (phương án cực biên)
+            </div>
+            <div style="font-size: 15px; color: #334155; line-height: 1.7;">
+                Phương án \(x\) là phương án cực biên \(\iff\) các vecto cột \(A_j\) ứng với \(x_j > 0\) độc lập tuyến tính.
+            </div>
+        </div>
+
+        <!-- 3 Cột nội dung -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; align-items: stretch;">
+            
+            <!-- Cột 1 -->
+            <div class="highlight-card" style="background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                    Biến cơ sở
+                </div>
+                <div style="font-size: 14px; color: #475569; line-height: 1.6;">
+                    \(x_j (j \in J)\) ứng với vecto cơ sở \(A_j\) độc lập tuyến tính
+                </div>
+            </div>
+
+            <!-- Cột 2 -->
+            <div class="highlight-card" style="background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                    Biến phi cơ sở
+                </div>
+                <div style="font-size: 14px; color: #475569; line-height: 1.6;">
+                    \(x_k (k \notin J)\) — các biến còn lại, bằng 0
+                </div>
+            </div>
+
+            <!-- Cột 3 -->
+            <div class="highlight-card" style="background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                    Không thoái hóa / thoái hóa
+                </div>
+                <div style="font-size: 14px; color: #475569; line-height: 1.6;">
+                    \(|J| = m\) (không thoái hóa)<br>
+                    hoặc \(|J| < m\) (thoái hóa)
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>53</span>
+    </div>
+</div>
+
+
+<!-- SLIDE 54: Ước lượng Δ_k và tiêu chuẩn dừng -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4 - ĐIỀU KIỆN TỐI ƯU</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Ước lượng \(\Delta_k\) và tiêu chuẩn dừng</h1>
+
+        <!-- Khung công thức chính -->
+        <div style="background: #64748b; border-radius: 8px; padding: 18px 24px; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <span style="font-family:'Cambria Math','Times New Roman',serif; font-size: 20px; font-weight: 700; color: #ffffff;">
+                \(\Delta_k = z_k - c_k, \text{ với } z_k = \sum_{j \in J} z_{jk}c_j\)
+            </span>
+        </div>
+
+        <!-- 2 Định lý -->
+        <div style="display: flex; gap: 20px; margin-bottom: 25px;">
+            
+            <!-- Định lý 1 -->
+            <div class="highlight-card" style="flex: 1; background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 10px;">
+                    Định lý 1 — Điều kiện đủ
+                </div>
+                <div style="font-size: 14.5px; color: #334155; line-height: 1.7;">
+                    Phương án cực biên \(x\) là tối ưu nếu \(\Delta_k \ge 0\) với mọi \(k\). (Nếu bài toán không thoái hóa, đây còn là điều kiện cần.)
+                </div>
+            </div>
+
+            <!-- Định lý 2 -->
+            <div class="highlight-card" style="flex: 1; background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 10px;">
+                    Định lý 2 — Chưa tối ưu
+                </div>
+                <div style="font-size: 14.5px; color: #334155; line-height: 1.7;">
+                    Nếu tồn tại \(\Delta_k < 0 \ (k \notin J)\) thì \(x\) chưa tối ưu — có thể chuyển sang phương án cực biên \(x'\) tốt hơn.
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Quy tắc đổi cơ sở -->
+        <div class="highlight-card" style="background: #ffffff; padding: 18px 24px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                Quy tắc đổi cơ sở (khi \(\Delta_k < 0\))
+            </div>
+            
+            <div style="font-size: 15px; color: #334155; line-height: 2; font-family:'Cambria Math', 'Times New Roman', serif;">
+                <div style="margin-bottom: 8px;">
+                    Chọn \(\Delta_s = \min_{k \notin J} \{\Delta_k < 0\}\), (vecto \(A_s\) đưa vào cơ sở),
+                </div>
+                <div style="margin-bottom: 15px;">
+                    tìm \(\theta_0 = \min_{j \in J} \left\{ \frac{x_j}{z_{js}} \mid z_{js} > 0 \right\} = \frac{x_r}{z_{rs}}\) (đưa \(A_r\) ra khỏi cơ sở)
+                </div>
+                <div style="font-style: italic; color: #475569;">
+                    Nếu \(\Delta_s < 0\) mà cột \(k\) đều \(\le 0 \Rightarrow\) hàm mục tiêu không bị chặn, bài toán vô nghiệm.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>54</span>
+    </div>
+</div>
+
+
+
+<!-- SLIDE 55: Cấu trúc bảng đơn hình -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4 - THUẬT TOÁN ĐƠN HÌNH</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Cấu trúc bảng đơn hình</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Bảng đơn hình và phép xoay -->
+            <div style="flex: 1.35;">
+                <!-- Bảng đơn hình -->
+                <div class="highlight-card" style="background: #ffffff; padding: 0; border-radius: 8px; border: 1px solid #cbd5e1; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; text-align: center; font-family: 'Cambria Math', 'Times New Roman', serif;">
+                        <thead>
+                            <tr style="background: #64748b; color: #ffffff;">
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">\(C_j\)</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">Cơ sở</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">P.án</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">\(C_1\)</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">\(C_2\)</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">...</th>
+                                <th style="padding: 10px 8px; border-right: 1px solid #94a3b8;">\(C_k\)</th>
+                                <th style="padding: 10px 8px;">...</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid #e2e8f0;">
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(C_1\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">\(A_1\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(x_1\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">1</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">0</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(z_{1k}\)</td>
+                                <td style="padding: 10px 8px; color: #334155;">...</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e2e8f0;">
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(C_2\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">\(A_2\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(x_2\)</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">0</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">1</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">\(z_{2k}\)</td>
+                                <td style="padding: 10px 8px; color: #334155;">...</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e2e8f0;">
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #e2e8f0; color: #334155;">...</td>
+                                <td style="padding: 10px 8px; color: #334155;">...</td>
+                            </tr>
+                            <tr style="background: #cbd5e1; font-weight: 700; color: #1e293b;">
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;"></td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;">f</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;">0</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;">0</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;">...</td>
+                                <td style="padding: 10px 8px; border-right: 1px solid #94a3b8;">\(\Delta_k\)</td>
+                                <td style="padding: 10px 8px;"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Khung phép xoay -->
+                <div style="display: flex; gap: 15px; align-items: stretch;">
+                    <div class="highlight-card" style="flex: 1; background: #f8fafc; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 14px; color: #334155; line-height: 1.6;">
+                        <b>Phép xoay quanh trục \(z_{rs}\)</b><br>
+                        Bảng được cập nhật lại sau mỗi phép xoay, cột \(A_s\) trở thành cột cơ sở mới thay vì cột \(A_r\).
+                    </div>
+
+                    <div class="highlight-card" style="flex: 1.2; background: #f8fafc; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-family:'Cambria Math','Times New Roman',serif; font-size: 16px; color: #1e293b;">
+                            \(x'_j = \begin{cases} x_j - \frac{x_r}{z_{rs}} z_{js}, & j \neq r \\ \frac{x_r}{z_{rs}}, & j = r \end{cases}\)
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Cách đọc bảng -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #f8fafc; padding: 18px 20px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Cách đọc bảng
+                    </div>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; color: #334155; line-height: 1.8;">
+                        <li style="margin-bottom: 10px;">
+                            Cột 'Cơ sở' + 'P.án': biến cơ sở &amp; giá trị hiện tại
+                        </li>
+                        <li style="margin-bottom: 10px;">
+                            Dòng cuối: ước lượng \(\Delta_k\)
+                        </li>
+                        <li style="margin-bottom: 10px;">
+                            \(\Delta_k \ge 0\) mọi \(k \Rightarrow\) dừng, đã tối ưu
+                        </li>
+                        <li style="margin-bottom: 10px;">
+                            \(\Delta_k < 0 \Rightarrow\) tiếp tục xoay (đổi cơ sở)
+                        </li>
+                        <li>
+                            \(z_{jk}\): phần tử trục khi thực hiện phép xoay
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>55</span>
+    </div>
+</div>
+
+
+
+<!-- SLIDE 56: Giải lại bài toán mẫu bằng đơn hình -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4 - VÍ DỤ MINH HỌA</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Giải lại bài toán mẫu bằng đơn hình</h1>
+
+        <!-- Khung công thức chính -->
+        <div style="background: #64748b; border-radius: 8px; padding: 16px 20px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <span style="font-family:'Cambria Math','Times New Roman',serif; font-size: 17px; font-weight: 700; color: #ffffff;">
+                max f = 4x₁ + 5x₂ + 0x₃ + 0x₄ + 0x₅ &nbsp;&nbsp; (thêm 3 biến phụ x₃, x₄, x₅)
+            </span>
+        </div>
+
+        <!-- Bảng kết quả -->
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #64748b; color: #ffffff;">
+                        <th style="padding: 10px 14px; text-align: center; font-weight: 700; border-right: 1px solid #94a3b8;">Bước</th>
+                        <th style="padding: 10px 14px; text-align: center; font-weight: 700; border-right: 1px solid #94a3b8;">Biến vào</th>
+                        <th style="padding: 10px 14px; text-align: center; font-weight: 700; border-right: 1px solid #94a3b8;">Biến ra</th>
+                        <th style="padding: 10px 14px; text-align: center; font-weight: 700; border-right: 1px solid #94a3b8;">f (giá trị)</th>
+                        <th style="padding: 10px 14px; text-align: left; font-weight: 700;">Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">Xuất phát</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">—</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">—</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">0</td>
+                        <td style="padding: 12px 14px; color: #475569;">Cơ sở {A3, A4, A5}, x = (0, 0, 8, 7, 3)</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">1</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₂ &nbsp;(s=2)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₅ &nbsp;(r=5)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">0 → 15</td>
+                        <td style="padding: 12px 14px; color: #475569;">Δ âm nhất tại cột x₂</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">2</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₁ &nbsp;(s=1)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₄ &nbsp;(r=4)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">15 → 19</td>
+                        <td style="padding: 12px 14px; color: #475569;"></td>
+                    </tr>
+                    <tr style="background: #ffffff;">
+                        <td style="padding: 12px 14px; text-align: center; color: #334155;">3</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₅ &nbsp;(s=5)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">x₃ &nbsp;(r=3)</td>
+                        <td style="padding: 12px 14px; text-align: center; color: #334155; font-family:'Cambria Math',serif;">19 → 22</td>
+                        <td style="padding: 12px 14px; color: #475569;">Tất cả Δₖ ≥ 0 — dừng</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Khung kết quả -->
+        <div class="highlight-card" style="background: #ffffff; padding: 16px 20px; border-radius: 8px; border: 1px solid #cbd5e1; margin-top: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 15px; color: #334155; line-height: 1.7;">
+                <b>Kết quả</b><br>
+                Phương án tối ưu {x₁=3, x₂=2, x₅=1}, &nbsp; f<sub>max</sub> = 22<br>
+                trùng kết quả với phương pháp hình học
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>56</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 57: Bảng đơn hình - Ví dụ minh họa -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4 - VÍ DỤ MINH HỌA</div>
+        <h1 class="slide-title" style="margin-bottom: 15px; font-size: 22px;">Bảng đơn hình qua các bước xoay</h1>
+
+        <!-- Bảng 1 -->
+        <div style="display: flex; gap: 15px; align-items: flex-start; margin-bottom: 20px;">
+            
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family:'Cambria Math','Times New Roman',serif; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 8%;">C<sub>j</sub></th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 12%;">Cơ sở</th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 9%;">p.án</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">4</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">5</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #f1f5f9; color: #1e293b; font-weight: 700; width: 22%; font-size: 12.5px;">s = 2, r = 5</th>
+                        </tr>
+                        <tr>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>1</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>2</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>3</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>4</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>5</sub></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>3</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">8</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">2</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">8</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>4</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">7</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">2</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">3.5</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>5</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">3</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #be185d; font-weight: 700;">[1]</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">3, z<sub>rs</sub> = 1</td>
+                        </tr>
+                        <tr style="background: #f1f5f9;">
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0;"></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0;"></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dbeafe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fce7f3; color: #be185d; font-weight: 700;">-4</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fce7f3; color: #be185d; font-weight: 700;">-5</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155; font-size: 12.5px;">s = 1</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bảng 2 -->
+        <div style="display: flex; gap: 15px; align-items: flex-start;">
+            
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family:'Cambria Math','Times New Roman',serif; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 8%;">C<sub>j</sub></th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 12%;">Cơ sở</th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700; width: 9%;">p.án</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">4</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">5</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #fef3c7; color: #1e293b; font-weight: 700;">0</th>
+                            <th rowspan="2" style="padding: 8px 6px; border: 1px solid #cbd5e1; background: #f1f5f9; color: #1e293b; font-weight: 700; width: 22%; font-size: 12.5px;">s = 5, r = 3</th>
+                        </tr>
+                        <tr>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>1</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>2</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>3</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>4</sub></th>
+                            <th style="padding: 5px; border: 1px solid #cbd5e1; background: #e0f2fe; color: #1e293b; font-weight: 700;">A<sub>5</sub></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>3</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">5</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">2</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">-1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155; font-size: 12.5px;">2.5, r = 4</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>4</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #be185d; font-weight: 700;">[1]</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">-2</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155; font-size: 12.5px;">1</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fef3c7; color: #334155;">5</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">A<sub>2</sub></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #334155;">3</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dcfce7; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155;">1</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0;"></td>
+                        </tr>
+                        <tr style="background: #f1f5f9;">
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0;"></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0;"></td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #dbeafe; color: #334155; font-weight: 700;">15</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #fce7f3; color: #be185d; font-weight: 700;">-4</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">0</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; background: #ede9fe; color: #334155; font-weight: 700;">5</td>
+                            <td style="padding: 8px 6px; border: 1px solid #e2e8f0; color: #334155; font-size: 12.5px;">s = 5, r = 3</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>57</span>
+    </div>
+</div>
+
+
+
+<!-- SLIDE 58: Bảng đơn hình qua các bước -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 4 - BÀI TOÁN TỐI ƯU</div>
+        <h1 class="slide-title" style="margin-bottom: 15px;">Bảng đơn hình qua các bước</h1>
+
+        <!-- 3 ảnh xếp ngang -->
+        <div style="display: flex; gap: 12px; align-items: stretch; justify-content: space-between; margin-top: 5px;">
+            
+            <!-- Ảnh 1 -->
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.04); display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                <img src="image-slide/IMG_9793.JPEG" 
+                     alt="Bảng đơn hình bước 1" 
+                     style="max-width: 100%; height: auto; max-height: 580px; object-fit: contain; display: block;">
+            </div>
+
+            <!-- Ảnh 2 -->
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.04); display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                <img src="image-slide/IMG_9794.JPEG" 
+                     alt="Bảng đơn hình bước 2" 
+                     style="max-width: 100%; height: auto; max-height: 580px; object-fit: contain; display: block;">
+            </div>
+
+            <!-- Ảnh 3 -->
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.04); display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                <img src="image-slide/IMG_9795.JPEG" 
+                     alt="Bảng đơn hình bước 3" 
+                     style="max-width: 100%; height: auto; max-height: 580px; object-fit: contain; display: block;">
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 10px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>58</span>
+    </div>
+</div>
+
+
+
+<!-- SLIDE 59: Khi không có sẵn cơ sở đơn vị: Phương pháp M -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4B — TRƯỜNG HỢP ĐẶC BIỆT</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Khi không có sẵn cơ sở đơn vị: Phương pháp M</h1>
+
+        <!-- Đoạn dẫn -->
+        <div style="font-size: 15px; color: #334155; line-height: 1.7; margin-bottom: 25px;">
+            Thuật toán đơn hình cần một phương án cực biên xuất phát với cơ sở là vecto đơn vị. Điều này luôn có ở dạng chuẩn (nhờ biến phụ), nhưng KHÔNG có ở dạng chính tắc thuần túy (ràng buộc là đẳng thức).
+        </div>
+
+        <!-- Giải pháp: biến giả tạo -->
+        <div class="highlight-card" style="background: #f8fafc; padding: 18px 22px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 10px;">
+                Giải pháp: biến giả tạo
+            </div>
+            <div style="font-size: 14.5px; color: #334155; line-height: 1.7;">
+                Thêm m biến giả tạo \(x_{n+i} \ge 0\) với hệ số phạt \(-M\) rất lớn trong hàm mục tiêu (bài toán (M)) — buộc các biến giả tạo phải bằng 0 tại phương án tối ưu.
+            </div>
+        </div>
+
+        <!-- 2 cột: Tách dòng Δk và Kết luận -->
+        <div style="display: flex; gap: 20px; align-items: stretch;">
+            
+            <!-- Cột trái: Tách 2 dòng Δk -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 18px 22px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Tách 2 dòng \(\Delta_k\)
+                    </div>
+
+                    <div style="font-family:'Cambria Math','Times New Roman',serif; font-size: 17px; color: #1e293b; margin-bottom: 15px;">
+                        \(\Delta_k = \Delta'_k + M \cdot \Delta''_k\)
+                    </div>
+
+                    <div style="font-size: 14px; color: #475569; line-height: 1.7; font-style: italic;">
+                        ưu tiên xét dấu dòng \(\Delta''\) trước (vì \(M\) rất lớn); chỉ khi \(\Delta''\) xong mới xét tiếp \(\Delta_k\).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Kết luận sau khi giải (M) -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 18px 22px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Kết luận sau khi giải (M)
+                    </div>
+
+                    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; color: #334155; line-height: 1.9; list-style-type: disc;">
+                        <li style="margin-bottom: 12px;">
+                            PA tối ưu dạng \((x^*, 0, \dots, 0)\) \(\rightarrow\) \(x^*\) là PA tối ưu của (P)
+                        </li>
+                        <li>
+                            PA tối ưu có biến giả tạo \(\neq 0\) \(\rightarrow\) (P) vô nghiệm
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>59</span>
+    </div>
+</div>
+
+
+<!-- SLIDE 60: Giải bằng phương pháp M -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.4B — TRƯỜNG HỢP ĐẶC BIỆT</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Giải bằng phương pháp M</h1>
+
+        <!-- Hàm mục tiêu biến đổi -->
+        <div class="highlight-card" style="background: #f1f5f9; padding: 16px 24px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 25px; text-align: center;">
+            <div style="font-family:'Cambria Math','Times New Roman',serif; font-size: 17px; color: #be185d; display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                <span>min \(f(x) = -3x_1 + x_2 + 3x_3 - x_4\)</span>
+                <span style="font-size: 20px;">&rarr;</span>
+                <span>max \(f_1 = 3x_1 - x_2 - 3x_3 + x_4 - Mx_5 - Mx_6 - Mx_7\)</span>
+            </div>
+        </div>
+
+        <!-- Phương án cực biên xuất phát -->
+        <div style="font-size: 15px; color: #334155; line-height: 1.7; margin-bottom: 25px;">
+            <p style="margin: 0 0 10px 0;">
+                Phương án cực biên xuất phát: \(\{x_5=2, x_6=9, x_7=6\}\).
+            </p>
+            <p style="margin: 0;">
+                Sau 4 bước xoay (theo dõi song song 2 dòng \(\Delta'\), \(\Delta''\), ưu tiên loại biến giả tạo ra khỏi cơ sở):
+            </p>
+        </div>
+
+        <!-- Kết quả -->
+        <div class="highlight-card" style="background: #ffffff; padding: 20px 24px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 16px; font-weight: 700; color: #b45309; margin-bottom: 15px;">
+                Kết quả
+            </div>
+
+            <div style="font-family:'Cambria Math','Times New Roman',serif; font-size: 18px; color: #1e293b; line-height: 2;">
+                <div style="margin-bottom: 8px;">
+                    \(\{x_1=3, \ x_2=5, \ x_3=2\}\) &nbsp;&nbsp; (các biến giả tạo đều = 0 ✓)
+                </div>
+                <div>
+                    \(f_{1,max} = 8 \quad \Rightarrow \quad f_{min} = -8\)
+                </div>
+            </div>
+        </div>
+
+        <!-- Lưu ý quan trọng -->
+        <div class="highlight-card" style="background: #fef3c7; padding: 16px 22px; border-radius: 8px; border: 1px solid #fcd34d; border-left: 5px solid #d97706;">
+            <div style="font-size: 15.5px; font-weight: 700; color: #b45309; margin-bottom: 8px;">
+                ⚠️ Lưu ý quan trọng
+            </div>
+            <div style="font-size: 14.5px; color: #78350f; line-height: 1.7;">
+                Vì bài toán gốc là min và đã đổi sang max ngay từ đầu, nhớ đổi dấu lại kết quả cuối: \(f_{min} = -f_{1,max}\). Đây là lỗi sinh viên hay quên nhất.
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>60</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 61: Cặp bài toán gốc – đối ngẫu -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">4.5 — LÝ THUYẾT ĐỐI NGẪU</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Cặp bài toán gốc – đối ngẫu</h1>
+
+        <!-- Đoạn dẫn -->
+        <div style="font-size: 15px; color: #334155; line-height: 1.7; margin-bottom: 25px;">
+            Mỗi bài toán QHTT (P) có một bài toán tương ứng (P') gọi là bài toán đối ngẫu.<br>
+            Nghiên cứu (P') đôi khi thuận tiện hơn để kết luận về (P).
+        </div>
+
+        <!-- 2 khối bài toán -->
+        <div style="display: flex; gap: 25px; align-items: stretch;">
+            
+            <!-- Bài toán gốc -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #f8fafc; padding: 20px 22px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Bài toán gốc (P)
+                    </div>
+
+                    <!-- Công thức -->
+                    <div style="background: #64748b; border-radius: 6px; padding: 16px 20px; text-align: center; margin-bottom: 15px;">
+                        <div style="font-family:'Cambria Math','Times New Roman',serif; font-size: 18px; font-weight: 700; color: #ffffff; line-height: 1.7;">
+                            max \(\langle c, x \rangle\)<br>
+                            \(Ax \le b, \quad x \ge 0\)
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú -->
+                    <div style="font-size: 14px; color: #475569; line-height: 1.6; font-style: italic;">
+                        \(A\) cỡ \(m \times n\): m ràng buộc, n biến số
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bài toán đối ngẫu -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #f8fafc; padding: 20px 22px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Bài toán đối ngẫu (P')
+                    </div>
+
+                    <!-- Công thức -->
+                    <div style="background: #64748b; border-radius: 6px; padding: 16px 20px; text-align: center; margin-bottom: 15px;">
+                        <div style="font-family:'Cambria Math','Times New Roman',serif; font-size: 18px; font-weight: 700; color: #ffffff; line-height: 1.7;">
+                            min \(\langle b, y \rangle\)<br>
+                            \(A^T y \ge c, \quad y \ge 0\)
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú -->
+                    <div style="font-size: 14px; color: #475569; line-height: 1.6; font-style: italic;">
+                        \(A^T\) (chuyển vị của \(A\)): m biến số, n ràng buộc
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 4 - Bài toán tối ưu</span>
+        <span>61</span>
+    </div>
+</div>
+
+
+
+
+
+
 </body>
 </html>
