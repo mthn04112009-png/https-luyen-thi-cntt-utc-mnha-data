@@ -1,0 +1,137 @@
+extends ../layout
+
+//- Trang báo lỗi riêng khi GitHub sập / bảo trì (HTTP 503) — nhúng layout.
+//- Hiệu ứng "gõ chữ" lấy từ pen "GSAP 404 typed message using SplitText"
+//- (viết lại bằng JS thuần: không cần GSAP/SplitText/jQuery, con trỏ bám theo chữ cuối nên xuống dòng vẫn đúng).
+block content
+    style.
+        @import url('https://fonts.googleapis.com/css?family=Roboto+Mono');
+
+        /* Mọi selector nằm trong .ghd để không ảnh hưởng layout */
+        .ghd { position: relative; box-sizing: border-box; width: 100%; max-width: 1100px; min-height: 72vh; margin: 24px auto; padding: 48px 20px 72px;
+               display: flex; align-items: center; justify-content: center; overflow: hidden;
+               background-color: #03224F; border-radius: 20px; font-family: 'Roboto Mono', 'Courier New', monospace; user-select: none; }
+        .ghd *, .ghd *::before, .ghd *::after { box-sizing: inherit; }
+        .ghd-inner { width: 100%; max-width: 720px; text-align: center; }
+
+        .ghd-copy { position: relative; display: inline-block; max-width: 100%; margin: 0; padding-right: 18px; color: #fff;
+                    font-size: 32px; line-height: 1.45; letter-spacing: .2px; text-align: center; }
+        .ghd-word { display: inline-block; white-space: nowrap; }
+        .ghd-ch { opacity: 0; }
+        .ghd-ch.on { opacity: 1; }
+
+        /* con trỏ */
+        .ghd-handle { position: absolute; top: 0; left: 0; width: 14px; height: 40px; margin-top: 1px; background: #3F5EFF;
+                      opacity: 1; animation: ghd-blink .8s steps(1, end) infinite alternate; transition: transform .05s linear; pointer-events: none; }
+        @keyframes ghd-blink { from { opacity: 0; } to { opacity: 1; } }
+
+        .ghd-sub { margin: 28px auto 0; max-width: 520px; color: #9fb3d9; font-size: 14px; line-height: 1.7; }
+        .ghd-detail { margin: 14px auto 0; max-width: 560px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,.06); color: #cbd5ee; font-size: 12px; word-break: break-word; text-align: left; user-select: text; }
+        .ghd-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+        .ghd-btn { display: inline-block; padding: 11px 22px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s; }
+        .ghd-btn.primary { background: #3F5EFF; border: 1px solid #3F5EFF; color: #fff; }
+        .ghd-btn.primary:hover { background: #2f4de0; border-color: #2f4de0; }
+        .ghd-btn.ghost { background: transparent; border: 1px solid #3a5280; color: #cbd5ee; }
+        .ghd-btn.ghost:hover { border-color: #6b83b8; color: #fff; }
+
+        /* nút phát lại */
+        #ghd-replay { position: absolute; right: 0; bottom: 0; width: 20px; margin: 15px; fill: #666; overflow: inherit; cursor: pointer; }
+        #ghd-replay:hover { fill: #888; }
+
+        @media (max-width: 640px) {
+            .ghd { padding: 40px 16px 64px; }
+            .ghd-copy { font-size: 22px; }
+            .ghd-handle { width: 10px; height: 28px; }
+        }
+        @media (prefers-reduced-motion: reduce) { .ghd-handle { animation: none; } }
+
+    div(class="ghd")
+        div(class="ghd-inner")
+            p(class="ghd-copy", id="ghd-copy", data-text=message, role="alert")= message
+            p(class="ghd-sub")
+                | Hệ thống không đọc được dữ liệu từ GitHub (có thể GitHub đang bảo trì hoặc gián đoạn).
+                br
+                | Dữ liệu của bạn không bị mất, hãy thử lại sau ít phút.
+
+            if detail
+                div(class="ghd-detail") Chi tiết (chỉ hiện ở môi trường phát triển): #{detail}
+
+            div(class="ghd-actions")
+                a(href=(retryUrl || '/'), class="ghd-btn primary") Thử lại
+                a(href="/", class="ghd-btn ghost") Về trang chủ
+
+        svg(version="1.1", id="ghd-replay", xmlns="http://www.w3.org/2000/svg", x="0px", y="0px", viewBox="0 0 279.9 297.3", style="enable-background:new 0 0 279.9 297.3;", xml:space="preserve", aria-label="Phát lại hiệu ứng", role="button")
+            g
+                path(d="M269.4,162.6c-2.7,66.5-55.6,120.1-121.8,123.9c-77,4.4-141.3-60-136.8-136.9C14.7,81.7,71,27.8,140,27.8c1.8,0,3.5,0,5.3,0.1c0.3,0,0.5,0.2,0.5,0.5v15c0,1.5,1.6,2.4,2.9,1.7l35.9-20.7c1.3-0.7,1.3-2.6,0-3.3L148.6,0.3c-1.3-0.7-2.9,0.2-2.9,1.7v15c0,0.3-0.2,0.5-0.5,0.5c-1.7-0.1-3.5-0.1-5.2-0.1C63.3,17.3,1,78.9,0,155.4C-1,233.8,63.4,298.3,141.9,297.3c74.6-1,135.1-60.2,138-134.3c0.1-3-2.3-5.4-5.3-5.4l0,0C271.8,157.6,269.5,159.8,269.4,162.6z")
+
+    script.
+        (function () {
+            var copy = document.getElementById('ghd-copy');
+            var replay = document.getElementById('ghd-replay');
+            if (!copy) return;
+
+            var text = copy.getAttribute('data-text') || copy.textContent || '';
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            var chars = [], timer = null, handle = null;
+
+            // Tách chữ: mỗi từ là 1 khối không ngắt dòng, mỗi ký tự là 1 <span> (thay cho SplitText)
+            function build() {
+                copy.textContent = '';
+                chars = [];
+                text.split(/(\s+)/).forEach(function (part) {
+                    if (!part) return;
+                    if (/^\s+$/.test(part)) { copy.appendChild(document.createTextNode(' ')); return; }
+                    var w = document.createElement('span');
+                    w.className = 'ghd-word';
+                    Array.from(part).forEach(function (c) {
+                        var s = document.createElement('span');
+                        s.className = 'ghd-ch';
+                        s.textContent = c;
+                        w.appendChild(s);
+                        chars.push(s);
+                    });
+                    copy.appendChild(w);
+                });
+                handle = document.createElement('span');
+                handle.className = 'ghd-handle';
+                copy.appendChild(handle);
+            }
+
+            // Đặt con trỏ ngay sau ký tự đã hiện cuối cùng (đầu dòng nếu chưa hiện ký tự nào)
+            function moveHandle(idx) {
+                var box = copy.getBoundingClientRect();
+                var x, y;
+                if (idx < 0) {
+                    var r0 = chars[0].getBoundingClientRect();
+                    x = r0.left - box.left; y = r0.top - box.top;
+                } else {
+                    var r = chars[idx].getBoundingClientRect();
+                    x = r.right - box.left; y = r.top - box.top;
+                }
+                handle.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+            }
+
+            function play() {
+                clearInterval(timer);
+                build();
+                if (!chars.length) return;
+                if (reduce) { chars.forEach(function (c) { c.classList.add('on'); }); moveHandle(chars.length - 1); return; }
+                var i = -1;
+                moveHandle(i);
+                timer = setInterval(function () {
+                    i++;
+                    if (i >= chars.length) { clearInterval(timer); return; }
+                    chars[i].classList.add('on');
+                    moveHandle(i);
+                }, 55);
+            }
+
+            // Gõ lại vị trí con trỏ khi đổi kích thước (xuống dòng thay đổi)
+            window.addEventListener('resize', function () {
+                var shown = chars.filter(function (c) { return c.classList.contains('on'); }).length;
+                if (chars.length) moveHandle(shown - 1);
+            });
+            if (replay) replay.addEventListener('click', play);
+
+            if (document.fonts && document.fonts.ready) document.fonts.ready.then(play); else play();
+        })();

@@ -8,6 +8,8 @@
 //   node migrateMongoToGithub.js --run           → chuyển + xoá THẬT
 //   node migrateMongoToGithub.js --run --limit=3 → làm thử với 3 bản ghi mỗi loại
 //   node migrateMongoToGithub.js --only=prompts,lessons,submissions   (chọn loại)
+//   node migrateMongoToGithub.js --only=auditlogs [--run]            → chuyển TOÀN BỘ audit log trong MongoDB (collection `auditlogs`)
+//                                                                       sang 1 file GitHub: auditlogs/index.json (gộp, không ghi đè bản đã có)
 //   node migrateMongoToGithub.js --orphans               → LIỆT KÊ collection dư thừa trong MongoDB (không xoá)
 //   node migrateMongoToGithub.js --run --drop-orphans=tenA,tenB → BACKUP rồi XOÁ đúng các collection dư thừa nêu tên
 //      (lessons/gradingprompts/submissions chỉ xoá khi MỌI document đã có file trên GitHub; --force-drop để bỏ qua kiểm tra)
@@ -43,6 +45,7 @@ const GradingPrompt = { get collection() { return legacy('gradingprompts'); } };
 const Subject = require('./models/Subject');
 const User = require('./models/User');
 const githubService = require('./services/githubService');
+const auditLogService = require('./services/auditLogService');
 
 // Nạp TẤT CẢ model để biết collection nào là "của dự án" (dùng cho --orphans)
 const path = require('path');
@@ -59,7 +62,7 @@ const argVal = (name) => {
     const a = argv.find((x) => x.startsWith(`--${name}=`));
     return a ? a.slice(name.length + 3) : null;
 };
-const ALL_KINDS = ['prompts', 'lessons', 'submissions'];
+const ALL_KINDS = ['prompts', 'lessons', 'submissions', 'auditlogs'];
 const ONLY = (argVal('only') ? argVal('only').split(',') : ALL_KINDS)
     .map((s) => s.trim())
     .filter((s) => ALL_KINDS.includes(s));
@@ -654,6 +657,76 @@ async function handleOrphans() {
 }
 
 // ============================================================
+// 4. AUDIT LOGS  (collection auditlogs → auditlogs/index.json)
+//    Chuyển HẾT bản ghi trong Mongo sang MỘT file JSON trên GitHub (gộp theo id,
+//    không ghi đè bản đã có) → đọc lại kiểm tra → mới xoá đúng các bản ghi đã chuyển.
+//    Xử lý THEO LÔ (1 commit cho cả lô) vì ghi từng bản ghi sẽ rất chậm.
+// ============================================================
+const AUDIT_BATCH = 500;
+
+async function collectAuditlogs() {
+    return legacy('auditlogs').find({}).sort({ createdAt: 1, _id: 1 }).toArray();
+}
+
+async function auditEntry(d) {
+    const actorId = idStr(d.actor || d.adminId);
+    const meta = actorId && oid(actorId) ? await userMeta(actorId) : null;   // chụp tên người thực hiện lúc chuyển
+    let metadata = d.metadata !== undefined ? d.metadata : d.detail;
+    try { metadata = JSON.parse(mongoose.mongo.BSON.EJSON.stringify(metadata === undefined ? {} : metadata, { relaxed: true })); } catch (_) { /* giữ nguyên */ }
+    return {
+        id: String(d._id),
+        actor: actorId,
+        ...(meta && meta.name ? { actorName: meta.name } : {}),
+        ...(meta && meta.email ? { actorEmail: meta.email } : {}),
+        action: d.action,
+        entity: d.entity || d.targetType,
+        entityId: idStr(d.entityId || d.targetId),
+        description: d.description || (typeof d.detail === 'string' ? d.detail : ''),
+        metadata,
+        ipAddress: d.ipAddress || d.ip || '',
+        userAgent: d.userAgent || '',
+        createdAt: d.createdAt || (d._id && d._id.getTimestamp ? d._id.getTimestamp() : new Date()),
+    };
+}
+
+async function processAuditlogsBatch(docs) {
+    const st = stat('auditlogs');
+    if (!docs.length) return;
+    console.log(`   ${tag}${docs.length} bản ghi audit log → ${auditLogService.AUDIT_PATH} (lô ${AUDIT_BATCH})`);
+
+    for (let i = 0; i < docs.length; i += AUDIT_BATCH) {
+        const chunk = docs.slice(i, i + AUDIT_BATCH);
+        const label = `lô ${Math.floor(i / AUDIT_BATCH) + 1}/${Math.ceil(docs.length / AUDIT_BATCH)} (${chunk.length} bản ghi)`;
+        if (!RUN) { console.log(`   ${tag}${label}`); continue; }
+
+        try {
+            const entries = [];
+            for (const d of chunk) {
+                if (!hasText(d.action)) { st.skipped.push(`${d._id}: thiếu action`); continue; }
+                entries.push(await auditEntry(d));
+            }
+            await auditLogService.createMany(entries, `Chuyển audit log từ MongoDB (${label})`);
+            await sleep(WRITE_DELAY_MS);
+
+            // Đọc lại GitHub để chắc chắn đã có đủ id rồi mới xoá ở Mongo
+            const onGh = new Set(((await githubService.readJsonFile(auditLogService.AUDIT_PATH)) || { logs: [] }).logs.map((l) => l.id));
+            const okIds = entries.filter((e) => onGh.has(e.id)).map((e) => e.id);
+            st.written += okIds.length;
+            if (okIds.length !== entries.length) {
+                st.failed.push(`${label}: chỉ thấy ${okIds.length}/${entries.length} bản ghi trên GitHub → KHÔNG xoá lô này ở Mongo`);
+                continue;
+            }
+            const del = await legacy('auditlogs').deleteMany({ _id: { $in: okIds.map((x) => oid(x)).filter(Boolean) } });
+            st.cleared += del.deletedCount || 0;
+            console.log(`   ✅ ${label}: ghi GitHub ${okIds.length}, xoá Mongo ${del.deletedCount || 0}`);
+        } catch (e) {
+            st.failed.push(`${label}: ${e.message}`);
+            console.error(`   ❌ ${label}: ${e.message}`);
+        }
+    }
+}
+
+// ============================================================
 // BACKUP trước khi xoá
 // ============================================================
 function writeBackup(plan) {
@@ -664,6 +737,7 @@ function writeBackup(plan) {
         lessons: (plan.lessons || [])
             .filter((l) => Object.prototype.hasOwnProperty.call(l, 'contentHtml'))
             .map((l) => ({ _id: l._id, title: l.title, githubFile: l.githubFile, contentHtml: l.contentHtml })),
+        auditlogs: plan.auditlogs || [],   // nguyên bản ghi audit log sắp xoá khỏi Mongo
         submissions: (plan.submissions || []).map((s) => ({
             _id: s._id, githubFile: s.githubFile, syncStatus: s.syncStatus,
             answerHtml: s.answerHtml, feedback: s.feedback, breakdown: s.breakdown,
@@ -704,7 +778,7 @@ function writeBackup(plan) {
         : '🔎 DRY-RUN: chỉ báo cáo, không ghi GitHub, không sửa MongoDB. Thêm --run để chạy thật.');
     console.log(`Loại dữ liệu: ${ONLY.join(', ')}${LIMIT ? ` | giới hạn ${LIMIT} bản ghi/loại` : ''}\n`);
 
-    const collectors = { prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions };
+    const collectors = { prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs };
     const processors = { prompts: processPrompt, lessons: processLesson, submissions: processSubmission };
 
     // Bước 1: gom danh sách cần xử lý
@@ -725,6 +799,7 @@ function writeBackup(plan) {
     for (const kind of ALL_KINDS) {
         if (!plan[kind] || !plan[kind].length) continue;
         console.log(`\n===== ${kind.toUpperCase()} =====`);
+        if (kind === 'auditlogs') { await processAuditlogsBatch(plan[kind]); continue; }   // xử lý theo lô
         for (const doc of plan[kind]) {
             try {
                 await processors[kind](doc);

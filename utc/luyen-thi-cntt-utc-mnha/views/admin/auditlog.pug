@@ -1,13 +1,48 @@
 extends ../layout
 
 block content
-    .max-w-7xl.mx-auto.px-4.sm\\:px-6.lg\\:px-8.py-8
+    div(class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
 
-        .mb-8
+        .mb-6
             h1(class="text-2xl sm:text-3xl font-bold text-gray-900")
                 | Audit Log
             p(class="text-gray-500 mt-1")
                 | Lịch sử các thao tác quan trọng trong hệ thống
+                span(class="text-gray-400")  · lưu tại GitHub (auditlogs/index.json)
+
+        if typeof error !== "undefined" && error
+            div(class="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700")
+                | Không đọc được audit log từ GitHub: #{error}
+
+        //- Tìm kiếm + lọc
+        form(action="/admin/audit-log", method="GET", class="bg-white border border-gray-200 rounded-2xl p-4 mb-4 flex flex-col lg:flex-row gap-3")
+            div(class="relative flex-1")
+                i(data-lucide="search", class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none")
+                input(
+                    type="search"
+                    name="q"
+                    value=filters.q
+                    placeholder="Tìm theo thao tác, mô tả, người thực hiện, IP..."
+                    autocomplete="off"
+                    class="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                )
+            select(name="action", class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500")
+                option(value="") Tất cả thao tác
+                each a in actions
+                    option(value=a, selected=(filters.action === a))= a
+            select(name="entity", class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500")
+                option(value="") Tất cả đối tượng
+                each e in entities
+                    option(value=e, selected=(filters.entity === e))= e
+            button(type="submit", class="px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800") Lọc
+            if filters.q || filters.action || filters.entity
+                a(href="/admin/audit-log", class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 text-center") Xoá lọc
+            a(href="/admin/audit-log?refresh=1", class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 text-center", title="Đọc lại từ GitHub") Làm mới
+
+        p(class="text-sm text-gray-500 mb-3")
+            | Hiển thị #{logs.length} / #{total} bản ghi
+            if total !== grandTotal
+                |  (tổng #{grandTotal})
 
         .bg-white.border.border-gray-200.rounded-2xl.shadow-sm.overflow-hidden
             if logs && logs.length
@@ -18,27 +53,46 @@ block content
                                 i(data-lucide="activity" class="w-5 h-5")
 
                             div(class="flex-1 min-w-0")
-                                .flex.flex-col.sm\\:flex-row.sm\\:items-center.sm\\:justify-between.gap-1
-                                    p(class="font-medium text-gray-900")
+                                div(class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1")
+                                    p(class="font-medium text-gray-900 break-words")
                                         = log.action || 'Thao tác'
+                                        if log.entity
+                                            span(class="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium")= log.entity
 
-                                    span(class="text-xs text-gray-400")
+                                    span(class="text-xs text-gray-400 whitespace-nowrap")
                                         = log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : '—'
 
-                                p(class="text-sm text-gray-600 mt-1")
-                                    = log.description || 'Không có mô tả'
+                                if log.description
+                                    p(class="text-sm text-gray-600 mt-1 break-words")= log.description
 
-                                if log.user
-                                    p(class="text-xs text-gray-400 mt-2")
-                                        | Người thực hiện:
-                                        = ' ' + (log.user.name || log.user.email || 'Không xác định')
+                                p(class="text-xs text-gray-400 mt-2")
+                                    | Người thực hiện:
+                                    = ' ' + (log.actorInfo ? (log.actorInfo.name || log.actorInfo.email || 'Không xác định') : (log.actor ? 'Không xác định (' + log.actor + ')' : 'Hệ thống'))
+                                    if log.actorInfo && log.actorInfo.email && log.actorInfo.name
+                                        = ' · ' + log.actorInfo.email
 
-                                if log.ip
+                                if log.entityId
+                                    p(class="text-xs text-gray-400 mt-1 break-all")
+                                        | Mã đối tượng:
+                                        = ' ' + log.entityId
+
+                                if log.ipAddress
                                     p(class="text-xs text-gray-400 mt-1")
                                         | IP:
-                                        = ' ' + log.ip
+                                        = ' ' + log.ipAddress
+
+                                if log.metadata && Object.keys(log.metadata).length
+                                    details(class="mt-2")
+                                        summary(class="text-xs text-indigo-600 cursor-pointer") Chi tiết
+                                        pre(class="mt-1 p-3 bg-gray-50 rounded-lg text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap break-words")= JSON.stringify(log.metadata, null, 2)
             else
                 .py-16.text-center
                     i(data-lucide="history" class="w-10 h-10 mx-auto text-gray-300")
                     p(class="text-gray-500 mt-3")
-                        | Chưa có lịch sử thao tác.
+                        if filters.q || filters.action || filters.entity
+                            | Không có bản ghi nào khớp bộ lọc.
+                        else
+                            | Chưa có lịch sử thao tác.
+
+        .mt-6
+            include ../pagination

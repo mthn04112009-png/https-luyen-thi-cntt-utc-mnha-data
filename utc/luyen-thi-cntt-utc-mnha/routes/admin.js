@@ -608,25 +608,61 @@ router.post("/users/:id/delete", requireDefaultAdmin, async (req, res) => {
 router.use("/audit-log", requireDefaultAdmin);
 
 router.get("/audit-log", async (req, res) => {
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const action = String(req.query.action || "").trim().slice(0, 100);
+    const entity = String(req.query.entity || "").trim().slice(0, 100);
+    const page = Math.max(1, Number(req.query.page) || 1);
+
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (action) params.set("action", action);
+    if (entity) params.set("entity", entity);
+    const baseUrl = "/admin/audit-log?" + (params.toString() ? params.toString() + "&" : "");
+
     try {
-        const AuditLog = require("../models/AuditLog");
-        const logs = await AuditLog.find()
-            .populate("actor", "name email")
-            .sort({ createdAt: -1 })
-            .limit(200)
-            .lean();
+        // ★ Audit log lưu ở GitHub (auditlogs/index.json) — xem services/auditLogService.js
+        const auditLogService = require("../services/auditLogService");
+        const result = await auditLogService.list({
+            page,
+            limit: 50,
+            q,
+            action,
+            entity,
+            force: req.query.refresh === "1",   // ?refresh=1 → bỏ cache 15 giây, đọc lại GitHub
+        });
 
         return res.render("admin/auditlog", {
             title: "Audit Log",
             user: req.user,
-            logs
+            logs: result.logs,
+            total: result.total,
+            grandTotal: result.grandTotal,
+            currentPage: result.page,
+            totalPages: result.pages,
+            actions: result.actions,
+            entities: result.entities,
+            filters: { q, action, entity },
+            baseUrl
         });
     } catch (error) {
+        // ★ GitHub sập / bảo trì / mất mạng → trang báo lỗi riêng ("GitHub đang gặp vấn đề, vui lòng quay lại sau")
+        const { isGithubUnavailable, renderGithubDown } = require("../utils/githubErrors");
+        if (isGithubUnavailable(error, { assumeGithub: true })) {
+            return renderGithubDown(req, res, error);
+        }
         console.error("audit-log error:", error);
         return res.status(500).render("admin/auditlog", {
             title: "Audit Log",
             user: req.user,
             logs: [],
+            total: 0,
+            grandTotal: 0,
+            currentPage: 1,
+            totalPages: 1,
+            actions: [],
+            entities: [],
+            filters: { q, action, entity },
+            baseUrl,
             error: error.message
         });
     }

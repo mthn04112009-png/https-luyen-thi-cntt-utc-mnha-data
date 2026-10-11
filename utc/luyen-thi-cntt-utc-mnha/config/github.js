@@ -23,6 +23,17 @@ const octokit = new Octokit({
     request: { timeout: 20000 }
 });
 
+// ★ Theo dõi GitHub sập/bảo trì: request lỗi → noteFailure, thành công → noteSuccess
+//   (xem utils/githubErrors.js + middleware/githubDownGuard.js)
+const githubHealth = require('../utils/githubErrors');
+octokit.hook.error('request', async (error) => {
+    githubHealth.noteFailure(error);
+    throw error;
+});
+octokit.hook.after('request', () => {
+    githubHealth.noteSuccess();
+});
+
 /**
  * Đường dẫn gốc trong repo
  */

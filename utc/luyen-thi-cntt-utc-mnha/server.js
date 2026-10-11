@@ -13,6 +13,7 @@ const cors = require("cors");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const attachLayout = require("./middleware/attachLayout");
+const { isGithubUnavailable, renderGithubDown } = require("./utils/githubErrors");
 
 const app = express();
 
@@ -348,6 +349,9 @@ app.use((req, res, next) => {
 //   PHẢI đứng sau middleware nạp user ở trên (cần req.freshUser).
 app.use(attachLayout);
 
+// ★ GitHub lỗi (sập/bảo trì) → mọi trang báo thống nhất "GitHub đang gặp vấn đề, vui lòng quay lại sau"
+app.use(require("./middleware/githubDownGuard"));
+
 // ============================================================
 // HOME
 // ============================================================
@@ -641,6 +645,11 @@ app.use((err, req, res, next) => {
                 : err.message,
             process.env.NODE_ENV === "production" ? null : err.stack
         );
+    }
+
+    // ★ Lỗi do GitHub (sập/bảo trì/mạng/giới hạn) ở BẤT KỲ trang nào → trang báo lỗi riêng
+    if (isGithubUnavailable(err)) {
+        return renderGithubDown(req, res, err);
     }
 
     if (
