@@ -6,6 +6,9 @@ const submissionService = require('../services/submissionService');
 const notificationService = require('../services/notificationService');
 const githubService = require('../services/githubService');
 const lessonContentService = require('../services/lessonContentService');
+const { parseDrawingDataUrl } = require('../services/drawingService');
+const { verifyUploadToken } = require('../services/imageModerationService');
+const { deleteStagedUpload } = require('./drawingUpload.controller');
 const githubSync = require('../services/githubSyncService');
 
 const User = require('../models/User');
@@ -119,6 +122,20 @@ async function hydrateSubmissionData(submission, tag = 'hydrateFromGithub') {
                 submission.errorMessage = githubData.errorMessage;
             }
 
+            // ★ Bản vẽ tay (JS Paint): đường dẫn ảnh + kết quả phân tích ảnh
+            if (githubData.hasDrawing) {
+                submission.hasDrawing = true;
+                if (!submission.drawingFile && githubData.drawingFile) {
+                    submission.drawingFile = githubData.drawingFile;
+                }
+                if (!submission.drawingMime && githubData.drawingMime) {
+                    submission.drawingMime = githubData.drawingMime;
+                }
+                if (!submission.drawingAnalysis && githubData.drawingAnalysis) {
+                    submission.drawingAnalysis = githubData.drawingAnalysis;
+                }
+            }
+
             // ★ Nhận xét giảng viên (nếu Mongo chưa có, ví dụ sau khi khôi phục DB)
             if (!submission.teacherComment && githubData.teacherComment) {
                 submission.teacherComment = githubData.teacherComment;
@@ -206,7 +223,7 @@ const createSubmission = async (req, res) => {
 
         const userId = user.id || user._id;
 
-        const { lessonId, answerHtml, model, aiKeyId } = req.body;
+        const { lessonId, answerHtml, model, aiKeyId, drawingData, drawingSource, drawingUploadToken } = req.body;
 
         if (!lessonId) {
             if (wantsJson(req)) {
@@ -215,11 +232,40 @@ const createSubmission = async (req, res) => {
             return res.redirect('back');
         }
 
-        if (!answerHtml || !String(answerHtml).trim()) {
+        // ★ Bản vẽ tay (JS Paint): data URL PNG/JPEG do trình duyệt xuất ra (không gửi = không có bản vẽ)
+        let drawing = null;
+        try {
+            drawing = parseDrawingDataUrl(drawingData);
+        } catch (e) {
+            const status = e.status || 400;
             if (wantsJson(req)) {
-                return res.status(400).json({ success: false, message: 'Bài làm không được để trống.' });
+                return res.status(status).json({ success: false, message: e.message });
             }
-            return res.redirect(`/lessons/${lessonId}?error=${encodeURIComponent('Bài làm không được để trống.')}`);
+            return res.redirect(`/lessons/${lessonId}?error=${encodeURIComponent(e.message)}`);
+        }
+
+        // ★ Bản vẽ được tạo từ ẢNH TẢI LÊN (drawingSource=photo) → ảnh gốc phải đã qua kiểm duyệt
+        //   Cloudinary: token HMAC do POST /submissions/drawing-upload cấp, gắn với đúng user này.
+        let stagedUpload = null;
+        if (drawing && drawingSource === 'photo') {
+            stagedUpload = verifyUploadToken(drawingUploadToken, userId);
+            if (!stagedUpload) {
+                const msg = 'Ảnh chưa qua kiểm duyệt hoặc đã hết hạn. Hãy tải ảnh lên lại.';
+                if (wantsJson(req)) {
+                    return res.status(403).json({ success: false, message: msg });
+                }
+                return res.redirect(`/lessons/${lessonId}?error=${encodeURIComponent(msg)}`);
+            }
+        }
+
+        // ★ Phải có ÍT NHẤT MỘT trong hai: phần nhập chữ hoặc phần vẽ tay
+        const hasText = !!(answerHtml && String(answerHtml).trim());
+        if (!hasText && !drawing) {
+            const msg = 'Bài làm không được để trống (cần nhập chữ hoặc vẽ tay).';
+            if (wantsJson(req)) {
+                return res.status(400).json({ success: false, message: msg });
+            }
+            return res.redirect(`/lessons/${lessonId}?error=${encodeURIComponent(msg)}`);
         }
 
         const lesson = await Lesson.findOne({
@@ -250,10 +296,14 @@ const createSubmission = async (req, res) => {
         const result = await submissionService.gradeAndSave({
             userId,
             lessonId: String(lesson._id),
-            answerHtml: String(answerHtml).trim(),
+            answerHtml: hasText ? String(answerHtml).trim() : '',
             model: model || null,
-            aiKeyId: aiKeyId || null
+            aiKeyId: aiKeyId || null,
+            drawing
         });
+
+        // ★ Bài đã được lưu → xoá ảnh gốc tạm trên GitHub (không chặn phản hồi, không ném lỗi)
+        if (stagedUpload) deleteStagedUpload(userId, stagedUpload);
 
         if (result.status === 'graded') {
             // === THÀNH CÔNG ===
@@ -737,7 +787,66 @@ const saveTeacherComment = async (req, res) => {
     }
 };
 
+// ============================================================
+// ẢNH BẢN VẼ TAY — GET /submissions/:id/drawing
+// ------------------------------------------------------------
+// Quyền xem giống getSubmission: chủ bài, hoặc admin (đúng tổ chức).
+// Ảnh còn tạm trong RAM (chưa đẩy xong GitHub) → trả luôn; còn lại đọc file
+// ảnh riêng trên GitHub (<tên>.drawing.png|jpg).
+// ============================================================
+const getSubmissionDrawing = async (req, res) => {
+    try {
+        const user = req.session?.user;
+        if (!user) return res.status(401).end();
+
+        const submission = await loadSubmissionFull(req.params.id);
+        if (!submission || !submission.hasDrawing) return res.status(404).end();
+
+        const userId = user.id || user._id;
+        const isOwner = String(submission.userId?._id || submission.userId) === String(userId);
+        const isAdmin = user.role === 'admin';
+        if (!isOwner && !isAdmin) return res.status(403).end();
+        if (!isOwner && isAdmin && !(await adminCanSeeSubmission(req, submission))) {
+            return res.status(404).end();
+        }
+
+        let buffer = null;
+        let mime = submission.drawingMime || 'image/png';
+
+        if (submission.drawingData) {
+            buffer = Buffer.from(String(submission.drawingData), 'base64');
+        } else {
+            let file = submission.drawingFile || null;
+            if (!file && submission.githubFile && githubService.isConfigured) {
+                // RAM chưa có đường dẫn ảnh → lấy từ JSON bài nộp
+                const json = await githubService.readJsonFile(submission.githubFile);
+                file = json?.drawingFile || null;
+                if (json?.drawingMime) mime = json.drawingMime;
+            }
+            if (file && githubService.isConfigured) {
+                buffer = await githubService.readBinaryFile(file);
+                if (/\.jpe?g$/i.test(file)) mime = 'image/jpeg';
+                else if (/\.png$/i.test(file)) mime = 'image/png';
+            }
+        }
+
+        if (!buffer || !buffer.length) return res.status(404).end();
+
+        res.set({
+            'Content-Type': mime,
+            'Content-Length': String(buffer.length),
+            'Cache-Control': 'private, max-age=300',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        return res.end(buffer);
+    } catch (error) {
+        console.error('getSubmissionDrawing error:', error);
+        return res.status(500).end();
+    }
+};
+
 module.exports = {
+    getSubmissionDrawing,
     createSubmission,
     getSubmission,
     getMySubmissions,

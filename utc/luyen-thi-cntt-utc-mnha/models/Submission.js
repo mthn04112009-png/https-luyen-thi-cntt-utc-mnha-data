@@ -14,7 +14,7 @@ module.exports = createModel({
         'sampleComparison', 'promptSnapshot', 'model', 'aiKeyId', 'aiKeyName', 'aiProvider', 'latencyMs', 'maxScore',
         'correctCount', 'totalCount', 'analysisCount', 'lastAnalyzedAt', 'status', 'errorMessage', 'gradedAt',
         'submittedAt', 'teacherComment', 'teacherCommentHistory', 'teacherCommentSyncStatus',
-        'teacherCommentSyncError', 'syncStatus', 'githubFile', 'githubSha', 'errorCount', 'syncedAt', 'syncError',
+        'teacherCommentSyncError', 'hasDrawing', 'drawingFile', 'drawingMime', 'drawingData', 'drawingAnalysis', 'syncStatus', 'githubFile', 'githubSha', 'errorCount', 'syncedAt', 'syncError',
         'createdAt', 'updatedAt'],
     refs: { userId: 'User', lessonId: 'Lesson', subjectId: 'Subject', aiKeyId: 'AIKey' }
 });

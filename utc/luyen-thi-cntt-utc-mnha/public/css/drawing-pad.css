@@ -1,0 +1,178 @@
+/* ============================================================
+ * drawing-pad.css — giao diện bảng vẽ "JS Paint" (public/js/drawingPad.js)
+ * ============================================================ */
+
+.dp-root {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #d7d7d7;
+    border-radius: 8px;
+    background: #f3f4f6;
+    overflow: hidden;
+    outline: none;
+}
+.dp-root:focus-within { border-color: #a61c2f; box-shadow: 0 0 0 3px rgba(166, 28, 47, 0.08); }
+
+/* ---------- thanh công cụ ---------- */
+.dp-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 10px;
+    background: linear-gradient(#fdfdfd, #eceff3);
+    border-bottom: 1px solid #d7d7d7;
+}
+.dp-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 12px;
+    border-right: 1px solid #d5d9df;
+}
+.dp-group:last-of-type { border-right: none; padding-right: 0; }
+
+.dp-btn {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #cbd0d8;
+    border-radius: 6px;
+    background: #fff;
+    color: #334155;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.dp-btn:hover:not(:disabled) { background: #eef2ff; border-color: #a5b4fc; }
+.dp-btn.active { background: #fde7ea; border-color: #a61c2f; box-shadow: inset 0 0 0 1px #a61c2f; }
+.dp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.dp-danger:hover:not(:disabled) { background: #fef2f2; border-color: #fca5a5; }
+
+.dp-colors { flex-wrap: wrap; max-width: 260px; }
+.dp-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid #94a3b8;
+    cursor: pointer;
+    padding: 0;
+}
+.dp-swatch.active { outline: 2px solid #a61c2f; outline-offset: 1px; }
+.dp-swatch:disabled { opacity: 0.45; cursor: not-allowed; }
+.dp-color-input { width: 30px; height: 26px; padding: 0; border: 1px solid #cbd0d8; border-radius: 4px; background: #fff; cursor: pointer; }
+
+.dp-size-label, .dp-zoom-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    white-space: nowrap;
+}
+.dp-zoom-label { min-width: 44px; text-align: center; }
+.dp-size { width: 90px; }
+
+/* ---------- khung vẽ ---------- */
+.dp-viewport {
+    position: relative;
+    height: 520px;
+    overflow: auto;
+    background: #9ca3af; /* nền xám quanh "tờ giấy" như MS Paint */
+    padding: 0;
+}
+.dp-stage { margin: 0; position: relative; }
+.dp-canvas {
+    display: block;
+    background: #fff;
+    cursor: crosshair;
+    touch-action: none; /* 1 ngón = vẽ; muốn cuộn dùng ✋ hoặc nút ▲▼ */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.dp-canvas.dp-eraser { cursor: cell; }
+.dp-canvas.dp-hand { cursor: grab; touch-action: pan-x pan-y pinch-zoom; }
+.dp-canvas.dp-hand.dp-grabbing { cursor: grabbing; }
+
+.dp-overlay {
+    position: sticky;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    height: 0;
+    pointer-events: none;
+}
+.dp-root.dp-disabled .dp-overlay {
+    /* chỉ là nhãn nhỏ — không che hết bản vẽ để vẫn xem/cuộn được */
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: auto;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.85);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    z-index: 3;
+}
+.dp-root.dp-disabled .dp-canvas { cursor: not-allowed; }
+.dp-root.dp-disabled .dp-canvas.dp-hand { cursor: grab; }
+
+/* ---------- thanh trạng thái ---------- */
+.dp-status {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #475569;
+    background: #eceff3;
+    border-top: 1px solid #d7d7d7;
+}
+.dp-status-pos { font-variant-numeric: tabular-nums; color: #94a3b8; }
+
+/* ---------- toàn màn hình ---------- */
+.dp-root.dp-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    border-radius: 0;
+    border: none;
+}
+.dp-root.dp-fullscreen .dp-viewport { flex: 1; height: auto; min-height: 0; }
+body.dp-no-scroll { overflow: hidden; }
+
+@media (max-width: 700px) {
+    .dp-viewport { height: 420px; }
+    .dp-group { padding-right: 8px; }
+    .dp-colors { max-width: 100%; }
+}
+
+/* ---------- tải ảnh viết tay (photoToPaint.js) ---------- */
+.photo-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+.photo-btn {
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid #a61c2f;
+    border-radius: 8px;
+    background: #fff;
+    color: #a61c2f;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.photo-btn:hover:not(:disabled) { background: #fde7ea; }
+.photo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.photo-status { font-size: 12.5px; color: #475569; }
+.photo-status.ps-busy { color: #1d4ed8; }
+.photo-status.ps-ok { color: #15803d; }
+.photo-status.ps-error { color: #b91c1c; font-weight: 600; }

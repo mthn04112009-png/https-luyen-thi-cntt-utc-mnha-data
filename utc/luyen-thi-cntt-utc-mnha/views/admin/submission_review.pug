@@ -102,7 +102,43 @@ block content
                     pre(class="text-sm text-gray-800 whitespace-pre-wrap font-mono m-0")
                         = submission.answerHtml
                 else
-                    p(class="text-gray-400 italic") (Không có nội dung)
+                    p(class="text-gray-400 italic")= submission.hasDrawing ? '(Không nhập chữ — chỉ nộp phần vẽ tay)' : '(Không có nội dung)'
+
+        //- ★ Bản vẽ tay (JS Paint) + kết quả AI đọc ảnh
+        if submission.hasDrawing
+            div(class="bg-white rounded-2xl border border-gray-200 p-6 mb-6")
+                h2(class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2") 🎨 Bản vẽ tay của sinh viên
+                div(class="p-3 rounded-lg bg-gray-50 border border-gray-100 text-center")
+                    a(href=`/submissions/${submission._id}/drawing`, target="_blank", rel="noopener")
+                        img(
+                            src=`/submissions/${submission._id}/drawing`
+                            alt="Bản vẽ tay"
+                            style="max-width:100%;max-height:640px;background:#fff;border:1px solid #e5e7eb;border-radius:6px"
+                        )
+                if submission.drawingAnalysis
+                    - var da = submission.drawingAnalysis
+                    details(class="mt-4 p-4 rounded-lg bg-violet-50 border border-violet-100")
+                        summary(class="cursor-pointer font-semibold text-violet-900 text-sm")
+                            | 🔎 Kết quả AI đọc ảnh (bước phân tích trước khi chấm)
+                        div(class="mt-3 text-sm text-gray-800 space-y-3")
+                            p(class="text-xs text-gray-500")
+                                | Loại: #{da.kind || 'không rõ'} • Độ rõ nét: #{da.legibility || 'không rõ'}
+                                if da.analyzedBy && da.analyzedBy.model
+                                    |  • Model đọc ảnh: #{da.analyzedBy.model}
+                            if da.transcription
+                                div
+                                    div(class="font-semibold") Chữ/ký hiệu đọc được
+                                    pre(class="whitespace-pre-wrap font-mono text-sm m-0")= da.transcription
+                            if da.description
+                                div
+                                    div(class="font-semibold") Mô tả bố cục
+                                    p(class="whitespace-pre-wrap m-0")= da.description
+                            if da.uncertain && da.uncertain.length
+                                div
+                                    div(class="font-semibold") Chỗ AI chưa chắc chắn
+                                    ul(class="list-disc pl-5 m-0")
+                                        each u in da.uncertain
+                                            li= u
 
         //- Kết quả AI
         div(class="bg-white rounded-2xl border border-gray-200 p-6 mb-6")

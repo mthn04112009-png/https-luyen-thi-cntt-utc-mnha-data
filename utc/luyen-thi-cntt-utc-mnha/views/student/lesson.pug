@@ -272,6 +272,35 @@ block content
             font-size: 14px; color: #14532d; margin: 0;
         }
 
+        /* ===== TAB: NHẬP CHỮ / VẼ TAY (JS Paint) ===== */
+        .write-tabs {
+            display: flex; gap: 8px; margin-bottom: 14px;
+            border-bottom: 2px solid #eeeeee;
+        }
+        .write-tab {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 9px 16px; margin-bottom: -2px;
+            background: transparent; border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 14px; font-weight: 800; color: #64748b;
+            cursor: pointer;
+        }
+        .write-tab:hover { color: #a61c2f; }
+        .write-tab.active { color: #a61c2f; border-bottom-color: #a61c2f; }
+        .write-badge {
+            display: none; min-width: 20px; padding: 1px 7px;
+            border-radius: 12px; font-size: 11px; font-weight: 800;
+            background: #dcfce7; color: #166534;
+        }
+        .write-badge.show { display: inline-block; }
+        .write-pane { display: none; }
+        .write-pane.active { display: block; }
+        .draw-hint {
+            margin-top: 10px; padding: 9px 12px; border-radius: 7px;
+            background: #f5f3ff; border: 1px solid #ddd6fe;
+            color: #5b21b6; font-size: 12.5px; line-height: 1.5;
+        }
+
         /* ===== AUDIO HẾT GIỜ ===== */
         .audio-bar {
             background: linear-gradient(135deg, #fff7ed, #ffedd5);
@@ -339,6 +368,8 @@ block content
             .ai-selectors select { flex: 1; max-width: none; }
             .audio-bar audio { width: 100%; }
         }
+
+    link(rel="stylesheet", href="/css/drawing-pad.css")
 
     div(class="lesson-page")
 
@@ -473,16 +504,39 @@ block content
                     div(id="lockMessage", class="lock-msg show")
                         | 🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.
 
-                    textarea(
-                        id="writingInput"
-                        class="writing-input"
-                        placeholder="Nhập bài làm của bạn vào đây..."
-                        disabled
-                    )
+                    //- ★ Hai phần bài làm: nhập chữ + vẽ tay (JS Paint). Có phần nào thì chấm phần đó;
+                    //-   có cả hai thì AI chấm cả hai (bản vẽ được AI đọc/phân tích ảnh trước).
+                    div(class="write-tabs", role="tablist")
+                        button(type="button", id="tabText", class="write-tab active", role="tab")
+                            | ⌨️ Nhập chữ
+                            span(id="textBadge", class="write-badge") ✓
+                        button(type="button", id="tabDraw", class="write-tab", role="tab")
+                            | 🎨 Vẽ tay (JS Paint)
+                            span(id="drawBadge", class="write-badge") ✓
 
-                    div(class="writing-info")
-                        span(id="wordCount", class="word-count low") 0 từ
-                        span Mục tiêu: xem đề bài
+                    div(id="textPane", class="write-pane active")
+                        textarea(
+                            id="writingInput"
+                            class="writing-input"
+                            placeholder="Nhập bài làm của bạn vào đây..."
+                            disabled
+                        )
+
+                        div(class="writing-info")
+                            span(id="wordCount", class="word-count low") 0 từ
+                            span Mục tiêu: xem đề bài
+
+                    div(id="drawPane", class="write-pane")
+                        //- ★ Tải ảnh chụp bài viết tay: Cloudinary kiểm duyệt → CNN chuyển thành nét vẽ trên bảng
+                        div(class="photo-bar")
+                            input(type="file", id="photoInput", accept="image/png,image/jpeg,image/webp", hidden)
+                            button(type="button", id="photoBtn", class="photo-btn", disabled)
+                                | 📷 Tải ảnh viết tay lên
+                            span(id="photoStatus", class="photo-status")
+                        div(id="drawingPad")
+                        div(class="draw-hint")
+                            | 🎨 Vẽ sơ đồ, hình, công thức hoặc viết tay tuỳ ý. Dùng <b>🔍+ / 🔍−</b> để phóng to/thu nhỏ và <b>▲ ▼ ◀ ▶</b> (hoặc ✋ kéo) để di chuyển sang vùng khác của tờ giấy.
+                            |  Khi nộp, AI sẽ <b>đọc hiểu bản vẽ trước</b> rồi chấm cùng phần nhập chữ. Không vẽ gì thì phần này được bỏ qua.
 
                     div(class="actions")
                         button(
@@ -552,6 +606,9 @@ block content
                         div(class="p-3 rounded-lg bg-gray-50 text-sm text-gray-700 whitespace-pre-wrap")
                             = lastSubmission.feedback
 
+    script(src="/js/drawingPad.js")
+    script(src="/js/photoToPaint.js")
+
     script.
         (function () {
             const LESSON_ID = "!{lesson._id}";
@@ -605,6 +662,128 @@ block content
             const timeUpAudio = document.getElementById("timeUpAudio");
             const audioBar = document.getElementById("audioBar");
             const audioBadge = document.getElementById("audioBadge");
+
+            // ============================================
+            // ★ VẼ TAY (JS Paint) + TAB
+            // ============================================
+            const tabText = document.getElementById("tabText");
+            const tabDraw = document.getElementById("tabDraw");
+            const textPane = document.getElementById("textPane");
+            const drawPane = document.getElementById("drawPane");
+            const textBadge = document.getElementById("textBadge");
+            const drawBadge = document.getElementById("drawBadge");
+            let drawFitted = false;
+            let lastSubmittedHadDrawing = false;
+
+            // ★ Tải ảnh viết tay (khai báo TRƯỚC DrawingPad.create vì onChange → updateBadges chạy ngay lúc create)
+            const photoInput = document.getElementById("photoInput");
+            const photoBtn = document.getElementById("photoBtn");
+            const photoStatus = document.getElementById("photoStatus");
+            let photoCfg = { enabled: false, maxBytes: 10 * 1024 * 1024 };
+            let photoBusy = false;
+            let photoToken = null; // token Cloudinary đã duyệt ảnh đang dùng (server kiểm lại khi nộp)
+
+            function syncPhotoBtn() {
+                if (!photoBtn) return;
+                const locked = !drawPad || drawPad.isDisabled();
+                photoBtn.disabled = photoBusy || !photoCfg.enabled || locked;
+                photoBtn.title = !photoCfg.enabled
+                    ? "Máy chủ chưa bật tính năng tải ảnh"
+                    : (locked ? "Hãy kết nối AI để mở khoá phần làm bài" : "Chọn ảnh chụp bài viết tay");
+            }
+            function setPhotoStatus(kind, text) {
+                photoStatus.className = "photo-status" + (kind ? " ps-" + kind : "");
+                photoStatus.textContent = text || "";
+            }
+
+            function updateBadges() {
+                textBadge.classList.toggle("show", !!textarea.value.trim());
+                drawBadge.classList.toggle("show", !!(drawPad && drawPad.hasContent()));
+                syncPhotoBtn();
+            }
+
+            // (khai báo trước: onChange chạy ngay lúc create, lúc đó drawPad còn null)
+            let drawPad = null;
+            drawPad = DrawingPad.create(document.getElementById("drawingPad"), {
+                onChange: updateBadges
+            });
+            drawPad.setDisabled(true); // mở khi AI kết nối + còn giờ (xem updateLock)
+
+            fetch("/submissions/drawing-upload/config", { cache: "no-store", headers: { "Accept": "application/json" } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (d && d.success) photoCfg = { enabled: !!d.enabled, maxBytes: d.maxBytes || photoCfg.maxBytes };
+                    if (!photoCfg.enabled) setPhotoStatus("", "Tải ảnh viết tay chưa được bật trên máy chủ.");
+                    syncPhotoBtn();
+                })
+                .catch(function () { syncPhotoBtn(); });
+
+            function fmtMB(n) { return (n / 1024 / 1024).toFixed(1).replace(/\.0$/, "") + "MB"; }
+
+            async function handlePhoto(file) {
+                if (!file || photoBusy) return;
+                if (drawPad.isDisabled()) { alert("Hãy kết nối AI trước khi tải ảnh."); return; }
+                if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+                    setPhotoStatus("error", "Chỉ nhận ảnh PNG / JPEG / WEBP.");
+                    return;
+                }
+                if (file.size > photoCfg.maxBytes) {
+                    setPhotoStatus("error", "Ảnh nặng " + fmtMB(file.size) + ", tối đa " + fmtMB(photoCfg.maxBytes) + ".");
+                    return;
+                }
+                if (drawPad.hasContent() && !confirm("Ảnh sẽ được thêm đè lên bản vẽ hiện tại (có thể Hoàn tác ↶). Tiếp tục?")) return;
+
+                photoBusy = true;
+                syncPhotoBtn();
+                try {
+                    setPhotoStatus("busy", "⏳ Đang kiểm tra ảnh (kiểm duyệt nội dung)...");
+                    const res = await fetch("/submissions/drawing-upload", {
+                        method: "POST",
+                        headers: { "Content-Type": file.type, "Accept": "application/json" },
+                        body: file
+                    });
+                    let data = null;
+                    try { data = await res.json(); } catch (e) { /* server không trả JSON */ }
+                    if (!res.ok || !data || !data.success) {
+                        throw new Error((data && data.message) || "Không tải được ảnh (HTTP " + res.status + ").");
+                    }
+
+                    setPhotoStatus("busy", "🧠 Ảnh hợp lệ — đang chuyển thành nét vẽ (CNN)...");
+                    const out = await PhotoToPaint.convert(file, {});
+                    if (out.inkRatio < 0.0005) {
+                        throw new Error("Không nhận ra nét viết nào trong ảnh. Hãy chụp rõ hơn, đủ sáng, chữ đậm hơn.");
+                    }
+                    if (out.inkRatio > 0.5) {
+                        throw new Error("Ảnh không giống trang viết tay (quá nhiều vùng tối). Hãy chụp thẳng vào trang giấy.");
+                    }
+                    if (!drawPad.importBitmap(out.canvas)) throw new Error("Không đưa được ảnh vào bảng vẽ.");
+
+                    photoToken = data.token;
+                    setPhotoStatus("ok", "✅ Đã đưa ảnh vào bảng vẽ (" + (out.engine === "tfjs" ? "TensorFlow.js" : "JS thuần") + "). Có thể tẩy / vẽ thêm.");
+                } catch (e) {
+                    setPhotoStatus("error", "❌ " + e.message);
+                } finally {
+                    photoBusy = false;
+                    photoInput.value = "";
+                    syncPhotoBtn();
+                }
+            }
+            photoBtn.addEventListener("click", function () { photoInput.click(); });
+            photoInput.addEventListener("change", function () { handlePhoto(photoInput.files && photoInput.files[0]); });
+
+            function showTab(which) {
+                const isDraw = which === "draw";
+                tabText.classList.toggle("active", !isDraw);
+                tabDraw.classList.toggle("active", isDraw);
+                textPane.classList.toggle("active", !isDraw);
+                drawPane.classList.toggle("active", isDraw);
+                if (isDraw && !drawFitted) {
+                    drawFitted = true;
+                    drawPad.fitWidth(); // khung vừa hiện ra mới đo được chiều rộng
+                }
+            }
+            tabText.addEventListener("click", function () { showTab("text"); });
+            tabDraw.addEventListener("click", function () { showTab("draw"); });
 
             // Cờ: đánh dấu việc pause là do hệ thống chủ động (không phải user bấm)
             let intentionalStop = false;
@@ -796,6 +975,7 @@ block content
                 if (submitted) {
                     lockMsg.classList.remove("show", "timeup");
                     textarea.disabled = true;
+                    drawPad.setDisabled(true);
                     submitBtn.disabled = true;
                     clearBtn.disabled = true;
                     return;
@@ -805,6 +985,7 @@ block content
                     lockMsg.classList.add("show");
                     lockMsg.classList.remove("timeup");
                     textarea.disabled = true;
+                    drawPad.setDisabled(true);
                     submitBtn.disabled = true;
                     clearBtn.disabled = false;
                     return;
@@ -813,12 +994,14 @@ block content
                     lockMsg.textContent = "⏰ Đã hết thời gian làm bài! Hãy nộp bài ngay.";
                     lockMsg.classList.add("show", "timeup");
                     textarea.disabled = true;
+                    drawPad.setDisabled(true);
                     submitBtn.disabled = false;
                     clearBtn.disabled = true;
                     return;
                 }
                 lockMsg.classList.remove("show", "timeup");
                 textarea.disabled = false;
+                drawPad.setDisabled(false);
                 submitBtn.disabled = false;
                 clearBtn.disabled = false;
             }
@@ -1052,20 +1235,50 @@ block content
                 const text = textarea.value.trim();
                 const words = countWords(text);
 
-                if (!text) {
-                    alert("Bạn chưa viết bài.");
-                    textarea.focus();
+                // ★ Xuất ảnh bản vẽ (null = không vẽ gì → bỏ qua phần vẽ tay)
+                let drawing = null;
+                if (drawPad.hasContent()) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = "🖼️ Đang nén bản vẽ...";
+                    try {
+                        drawing = await drawPad.exportImage();
+                    } catch (e) {
+                        alert("❌ " + e.message);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "🚀 Nộp bài & chấm AI";
+                        return;
+                    }
+                }
+
+                if (!text && !drawing) {
+                    alert("Bạn chưa làm bài: hãy nhập chữ hoặc vẽ tay (hoặc cả hai).");
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "🚀 Nộp bài & chấm AI";
+                    if (!textarea.disabled) textarea.focus();
                     return;
                 }
 
-                if (words < 30) {
-                    if (!confirm("Bài chỉ có " + words + " từ. Vẫn nộp?")) return;
+                // Chỉ nhắc "quá ngắn" khi bài chỉ có chữ (có bản vẽ thì không cần)
+                if (text && !drawing && words < 30) {
+                    if (!confirm("Bài chỉ có " + words + " từ. Vẫn nộp?")) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "🚀 Nộp bài & chấm AI";
+                        return;
+                    }
                 }
 
                 submitting = true;
                 submitBtn.disabled = true;
-                submitBtn.textContent = "🤖 AI đang chấm...";
-                setAIStatus("checking", "Đang chấm bài", "AI đang phân tích...");
+                submitBtn.textContent = drawing ? "🤖 AI đang đọc hình vẽ & chấm..." : "🤖 AI đang chấm...";
+                setAIStatus(
+                    "checking",
+                    "Đang chấm bài",
+                    drawing ? "AI đọc hiểu bản vẽ trước, rồi chấm cả chữ + hình..." : "AI đang phân tích..."
+                );
+
+                // Khoá ô nhập + bảng vẽ trong lúc chấm (lỗi → catch gọi updateLock() mở lại)
+                textarea.disabled = true;
+                drawPad.setDisabled(true);
 
                 // Tắt audio (nếu đang phát) ngay khi bắt đầu nộp
                 stopTimeUpAudio();
@@ -1075,6 +1288,13 @@ block content
                     const body = new URLSearchParams();
                     body.append("lessonId", LESSON_ID);
                     body.append("answerHtml", text);
+                    if (drawing) {
+                        body.append("drawingData", drawing.dataUrl);
+                        if (photoToken) {
+                            body.append("drawingSource", "photo");
+                            body.append("drawingUploadToken", photoToken);
+                        }
+                    }
                     body.append("model", modelSelect.value || "");
                     body.append("aiKeyId", aiKeySelect.value || "");
 
@@ -1095,10 +1315,14 @@ block content
                     }
 
                     if (!res.ok || !data.success) {
-                        throw new Error(data.message || "Chấm bài thất bại.");
+                        const apiErr = new Error(data.message || "Chấm bài thất bại.");
+                        apiErr.status = res.status;
+                        throw apiErr;
                     }
 
                     submitted = true;
+                    photoToken = null;
+                    lastSubmittedHadDrawing = !!drawing;
                     stopTimer();
                     stopTimeUpAudio();
                     updateAudioBarState();
@@ -1107,8 +1331,11 @@ block content
                     renderResult(data);
                 } catch (err) {
                     console.error("submitWriting:", err);
-                    aiConnected = false;
-                    setAIStatus("error", "Lỗi chấm bài", err.message);
+                    // 400/403/413/422 = bản vẽ/ảnh bị từ chối (không phải lỗi AI) → giữ kết nối AI để sửa rồi nộp lại.
+                    // Trước đây mọi lỗi đều đặt aiConnected=false → khoá luôn bảng vẽ, không sửa được bản vẽ quá nặng.
+                    const clientErr = [400, 403, 413, 422].indexOf(err.status) !== -1;
+                    if (!clientErr) aiConnected = false;
+                    setAIStatus(clientErr ? "connected" : "error", clientErr ? "Chưa nộp được" : "Lỗi chấm bài", err.message);
                     submitting = false; // cho phép thử lại
                     updateLock();
                     updateAudioBarState();
@@ -1133,6 +1360,11 @@ block content
             function renderResult(data) {
                 const score = data.score ?? 0;
                 const words = countWords(textarea.value);
+                const hadText = words > 0;
+                const parts = [];
+                if (hadText) parts.push("⌨️ chữ");
+                if (lastSubmittedHadDrawing) parts.push("🎨 vẽ tay");
+                const graded = parts.length ? "Đã chấm: " + parts.join(" + ") : "";
 
                 let meta = "";
                 if (data.model) meta += "🤖 " + escapeHTML(data.model);
@@ -1145,7 +1377,8 @@ block content
                     '<div class="score-circle">' + score + '</div>' +
                     '<div class="score-meta">' +
                     '<span>Điểm tổng</span>' +
-                    '<strong>' + words + ' từ</strong>' +
+                    '<strong>' + (hadText ? words + ' từ' : '🎨 Chỉ vẽ tay') + '</strong>' +
+                    (graded ? '<span style="font-size:12px;color:#6f6f6f;display:block">' + graded + '</span>' : '') +
                     (meta ? '<span style="font-size:12px;color:#6f6f6f;display:block;margin-top:4px">' + meta + '</span>' : '') +
                     '</div>' +
                     '</div>' +
@@ -1173,15 +1406,16 @@ block content
                     return;
                 }
                 if (!textarea.value.trim()) return;
-                if (!confirm("Xoá toàn bộ bài viết?")) return;
+                if (!confirm("Xoá toàn bộ phần nhập chữ? (Bản vẽ giữ nguyên — xoá bằng nút 🗑 trong khung vẽ.)")) return;
                 textarea.value = "";
                 updateWordCount();
+                updateBadges();
             };
 
             // ============================================
             // INIT
             // ============================================
-            textarea.addEventListener("input", updateWordCount);
+            textarea.addEventListener("input", function () { updateWordCount(); updateBadges(); });
             aiKeySelect.addEventListener("change", syncModelFromKey);
 
             // Khi rời trang → dừng audio

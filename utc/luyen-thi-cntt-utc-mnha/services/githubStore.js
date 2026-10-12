@@ -181,7 +181,9 @@ const KINDS = {
             totalCount: null, analysisCount: 0, lastAnalyzedAt: null, status: 'pending',
             errorMessage: null, gradedAt: null, submittedAt: () => new Date(), teacherComment: null,
             teacherCommentHistory: [], teacherCommentSyncStatus: 'none', teacherCommentSyncError: null,
-            syncStatus: 'none', githubFile: null, githubSha: null, errorCount: null, syncedAt: null, syncError: null
+            syncStatus: 'none', githubFile: null, githubSha: null, errorCount: null, syncedAt: null, syncError: null,
+            // ★ Bản vẽ tay (JS Paint): ảnh nằm ở GitHub (drawingFile); drawingData chỉ giữ TẠM trong RAM tới khi đẩy xong
+            hasDrawing: false, drawingFile: null, drawingMime: null, drawingData: '', drawingAnalysis: null
         }),
         idKey: 'submissionId',
         fromJson(path, m, json, ctx) {
@@ -220,6 +222,12 @@ const KINDS = {
                 if (json.errorMessage !== undefined) r.errorMessage = json.errorMessage || null;
                 const errs = json.grammar && Array.isArray(json.grammar.errors) ? json.grammar.errors.length : null;
                 if (errs !== null) r.errorCount = errs;
+                // ★ Bản vẽ tay: chỉ cần biết có hay không + đường dẫn ảnh (ảnh/phân tích đọc khi xem chi tiết)
+                if (json.hasDrawing && json.drawingFile) {
+                    r.hasDrawing = true;
+                    r.drawingFile = String(json.drawingFile);
+                    r.drawingMime = json.drawingMime ? String(json.drawingMime) : null;
+                }
             }
 
             const tc = json.teacherComment;

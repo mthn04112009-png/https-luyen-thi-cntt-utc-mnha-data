@@ -8,10 +8,11 @@
 //
 // Job types:
 //   - 'putJson'    → ghi file JSON (submission, lesson, subject)
+//   - 'putBinary'  → ghi file nhị phân (ảnh bản vẽ tay của bài nộp) — data = Buffer
 //   - 'deleteFile' → xoá file
 // ============================================================
 
-const { writeJsonFile, deleteFile } = require('./githubService');
+const { writeJsonFile, writeBinaryFile, deleteFile } = require('./githubService');
 
 const MAX_ATTEMPTS = 5;
 const RETRY_DELAY_MS = 2000;
@@ -92,6 +93,12 @@ async function runJob(job) {
                 throw new Error('Job putJson thiếu data');
             }
             return writeJsonFile(job.filePath, job.data, job.commitMessage);
+
+        case 'putBinary':
+            if (!Buffer.isBuffer(job.data)) {
+                throw new Error('Job putBinary cần data là Buffer');
+            }
+            return writeBinaryFile(job.filePath, job.data, job.commitMessage);
 
         case 'deleteFile':
             return deleteFile(job.filePath, job.commitMessage);

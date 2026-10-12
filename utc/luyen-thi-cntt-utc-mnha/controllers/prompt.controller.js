@@ -141,7 +141,7 @@ function parseRubric(body) {
 //   không còn lưu Mongo nữa).
 const DEFAULT_VARIABLES = [
     '{đề_bài}', '{bài_làm}', '{rubric}', '{max_score}',
-    '{student_name}', '{lời_giải_mẫu}'
+    '{student_name}', '{lời_giải_mẫu}', '{hình_vẽ}'
 ];
 
 // ★ Prompt trắc nghiệm (kind = 'quiz') có bộ biến riêng

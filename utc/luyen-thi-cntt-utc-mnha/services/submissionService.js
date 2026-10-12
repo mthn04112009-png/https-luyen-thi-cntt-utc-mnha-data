@@ -7,7 +7,8 @@ const { normalizeProvider } = require('../config/aiModels');
 
 const { resolvePrompt, buildPrompt, buildSnapshot } = require('./promptService');
 const { wrapUserContent } = require('./sanitizeService');
-const { gradeSubmission } = require('./aiService');
+const { gradeSubmission, analyzeDrawing } = require('./aiService');
+const { formatDrawingAnalysis } = require('./drawingService');
 const githubService = require('./githubService');
 const lessonContentService = require('./lessonContentService');
 const notificationService = require('./notificationService');
@@ -33,9 +34,14 @@ const { enqueue } = require('./syncQueueService');
  * @param {string} params.answerHtml
  * @param {string} [params.model]
  * @param {string} [params.aiKeyId]
+ * @param {{buffer:Buffer,mimeType:string,base64:string,ext:string}} [params.drawing]
+ *        Bản vẽ tay JS Paint (đã validate bởi drawingService). Có → phân tích ảnh TRƯỚC, rồi chấm cả chữ + hình.
+ *        Không có chữ hoặc không có hình thì chỉ chấm phần còn lại.
  * @returns {Promise<object>} submission document
  */
-async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
+async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId, drawing = null }) {
+    answerHtml = String(answerHtml || '');
+    const hasText = answerHtml.trim().length > 0;
     // ============================================================
     // 1. Load dữ liệu
     // ============================================================
@@ -70,6 +76,10 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
         lessonId,
         subjectId: lesson.subjectId,
         answerHtml,          // TẠM giữ — sẽ xoá khi đẩy GitHub thành công
+        // ★ Bản vẽ tay: ảnh chỉ giữ TẠM trong RAM (base64) tới khi đẩy xong lên GitHub
+        hasDrawing: !!drawing,
+        drawingMime: drawing ? drawing.mimeType : null,
+        drawingData: drawing ? drawing.base64 : '',
         status: 'grading',
         submittedAt: new Date(),
         syncStatus: 'pending',
@@ -84,6 +94,8 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
     let aiResult = null;
     let promptSnapshot = null;
     let errorMessage = null;
+    let drawingAnalysis = null;     // kết quả bước phân tích ảnh (null nếu không có bản vẽ)
+    let drawingAnalysisMeta = null; // model/key đã dùng để phân tích ảnh
 
     try {
         const prompt = await resolvePrompt(lesson, subject);
@@ -99,13 +111,52 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
         }
 
         const đề_bài = lessonContent.contentHtml || lesson.title || '';
-        const bài_làm = wrapUserContent('BÀI_LÀM', answerHtml || '');
         const lời_giải_mẫu = lesson.sampleSolution || '';
+
+        // ============================================================
+        // ★ BƯỚC 1 — PHÂN TÍCH HÌNH VẼ (chỉ khi sinh viên có nộp bản vẽ)
+        //   Mô hình thị giác ĐỌC + MÔ TẢ ảnh trước, rồi bước 2 mới chấm.
+        //   Lỗi phân tích → bài nộp 'failed' (KHÔNG âm thầm chấm thiếu phần vẽ).
+        // ============================================================
+        let hình_vẽ = '';
+        if (drawing) {
+            let analyzed;
+            try {
+                analyzed = await analyzeDrawing(
+                    { mimeType: drawing.mimeType, base64: drawing.base64 },
+                    { model, preferredKeyId: aiKeyId || null, context: đề_bài }
+                );
+            } catch (e) {
+                throw new Error(`Không phân tích được hình vẽ (bước đọc ảnh): ${e.message}`);
+            }
+            drawingAnalysis = analyzed.analysis;
+            drawingAnalysisMeta = {
+                model: analyzed.modelUsed || null,
+                aiKeyName: analyzed.keyUsed?.name || null,
+                aiProvider: analyzed.aiProvider || null,
+                latencyMs: analyzed.latencyMs || null
+            };
+
+            if (drawingAnalysis.has_content) {
+                hình_vẽ = wrapUserContent('HÌNH_VẼ', formatDrawingAnalysis(drawingAnalysis));
+            } else if (!hasText) {
+                throw new Error('Bài nộp trống: bản vẽ không có nội dung nhận diện được và không có phần nhập chữ.');
+            }
+            console.log(
+                `🖼️ [submissionService] Phân tích hình vẽ xong (${drawingAnalysis.kind}, rõ nét: ${drawingAnalysis.legibility}) — submission ${submission._id}`
+            );
+        }
+
+        // ★ BƯỚC 2 — CHẤM: có chữ → chấm chữ; có hình → chấm hình; có cả hai → chấm cả hai
+        const bài_làm = hasText
+            ? wrapUserContent('BÀI_LÀM', answerHtml)
+            : '(Sinh viên không nhập chữ — chỉ nộp phần vẽ tay.)';
 
         const fullPrompt = buildPrompt(prompt, {
             'đề_bài': đề_bài,
             'bài_làm': bài_làm,
             'lời_giải_mẫu': lời_giải_mẫu,
+            'hình_vẽ': hình_vẽ,
             student_name: user.name
         });
 
@@ -138,7 +189,9 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
                     errorCount: Array.isArray(aiResult.grammar?.errors) ? aiResult.grammar.errors.length : 0,
                     gradedAt: new Date(),
                     status: 'graded',
-                    errorMessage: null
+                    errorMessage: null,
+                    // ★ Kết quả phân tích bản vẽ (giữ tạm trong RAM; bản đầy đủ nằm ở GitHub)
+                    drawingAnalysis: drawingAnalysis || null
                     // ★ KHÔNG lưu feedback/breakdown/grammar vào MongoDB
                     //   → chỉ đẩy GitHub ở bước sau
                 }
@@ -208,8 +261,47 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
             console.warn(`[submissionService] Không sinh được tên file ngẫu nhiên: ${e.message}`);
         }
 
+        // ★ Bản vẽ tay → file ảnh riêng cạnh file JSON (…/<tên>.drawing.png|jpg).
+        //   Không khớp regex *.json nên đợt đồng bộ danh sách KHÔNG phải tải ảnh.
+        let drawingFile = null;
+        let drawingStored = false;   // ảnh đã lên GitHub?
+        let jsonCommitted = false;   // file JSON đã lên GitHub?
+        const clearDrawingTemp = async () => {
+            // Chỉ xoá bản ảnh tạm trong RAM khi CẢ ảnh lẫn JSON đã an toàn trên GitHub
+            if (!(drawingStored && jsonCommitted)) return;
+            try {
+                await Submission.updateOne(
+                    { _id: submission._id },
+                    { $set: { drawingData: '', drawingAnalysis: null } }
+                );
+            } catch (e) {
+                console.warn(`[submissionService] Xoá ảnh tạm fail: ${e.message}`);
+            }
+        };
+
         try {
             if (!filePath) throw new Error('Không có đường dẫn file bài nộp');
+
+            if (drawing) {
+                drawingFile = filePath.replace(/\.json$/i, `.drawing.${drawing.ext}`);
+                enqueue({
+                    type: 'putBinary',
+                    filePath: drawingFile,
+                    data: drawing.buffer,
+                    commitMessage: `[Submission] Bản vẽ tay - ${lesson.title} - ${user.email}`,
+                    submissionId: String(submission._id),
+                    onSuccess: async () => {
+                        drawingStored = true;
+                        await clearDrawingTemp();
+                    },
+                    onFinalFail: async (err) => {
+                        console.error(
+                            `❌ [submissionService] Đẩy ảnh vẽ tay lên GitHub thất bại — giữ ảnh tạm trong RAM: ${err.message}`
+                        );
+                    }
+                });
+            }
+
             enqueue({
                 type: 'putJson',
                 filePath,
@@ -255,6 +347,14 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
                     // ★ BÀI LÀM CỦA HỌC SINH
                     answerHtml,
 
+                    // ★ BẢN VẼ TAY (JS Paint) — ảnh ở file riêng, JSON chỉ giữ đường dẫn + kết quả phân tích ảnh
+                    hasDrawing: !!drawing,
+                    drawingFile: drawingFile,
+                    drawingMime: drawing ? drawing.mimeType : null,
+                    drawingAnalysis: drawingAnalysis
+                        ? { ...drawingAnalysis, analyzedBy: drawingAnalysisMeta }
+                        : null,
+
                     // ===== KẾT QUẢ CHẤM (nếu có) =====
                     score: aiResult?.score ?? null,
                     feedback: aiResult?.feedback ?? '',
@@ -299,10 +399,14 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId }) {
                                     breakdown: [],
                                     grammar: null,
                                     sampleComparison: null,
-                                    promptSnapshot: null
+                                    promptSnapshot: null,
+                                    // ★ Bản vẽ: đường dẫn ảnh trên GitHub (ảnh tạm xoá khi ảnh cũng đã lên GitHub)
+                                    ...(drawing ? { drawingFile } : {})
                                 }
                             }
                         );
+                        jsonCommitted = true;
+                        await clearDrawingTemp();
 
                         console.log(
                             `📤 [submissionService] Đã đẩy GitHub + xoá data nặng khỏi DB: ${result?.url || filePath}`
