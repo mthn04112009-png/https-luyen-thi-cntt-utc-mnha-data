@@ -260,15 +260,25 @@ function buildModelChain(requestedModel) {
     return chain;
 }
 
-async function callWithModelFallback(fn, { model = null, timeoutMs = 45000, label = "ai" } = {}) {
+async function callWithModelFallback(fn, {
+    model = null,
+    timeoutMs = 45000,
+    label = "ai",
+    fallbackTimeoutMs = 25000,          // timeout tối đa cho các lần dự phòng
+    budgetMs = MODEL_FALLBACK_BUDGET_MS, // tổng thời gian cho phép trước khi bỏ cuộc
+    maxAttempts = MODEL_FALLBACK_MAX_ATTEMPTS
+} = {}) {
     const chain = buildModelChain(model);
     const t0 = Date.now();
     let last = null;
     let vilaoRetried = false;
 
-    for (let i = 0; i < chain.length && i < MODEL_FALLBACK_MAX_ATTEMPTS; i++) {
-        if (i > 0 && Date.now() - t0 > MODEL_FALLBACK_BUDGET_MS) break;
-        const useTimeout = i === 0 ? timeoutMs : Math.min(timeoutMs, 25000);
+    for (let i = 0; i < chain.length && i < maxAttempts; i++) {
+        const elapsed = Date.now() - t0;
+        if (i > 0 && elapsed > budgetMs) break;
+        let useTimeout = i === 0 ? timeoutMs : Math.min(timeoutMs, fallbackTimeoutMs);
+        // Không để lần dự phòng vượt quá ngân sách còn lại (Vercel giới hạn 60s cho cả luồng nộp bài)
+        if (i > 0) useTimeout = Math.max(5000, Math.min(useTimeout, budgetMs - elapsed));
         try {
             const r = await fn(chain[i], useTimeout);
             if (i > 0 && r && typeof r === "object") r.fallbackFrom = model || getSafeModel(null);
@@ -1250,7 +1260,10 @@ function normalizeDrawingAnalysis(parsed, rawText) {
 }
 
 async function analyzeDrawing(image, options = {}) {
-    const { model = null, timeoutMs = 28000, preferredKeyId = null, context = "" } = options;
+    // ★ Timeout lần đầu 20s (trước đây 28s và KHÔNG có dự phòng → timeout là chết cả bài).
+    //   Timeout/503 → đổi ngay sang model Gemini khác (lite → nhanh hơn với ảnh), tổng ≤ ~34s
+    //   để còn thời gian cho bước chấm trong giới hạn 60s của Vercel.
+    const { model = null, timeoutMs = 20000, preferredKeyId = null, context = "" } = options;
 
     if (!image || !image.base64 || !image.mimeType) {
         throw new Error("Thiếu dữ liệu ảnh để phân tích.");
@@ -1263,23 +1276,18 @@ async function analyzeDrawing(image, options = {}) {
         `🖼️ [aiService] analyzeDrawing model=${model || "default"} keyId=${preferredKeyId || "auto"} ảnh=${Math.round(image.base64.length * 0.75 / 1024)}KB`
     );
 
-    // Tối đa 2 lần (Vercel giới hạn 60s cho cả luồng nộp bài → không retry dài như chấm bài)
-    let result = null;
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-            result = await callWithKeyRotation(prompt, model, timeoutMs, preferredKeyId, [image]);
-            break;
-        } catch (err) {
-            lastErr = err;
-            if (attempt === 1 && isOverloadError(err)) {
-                await sleep(2500);
-                continue;
-            }
-            throw err;
+    const result = await callWithModelFallback(
+        (m, tMs) => callWithKeyRotation(prompt, m, tMs, preferredKeyId, [image]),
+        {
+            model,
+            timeoutMs,
+            fallbackTimeoutMs: 12000,
+            budgetMs: 34000,
+            maxAttempts: 3,
+            label: "analyzeDrawing"
         }
-    }
-    if (!result) throw lastErr || new Error("Không phân tích được hình vẽ.");
+    );
+    if (!result) throw new Error("Không phân tích được hình vẽ.");
 
     let parsed = null;
     try {
@@ -1294,6 +1302,7 @@ async function analyzeDrawing(image, options = {}) {
         modelUsed: result.modelUsed,
         keyUsed: result.keyUsed || null,
         aiProvider,
+        fallbackFrom: result.fallbackFrom || null,
         latencyMs: Date.now() - t0
     };
 }
