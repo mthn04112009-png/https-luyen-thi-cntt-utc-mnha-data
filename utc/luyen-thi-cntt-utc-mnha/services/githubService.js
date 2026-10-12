@@ -117,7 +117,7 @@ function invalidateTree() {
  * Sinh đường dẫn `dir/<tên-ngẫu-nhiên>.json` CHƯA tồn tại trên GitHub.
  * Kiểm tra cả cây thư mục (cache) lẫn API trực tiếp; trùng thì sinh lại.
  */
-async function uniqueJsonPath(dir) {
+async function uniqueJsonPath(dir, { timestamp = false } = {}) {
     assertConfigured();
     const clean = String(dir || '').replace(/^\/+|\/+$/g, '');
 
@@ -129,7 +129,7 @@ async function uniqueJsonPath(dir) {
     }
 
     for (let i = 0; i < 8; i++) {
-        const candidate = `${clean}/${randomJsonName()}`;
+        const candidate = `${clean}/${randomJsonName({ timestamp })}`;
         if (known && known.has(candidate)) continue;
         if (await getFileSha(candidate)) continue;
         return candidate;

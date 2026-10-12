@@ -47,9 +47,14 @@ const PATHS = {
  * Tên file JSON NGẪU NHIÊN (20 ký tự hex, ~2^80 khả năng).
  * Dùng cho prompt + bài nộp; việc "không trùng" được đảm bảo thêm ở
  * githubService.uniqueJsonPath() (kiểm tra cây thư mục + API trước khi dùng).
+ *
+ * { timestamp: true } → thêm đuôi thời gian (mili-giây UTC):
+ *   "<20 hex>_<timestamp>.json"  vd: 234f3322afe6f8dedc18_1760257538123.json
+ * Đuôi timestamp giúp sắp xếp theo thời gian nộp và giảm thêm khả năng trùng.
  */
-function randomJsonName() {
-    return `${crypto.randomBytes(10).toString('hex')}.json`;
+function randomJsonName({ timestamp = false } = {}) {
+    const hex = crypto.randomBytes(10).toString('hex');
+    return timestamp ? `${hex}_${Date.now()}.json` : `${hex}.json`;
 }
 
 /**

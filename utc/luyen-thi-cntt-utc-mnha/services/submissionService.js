@@ -256,7 +256,7 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId, draw
         //   (submissions/{môn}/{bài}/{tên-ngẫu-nhiên}.json)
         let filePath = null;
         try {
-            filePath = await githubService.uniqueJsonPath(`submissions/${subject.slug}/${lesson.slug}`);
+            filePath = await githubService.uniqueJsonPath(`submissions/${subject.slug}/${lesson.slug}`, { timestamp: true });
         } catch (e) {
             console.warn(`[submissionService] Không sinh được tên file ngẫu nhiên: ${e.message}`);
         }
