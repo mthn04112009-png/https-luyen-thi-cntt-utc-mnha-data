@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài giảng Kiến trúc và Tổ chức Máy tính</title>
+    <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+
+    <!-- Shared SVG Marker Definition -->
+    <svg style="display:none;">
+        <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1"/>
+            </marker>
+            <marker id="arr-dark" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+            </marker>
+            <marker id="chalk-arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1.5 L 8 5 L 0 8.5" fill="none" stroke="#f8fafc" stroke-width="2" stroke-linecap="round"/>
+            </marker>
+        </defs>
+    </svg>
+
+
+        <!------------------------------
+        ------------PHẦN 1--------------
+        ------------------------------->
+
+
+
+<!-- SLIDE 1: Các lệnh nhảy trong hợp ngữ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">KIẾN TRÚC VÀ TỔ CHỨC MÁY TÍNH</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Các lệnh nhảy &amp; cấu trúc chương trình hợp ngữ</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Các lệnh nhảy -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 18px 22px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
+                        📌 Các lệnh nhảy (Jump instructions)
+                    </div>
+
+                    <!-- Lệnh so sánh -->
+                    <div style="background: #f1f5f9; padding: 10px 14px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13.5px; color: #1e293b; margin-bottom: 15px; text-align: center; font-weight: 600;">
+                        CMP &nbsp; dest, source
+                    </div>
+
+                    <!-- Danh sách lệnh nhảy -->
+                    <div style="font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.9; color: #334155;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px;">
+                            <div><b style="color:#0284c7;">JE</b> (Jump if Equal)</div>
+                            <div><b style="color:#0284c7;">JNE</b> (Jump if Not Equal)</div>
+                            <div><b style="color:#0284c7;">JZ</b> (Jump if Zero)</div>
+                            <div><b style="color:#0284c7;">JNZ</b> (Jump if Not Zero)</div>
+                            <div><b style="color:#0284c7;">JA</b> (Jump if Above)</div>
+                            <div><b style="color:#0284c7;">JB</b> (Jump if Below)</div>
+                            <div><b style="color:#0284c7;">JG</b> (Jump if Greater)</div>
+                            <div><b style="color:#0284c7;">JL</b> (Jump if Less)</div>
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú -->
+                    <div style="margin-top: 15px; padding: 10px 14px; background: #fef3c7; border-left: 4px solid #d97706; border-radius: 6px; font-size: 13px; color: #78350f; line-height: 1.6;">
+                        <b>JMP</b> — nhảy không điều kiện (unconditional jump)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Cấu trúc chương trình hợp ngữ -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 18px 22px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
+                        📌 Các thành phần chương trình hợp ngữ
+                    </div>
+
+                    <!-- Cấu trúc -->
+                    <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #334155; line-height: 1.8;">
+                        <li style="margin-bottom: 8px;"><b>model</b> — mô hình bộ nhớ (small/medium/large)</li>
+                        <li style="margin-bottom: 8px;"><b>stack</b> — phân đoạn ngăn xếp</li>
+                        <li style="margin-bottom: 8px;"><b>data</b> — phân đoạn dữ liệu</li>
+                        <li style="margin-bottom: 8px;"><b>code</b> — phân đoạn mã lệnh (mov, add, sub, ...)</li>
+                    </ul>
+
+                    <!-- Ví dụ -->
+                    <div style="margin-top: 15px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 14px 18px; font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.7; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#7c3aed;">.model</span> small
+<span style="color:#7c3aed;">.stack</span> 100h
+<span style="color:#7c3aed;">.data</span>
+    a  dw  ?
+    x  db  ?
+
+<span style="color:#7c3aed;">.code</span>
+main <span style="color:#7c3aed;">proc</span>
+    <span style="color:#38bdf8;">mov</span> ax, <span style="color:#f59e0b;">@data</span>
+    <span style="color:#38bdf8;">mov</span> ds, ax
+    ...
+    <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">4Ch</span>
+    <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+main <span style="color:#7c3aed;">endp</span>
+<span style="color:#7c3aed;">end</span> main</pre>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Kiến trúc và Tổ chức máy tính</span>
+        <span>1</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 2: Ví dụ chương trình hợp ngữ - So sánh 2 số -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">KIẾN TRÚC VÀ TỔ CHỨC MÁY TÍNH</div>
+        <h1 class="slide-title" style="margin-bottom: 18px;">Ví dụ chương trình hợp ngữ — So sánh 2 số</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 22px; align-items: flex-start; margin-top: 5px;">
+
+            <!-- Cột trái: Code block -->
+            <div style="flex: 1.4;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 12.5px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">01</span>  <span style="color:#7c3aed;">.model</span> small
+<span style="color:#64748b;">02</span>  <span style="color:#7c3aed;">.stack</span> 100h
+<span style="color:#64748b;">03</span>  <span style="color:#7c3aed;">.data</span>
+<span style="color:#64748b;">04</span>      ms1 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a lon hon b $"</span>
+<span style="color:#64748b;">05</span>      ms2 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a nho hon b $"</span>
+<span style="color:#64748b;">06</span>  <span style="color:#7c3aed;">.code</span>
+<span style="color:#64748b;">07</span>  main <span style="color:#7c3aed;">proc</span>
+<span style="color:#64748b;">08</span>      <span style="color:#38bdf8;">mov</span> ax, <span style="color:#f59e0b;">@data</span>
+<span style="color:#64748b;">09</span>      <span style="color:#38bdf8;">mov</span> ds, ax
+<span style="color:#64748b;">10</span>
+<span style="color:#64748b;">11</span>      <span style="color:#38bdf8;">mov</span> bh, <span style="color:#f59e0b;">3</span>          <span style="color:#64748b;">; a = 3</span>
+<span style="color:#64748b;">12</span>      <span style="color:#38bdf8;">mov</span> bl, <span style="color:#f59e0b;">5</span>          <span style="color:#64748b;">; b = 5</span>
+<span style="color:#64748b;">13</span>
+<span style="color:#64748b;">14</span>      <span style="color:#38bdf8;">cmp</span> bh, bl
+<span style="color:#64748b;">15</span>      <span style="color:#38bdf8;">jg</span>  lonhon
+<span style="color:#64748b;">16</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">9</span>
+<span style="color:#64748b;">17</span>      <span style="color:#38bdf8;">lea</span> dx, ms2
+<span style="color:#64748b;">18</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">19</span>      <span style="color:#38bdf8;">jmp</span> kt
+<span style="color:#64748b;">20</span>
+<span style="color:#64748b;">21</span>  <span style="color:#fcd34d;">lonhon:</span>
+<span style="color:#64748b;">22</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">9</span>
+<span style="color:#64748b;">23</span>      <span style="color:#38bdf8;">lea</span> dx, ms1
+<span style="color:#64748b;">24</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">25</span>
+<span style="color:#64748b;">26</span>  <span style="color:#fcd34d;">kt:</span>
+<span style="color:#64748b;">27</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">4ch</span>
+<span style="color:#64748b;">28</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">29</span>      main <span style="color:#7c3aed;">endp</span>
+<span style="color:#64748b;">30</span>  <span style="color:#7c3aed;">end</span> main</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                
+                <!-- Khối 1: Khai báo dữ liệu -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #0284c7; margin-bottom: 8px;">
+                        📦 Khai báo dữ liệu
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <b>ms1</b>, <b>ms2</b>: hai xâu thông báo, <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">db</code> định nghĩa chuỗi byte. <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">$</code> là ký tự kết thúc của hàm in xâu trong DOS.
+                    </div>
+                </div>
+
+                <!-- Khối 2: So sánh và rẽ nhánh -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #be185d; margin-bottom: 8px;">
+                        ⚖️ So sánh &amp; rẽ nhánh
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">cmp bh, bl</code> so sánh a với b.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">jg lonhon</code> nhảy đến nhãn nếu a &gt; b (dùng số có dấu).<br>
+                        Nếu không nhảy → in <b>ms2</b> (a nhỏ hơn b).
+                    </div>
+                </div>
+
+                <!-- Khối 3: In xâu -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #059669; margin-bottom: 8px;">
+                        🖨️ In xâu ra màn hình
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">mov ah, 9</code> chọn hàm in xâu.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">lea dx, ms</code> nạp địa chỉ xâu.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">int 21h</code> gọi ngắt DOS.
+                    </div>
+                </div>
+
+                <!-- Khối 4: Kết thúc -->
+                <div class="highlight-card" style="background: #fef3c7; padding: 14px 18px; border-radius: 8px; border: 1px solid #fcd34d; border-left: 4px solid #d97706;">
+                    <div style="font-size: 14px; font-weight: 700; color: #b45309; margin-bottom: 8px;">
+                        🚪 Kết thúc chương trình
+                    </div>
+                    <div style="font-size: 13px; color: #78350f; line-height: 1.65;">
+                        <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">mov ah, 4ch</code> + <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">int 21h</code> trả quyền điều khiển về DOS.
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 15px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Kiến trúc và Tổ chức máy tính</span>
+        <span>2</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 3: Ví dụ chương trình hợp ngữ - In bảng chữ cái -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">KIẾN TRÚC VÀ TỔ CHỨC MÁY TÍNH</div>
+        <h1 class="slide-title" style="margin-bottom: 18px;">Ví dụ chương trình hợp ngữ — In bảng chữ cái A→Z</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 22px; align-items: flex-start; margin-top: 5px;">
+
+            <!-- Cột trái: Code block -->
+            <div style="flex: 1.4;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 12.5px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">01</span>  <span style="color:#7c3aed;">.model</span> small
+<span style="color:#64748b;">02</span>  <span style="color:#7c3aed;">.stack</span> 100h
+<span style="color:#64748b;">03</span>  <span style="color:#7c3aed;">.data</span>
+<span style="color:#64748b;">04</span>      ms1 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a lon hon b $"</span>
+<span style="color:#64748b;">05</span>      ms2 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a nho hon b $"</span>
+<span style="color:#64748b;">06</span>  <span style="color:#7c3aed;">.code</span>
+<span style="color:#64748b;">07</span>  main <span style="color:#7c3aed;">proc</span>
+<span style="color:#64748b;">08</span>      <span style="color:#38bdf8;">mov</span> ax, <span style="color:#f59e0b;">@data</span>
+<span style="color:#64748b;">09</span>      <span style="color:#38bdf8;">mov</span> ds, ax
+<span style="color:#64748b;">10</span>
+<span style="color:#64748b;">11</span>      <span style="color:#38bdf8;">mov</span> bl, <span style="color:#f59e0b;">26</span>          <span style="color:#64748b;">; đếm 26 ký tự</span>
+<span style="color:#64748b;">12</span>      <span style="color:#38bdf8;">mov</span> dl, <span style="color:#86efac;">'A'</span>         <span style="color:#64748b;">; bắt đầu từ 'A'</span>
+<span style="color:#64748b;">13</span>  <span style="color:#fcd34d;">intiep:</span>
+<span style="color:#64748b;">14</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">2</span>           <span style="color:#64748b;">; hàm in 1 ký tự</span>
+<span style="color:#64748b;">15</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">16</span>      <span style="color:#38bdf8;">add</span> dl, <span style="color:#f59e0b;">1</span>           <span style="color:#64748b;">; sang ký tự kế tiếp</span>
+<span style="color:#64748b;">17</span>      <span style="color:#38bdf8;">cmp</span> dl, <span style="color:#86efac;">'Z'</span>         <span style="color:#64748b;">; đã đến 'Z' chưa?</span>
+<span style="color:#64748b;">18</span>      <span style="color:#38bdf8;">jle</span> intiep        <span style="color:#64748b;">; nếu chưa thì lặp lại</span>
+<span style="color:#64748b;">19</span>
+<span style="color:#64748b;">20</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">4ch</span>         <span style="color:#64748b;">; kết thúc chương trình</span>
+<span style="color:#64748b;">21</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">22</span>      main <span style="color:#7c3aed;">endp</span>
+<span style="color:#64748b;">23</span>  <span style="color:#7c3aed;">end</span> main</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                
+                <!-- Khối 1: Khởi tạo -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #0284c7; margin-bottom: 8px;">
+                        🔧 Khởi tạo
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">bl = 26</code> đếm số ký tự cần in.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">dl = 'A'</code> đặt ký tự bắt đầu.
+                    </div>
+                </div>
+
+                <!-- Khối 2: Vòng lặp intiep -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #be185d; margin-bottom: 8px;">
+                        🔁 Vòng lặp intiep
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">mov ah, 2</code> + <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">int 21h</code> in ký tự trong DL.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">add dl, 1</code> tăng lên ký tự kế.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">cmp dl, 'Z'</code> + <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">jle</code> lặp nếu chưa vượt 'Z'.
+                    </div>
+                </div>
+
+                <!-- Khối 3: Kết quả -->
+                <div class="highlight-card" style="background: #f0fdf4; padding: 14px 18px; border-radius: 8px; border: 1px solid #86efac; border-left: 4px solid #16a34a;">
+                    <div style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 8px;">
+                        ✅ Kết quả in ra
+                    </div>
+                    <div style="font-family: 'Courier New', monospace; font-size: 14px; color: #1e293b; letter-spacing: 1.5px; background: #ffffff; padding: 8px 12px; border-radius: 5px; text-align: center; font-weight: 600; border: 1px solid #bbf7d0;">
+                        ABCDEFGHIJKLMNOPQRSTUVWXYZ
+                    </div>
+                </div>
+
+                <!-- Khối 4: Lệnh nhảy dùng -->
+                <div class="highlight-card" style="background: #fef3c7; padding: 14px 18px; border-radius: 8px; border: 1px solid #fcd34d; border-left: 4px solid #d97706;">
+                    <div style="font-size: 14px; font-weight: 700; color: #b45309; margin-bottom: 8px;">
+                        ⚡ Lệnh nhảy sử dụng
+                    </div>
+                    <div style="font-size: 13px; color: #78350f; line-height: 1.65;">
+                        <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">JLE</code> — nhảy nếu nhỏ hơn hoặc bằng (dùng cho số có dấu). Nếu DL ≤ 'Z' thì tiếp tục in, ngược lại thì kết thúc.
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 15px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Kiến trúc và Tổ chức máy tính</span>
+        <span>3</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 4: Ví dụ chương trình hợp ngữ - In bảng chữ cái có khoảng trắng -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">KIẾN TRÚC VÀ TỔ CHỨC MÁY TÍNH</div>
+        <h1 class="slide-title" style="margin-bottom: 18px;">Ví dụ chương trình hợp ngữ — In A→Z cách khoảng trắng</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 22px; align-items: flex-start; margin-top: 5px;">
+
+            <!-- Cột trái: Code block -->
+            <div style="flex: 1.4;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">01</span>  <span style="color:#7c3aed;">.model</span> small
+<span style="color:#64748b;">02</span>  <span style="color:#7c3aed;">.stack</span> 100h
+<span style="color:#64748b;">03</span>  <span style="color:#7c3aed;">.data</span>
+<span style="color:#64748b;">04</span>      ms1 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a lon hon b $"</span>
+<span style="color:#64748b;">05</span>      ms2 <span style="color:#38bdf8;">db</span> <span style="color:#f59e0b;">10</span>, <span style="color:#f59e0b;">13</span>, <span style="color:#86efac;">"a nho hon b $"</span>
+<span style="color:#64748b;">06</span>  <span style="color:#7c3aed;">.code</span>
+<span style="color:#64748b;">07</span>  main <span style="color:#7c3aed;">proc</span>
+<span style="color:#64748b;">08</span>      <span style="color:#38bdf8;">mov</span> ax, <span style="color:#f59e0b;">@data</span>
+<span style="color:#64748b;">09</span>      <span style="color:#38bdf8;">mov</span> ds, ax
+<span style="color:#64748b;">10</span>
+<span style="color:#64748b;">11</span>      <span style="color:#38bdf8;">mov</span> ch, <span style="color:#f59e0b;">0</span>
+<span style="color:#64748b;">12</span>      <span style="color:#38bdf8;">mov</span> cl, <span style="color:#f59e0b;">26</span>         <span style="color:#64748b;">; lặp 26 lần</span>
+<span style="color:#64748b;">13</span>
+<span style="color:#64748b;">14</span>      <span style="color:#38bdf8;">mov</span> dl, <span style="color:#86efac;">'A'</span>
+<span style="color:#64748b;">15</span>  <span style="color:#fcd34d;">intiep:</span>
+<span style="color:#64748b;">16</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">2</span>
+<span style="color:#64748b;">17</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">18</span>      <span style="color:#38bdf8;">mov</span> bl, dl        <span style="color:#64748b;">; lưu tạm ký tự trong dl</span>
+<span style="color:#64748b;">19</span>      <span style="color:#38bdf8;">mov</span> dl, <span style="color:#f59e0b;">32</span>        <span style="color:#64748b;">; space</span>
+<span style="color:#64748b;">20</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">21</span>      <span style="color:#38bdf8;">mov</span> dl, bl        <span style="color:#64748b;">; khôi phục dl</span>
+<span style="color:#64748b;">22</span>      <span style="color:#38bdf8;">add</span> dl, <span style="color:#f59e0b;">1</span>
+<span style="color:#64748b;">23</span>      <span style="color:#38bdf8;">loop</span> intiep
+<span style="color:#64748b;">24</span>
+<span style="color:#64748b;">25</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">4ch</span>
+<span style="color:#64748b;">26</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">27</span>      main <span style="color:#7c3aed;">endp</span>
+<span style="color:#64748b;">28</span>  <span style="color:#7c3aed;">end</span> main</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+                
+                <!-- Khối 1: Khởi tạo vòng lặp -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #0284c7; margin-bottom: 8px;">
+                        🔧 Khởi tạo vòng lặp
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">CX = 26</code> — thanh ghi đếm của lệnh <b>LOOP</b>.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">DL = 'A'</code> — ký tự bắt đầu.
+                    </div>
+                </div>
+
+                <!-- Khối 2: Lưu tạm và in space -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #be185d; margin-bottom: 8px;">
+                        💾 Lưu tạm ký tự
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">mov bl, dl</code> — sao lưu ký tự cần in.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">mov dl, 32</code> — đổi DL thành ký tự space.<br>
+                        Sau khi in space, <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">mov dl, bl</code> khôi phục lại.
+                    </div>
+                </div>
+
+                <!-- Khối 3: Lệnh LOOP -->
+                <div class="highlight-card" style="background: #fef3c7; padding: 14px 18px; border-radius: 8px; border: 1px solid #fcd34d; border-left: 4px solid #d97706;">
+                    <div style="font-size: 14px; font-weight: 700; color: #b45309; margin-bottom: 8px;">
+                        🔁 Lệnh <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">LOOP</code>
+                    </div>
+                    <div style="font-size: 13px; color: #78350f; line-height: 1.65;">
+                        Mỗi lần chạy lệnh <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">LOOP intiep</code>: tự động giảm <b>CX</b> đi 1; nếu <b>CX ≠ 0</b> thì nhảy về nhãn <b>intiep</b>, ngược lại thì kết thúc vòng lặp.
+                    </div>
+                </div>
+
+                <!-- Khối 4: Kết quả -->
+                <div class="highlight-card" style="background: #f0fdf4; padding: 14px 18px; border-radius: 8px; border: 1px solid #86efac; border-left: 4px solid #16a34a;">
+                    <div style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 8px;">
+                        ✅ Kết quả in ra
+                    </div>
+                    <div style="font-family: 'Courier New', monospace; font-size: 13.5px; color: #1e293b; letter-spacing: 2px; background: #ffffff; padding: 8px 12px; border-radius: 5px; text-align: center; font-weight: 600; border: 1px solid #bbf7d0;">
+                        A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 15px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Kiến trúc và Tổ chức máy tính</span>
+        <span>4</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 5: Ví dụ chương trình hợp ngữ - Tính tổng S = 1 + 2 + ... + n -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">KIẾN TRÚC VÀ TỔ CHỨC MÁY TÍNH</div>
+        <h1 class="slide-title" style="margin-bottom: 18px;">Ví dụ chương trình hợp ngữ — Tính tổng S = 1 + 2 + ... + n</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 22px; align-items: flex-start; margin-top: 5px;">
+
+            <!-- Cột trái: Code block -->
+            <div style="flex: 1.4;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">15</span>      <span style="color:#38bdf8;">lea</span> dx, ms1
+<span style="color:#64748b;">16</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">17</span>
+<span style="color:#64748b;">18</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">1</span>           <span style="color:#64748b;">; đọc 1 ký tự</span>
+<span style="color:#64748b;">19</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">20</span>      <span style="color:#38bdf8;">sub</span> al, <span style="color:#f59e0b;">48</span>          <span style="color:#64748b;">; đổi ASCII → số</span>
+<span style="color:#64748b;">21</span>      <span style="color:#38bdf8;">mov</span> bl, al         <span style="color:#64748b;">; bl = n</span>
+<span style="color:#64748b;">22</span>
+<span style="color:#64748b;">23</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">9</span>
+<span style="color:#64748b;">24</span>      <span style="color:#38bdf8;">lea</span> dx, ms2
+<span style="color:#64748b;">25</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">26</span>
+<span style="color:#64748b;">27</span>      <span style="color:#38bdf8;">mov</span> cl, <span style="color:#f59e0b;">1</span>           <span style="color:#64748b;">; cl = i = 1</span>
+<span style="color:#64748b;">28</span>      <span style="color:#38bdf8;">mov</span> al, <span style="color:#f59e0b;">0</span>           <span style="color:#64748b;">; al = s = 0</span>
+<span style="color:#64748b;">29</span>  <span style="color:#fcd34d;">congtiep:</span>
+<span style="color:#64748b;">30</span>      <span style="color:#38bdf8;">add</span> al, cl         <span style="color:#64748b;">; s = s + i</span>
+<span style="color:#64748b;">31</span>      <span style="color:#38bdf8;">inc</span> cl            <span style="color:#64748b;">; i = i + 1</span>
+<span style="color:#64748b;">32</span>      <span style="color:#38bdf8;">cmp</span> cl, bl         <span style="color:#64748b;">; i &lt;= n?</span>
+<span style="color:#64748b;">33</span>      <span style="color:#38bdf8;">jle</span> congtiep
+<span style="color:#64748b;">34</span>
+<span style="color:#64748b;">35</span>  <span style="color:#fcd34d;">kt:</span>
+<span style="color:#64748b;">36</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">2</span>
+<span style="color:#64748b;">37</span>      <span style="color:#38bdf8;">mov</span> dl, al
+<span style="color:#64748b;">38</span>      <span style="color:#38bdf8;">add</span> dl, <span style="color:#f59e0b;">48</span>         <span style="color:#64748b;">; số → ASCII</span>
+<span style="color:#64748b;">39</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">40</span>
+<span style="color:#64748b;">41</span>      <span style="color:#38bdf8;">mov</span> ah, <span style="color:#f59e0b;">4ch</span>
+<span style="color:#64748b;">42</span>      <span style="color:#38bdf8;">int</span> <span style="color:#f59e0b;">21h</span>
+<span style="color:#64748b;">43</span>      main <span style="color:#7c3aed;">endp</span>
+<span style="color:#64748b;">44</span>  <span style="color:#7c3aed;">end</span> main</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+                
+                <!-- Khối 1: Nhập n -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #0284c7; margin-bottom: 8px;">
+                        ⌨️ Nhập n từ bàn phím
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">ah = 1</code> + <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">int 21h</code> đọc 1 ký tự vào AL.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">sub al, 48</code> đổi từ mã ASCII (ví dụ '5'=53) thành giá trị số (5).
+                    </div>
+                </div>
+
+                <!-- Khối 2: Khởi tạo -->
+                <div class="highlight-card" style="background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 14px; font-weight: 700; color: #7c3aed; margin-bottom: 8px;">
+                        🔧 Khởi tạo biến
+                    </div>
+                    <div style="font-size: 13px; color: #475569; line-height: 1.65;">
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">bl = n</code> — giới hạn vòng lặp.<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">cl = 1</code> — biến đếm i (bắt đầu từ 1).<br>
+                        <code style="background:#f1f5f9; padding: 1px 4px; border-radius: 3px;">al = 0</code> — biến tổng s.
+                    </div>
+                </div>
+
+                <!-- Khối 3: Vòng lặp tính tổng -->
+                <div class="highlight-card" style="background: #fef3c7; padding: 14px 18px; border-radius: 8px; border: 1px solid #fcd34d; border-left: 4px solid #d97706;">
+                    <div style="font-size: 14px; font-weight: 700; color: #b45309; margin-bottom: 8px;">
+                        🔁 Vòng lặp tính tổng
+                    </div>
+                    <div style="font-size: 13px; color: #78350f; line-height: 1.65;">
+                        <b>congtiep:</b> <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">add al, cl</code> → s = s + i<br>
+                        <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">inc cl</code> → i = i + 1<br>
+                        <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">cmp cl, bl</code> + <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">jle congtiep</code> → lặp nếu i ≤ n.
+                    </div>
+                </div>
+
+                <!-- Khối 4: In kết quả -->
+                <div class="highlight-card" style="background: #f0fdf4; padding: 14px 18px; border-radius: 8px; border: 1px solid #86efac; border-left: 4px solid #16a34a;">
+                    <div style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 8px;">
+                        🖨️ In kết quả
+                    </div>
+                    <div style="font-size: 13px; color: #14532d; line-height: 1.65;">
+                        <code style="background:#ffffff; padding: 1px 4px; border-radius: 3px;">add dl, 48</code> đổi số trong AL về mã ASCII (ví dụ 15 → 'O'=79? thực tế 15+48=63='?'). Với n nhỏ, kết quả in ra là 1 ký tự.
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 15px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Kiến trúc và Tổ chức máy tính</span>
+        <span>5</span>
+    </div>
+</div>
+
+
+
+</body>
+<!-- MATHJAX: đặt trước </body> nếu file chưa có --> 
+ <script> 
+    window.MathJax = { 
+        tex: { 
+            inlineMath: [['\\(', '\\)']], 
+            displayMath: [['\\[', '\\]']], 
+            processEscapes: true 
+            }, 
+            svg: { 
+                fontCache: 'global' 
+                } 
+                }; 
+    </script> 
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</html>
