@@ -1,0 +1,21 @@
+//- ================================================================
+//-  Nút "Lịch sử làm bài" — đặt NGAY DƯỚI khối loa báo hết giờ (#audioBar)
+//-  Dùng chung cho views/student/lesson.pug (tự luận) và quiz-lesson.pug (trắc nghiệm)
+//-  Cần local: lesson (có _id), isAdminView (true = admin)
+//-    admin  → /lessons/:id/history hiện bài nộp của TẤT CẢ sinh viên
+//-    student→ /lessons/:id/history chỉ hiện bài nộp của CHÍNH MÌNH
+//- ================================================================
+- var _histLessonId = (lesson && lesson._id) ? String(lesson._id) : ''
+if _histLessonId
+    div(class="lesson-history-btn-wrap", style="margin-bottom:20px;display:flex;")
+        a(
+            href=("/lessons/" + _histLessonId + "/history")
+            id="lessonHistoryBtn"
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition shadow-sm"
+            style="text-decoration:none;"
+        )
+            i(data-lucide="history", class="w-4 h-4")
+            if isAdminView
+                | Lịch sử làm bài của tất cả sinh viên
+            else
+                | Lịch sử làm bài của tôi

@@ -6,6 +6,7 @@ const fs = require("fs");
 const Subject = require("../models/Subject");
 const Lesson = require("../models/Lesson");
 const Submission = require("../models/Submission");
+const User = require("../models/User");
 const GradingPrompt = require("../models/GradingPrompt");
 const githubService = require("../services/githubService");
 const lessonContentService = require("../services/lessonContentService");
@@ -415,6 +416,127 @@ exports.showLesson = async (req, res, next) => {
 };
 
 exports.getStudentLesson = exports.showLesson;
+
+/* ============================================================
+ * ★ LỊCH SỬ LÀM BÀI CỦA 1 BÀI HỌC — GET /lessons/:id/history
+ * ------------------------------------------------------------
+ *   - admin  : xem bài nộp của TẤT CẢ sinh viên vào bài học này
+ *              (admin user_key vẫn bị giới hạn bởi scope.canAccess(lesson),
+ *               giống trang bài học: ngoài tổ chức → 404)
+ *   - student: CHỈ xem bài nộp của chính mình (ép userId = user._id ở server,
+ *              KHÔNG đọc userId từ query nên không thể xem chéo)
+ *   Dùng chung cho cả bài tự luận lẫn trắc nghiệm.
+ * ============================================================ */
+const HISTORY_PAGE_SIZE = 15;
+
+function escapeRegex(str = "") {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+exports.showLessonHistory = async (req, res, next) => {
+    try {
+        const user = req.user;
+        if (!user) return res.redirect("/auth/login");
+
+        const isAdmin = user.role === "admin";
+        if (!isAdmin && user.role !== "student") {
+            return res.status(403).render("error", {
+                title: "Không có quyền",
+                message: "Bạn không có quyền xem lịch sử làm bài.",
+                user,
+                statusCode: 403,
+                stack: null,
+            });
+        }
+
+        const key = req.params.id || req.params.slug;
+        const lesson = await findLessonByParamAny(key);
+        if (!lesson) return renderNotFound(req, res, "Bài học không tồn tại");
+
+        // ★ USER KEY: ngoài phạm vi → 404 (không lộ việc bài học có thật)
+        const scope = await getContentScope(req);
+        if (!scope.canAccess(lesson)) {
+            return renderNotFound(req, res, "Bài học không tồn tại");
+        }
+
+        // Bài đã vào thùng rác → về trang bài học (đang hiển thị trang "đã bị xoá")
+        if (lesson.isDeleted) return res.redirect(`/lessons/${lesson._id}`);
+
+        // Đảm bảo danh sách bài nộp (GitHub → RAM) đang mới
+        await githubSync.syncKinds(["submissions"]);
+
+        // ---- Bộ lọc: student luôn bị ép về chính mình ----
+        const filter = { lessonId: lesson._id };
+        if (!isAdmin) filter.userId = user._id;
+
+        // Admin: tìm theo tên / email sinh viên
+        const q = isAdmin ? String(req.query.q || "").trim().slice(0, 100) : "";
+        if (isAdmin && q) {
+            const safe = escapeRegex(q);
+            const userIds = await User.find({
+                $or: [
+                    { name: { $regex: safe, $options: "i" } },
+                    { email: { $regex: safe, $options: "i" } },
+                ],
+            }).distinct("_id");
+            filter.userId = { $in: userIds };
+        }
+
+        // ---- Thống kê (trên toàn bộ kết quả lọc, không phụ thuộc trang) ----
+        const allRows = await Submission.find(filter)
+            .select("userId score maxScore type")
+            .lean();
+        const isQuizLesson = (lesson.type || "essay") === "quiz";
+        let bestScore = null;
+        let bestMax = null;
+        const studentIds = new Set();
+        allRows.forEach((r) => {
+            if (r.userId) studentIds.add(String(r.userId._id || r.userId));
+            if (r.score !== null && r.score !== undefined && !Number.isNaN(Number(r.score))) {
+                if (bestScore === null || Number(r.score) > bestScore) {
+                    bestScore = Number(r.score);
+                    bestMax = isQuizLesson ? (Number(r.maxScore) || 10) : 10;
+                }
+            }
+        });
+        const stats = {
+            total: allRows.length,
+            students: studentIds.size,
+            bestScore,
+            bestMax,
+        };
+
+        // ---- Danh sách phân trang (mới nộp lên đầu) ----
+        const { items: submissions, pagination } = await paginate(Submission, filter, req, {
+            limit: HISTORY_PAGE_SIZE,
+            sort: { submittedAt: -1, createdAt: -1 },
+            select: "-teacherCommentHistory",
+            populate: [{ path: "userId", select: "name email" }],
+        });
+
+        const subject = lesson.subjectId
+            ? await Subject.findById(lesson.subjectId).select("name code slug").lean()
+            : null;
+
+        res.render("student/lesson-history", {
+            title: `Lịch sử làm bài — ${lesson.title}`,
+            user,
+            isAdmin,
+            lesson: {
+                _id: lesson._id,
+                title: lesson.title,
+                type: lesson.type || "essay",
+            },
+            subject,
+            submissions,
+            stats,
+            q,
+            ...pagination,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
 
 // ============================================================
 // ★ TRẮC NGHIỆM — chuyển đề sang dạng AN TOÀN gửi xuống trình duyệt

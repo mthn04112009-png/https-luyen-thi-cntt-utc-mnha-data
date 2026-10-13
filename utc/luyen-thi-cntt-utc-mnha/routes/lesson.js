@@ -20,6 +20,12 @@ router.use(requireApproved);
 // LESSON
 // ============================================================
 
+// ★ Lịch sử làm bài của 1 bài học — id hoặc slug
+//   admin  : thấy bài nộp của TẤT CẢ sinh viên vào bài học này
+//   student: chỉ thấy bài nộp của CHÍNH MÌNH vào bài học này
+//   (phân quyền xử lý ở controller, dựa trên role đọc từ DB)
+router.get('/:id/history', lessonController.showLessonHistory);
+
 // Chi tiết bài học — id hoặc slug
 router.get('/:id', lessonController.showLesson);
 
