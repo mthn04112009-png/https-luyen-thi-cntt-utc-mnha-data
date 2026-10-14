@@ -480,7 +480,7 @@
                                 (st.correct === c[0] ? " checked" : "") + "> " + c[1] + "</label>";
                         }).join("") + "</span>" +
                         '<button type="button" data-act="rmst" title="Xoá ý"' + (q.statements.length <= 1 ? " disabled" : "") + ">✕</button>" +
-                        '<input type="text" data-f="sexpl" value="' + esc(st.explanation) + '" placeholder="Giải thích ý ' + lb + ' (tuỳ chọn)" style="flex-basis:100%;margin-top:6px"></div>';
+                        '<textarea rows="2" data-f="sexpl" placeholder="Giải thích ý ' + lb + ' (tuỳ chọn, HTML ngắn)" style="flex-basis:100%;width:100%;margin-top:6px">' + esc(st.explanation) + '</textarea></div>';
                 }).join("") + "</div>" +
                 '<button type="button" class="qf-btn small" data-act="addst" style="margin-top:8px"' + (q.statements.length >= TF_MAX ? " disabled" : "") + ">＋ Thêm ý</button>";
         } else {

@@ -83,21 +83,19 @@
             .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
-    // Giải mã entity HTML (&lt;b&gt; → <b>) trước khi chèn vào DOM.
-    // Cần thiết khi server đã escape sẵn (VD: toStudentView escape c.text / explanationHtml).
-    // Chỉ giải mã 1 lớp để không phá nội dung người dùng nhập có chứa "&" hợp lệ.
+    // ★ Chuẩn bị HTML giải thích / nội dung chùm để chèn vào DOM (innerHTML).
+    // Server đã sanitize: thẻ allowlist là thẻ thật, mọi "<" khác đã thành &lt;.
+    // Trước đây hàm này giải mã MỌI entity → "i&lt;n" thành "i<n" (trình duyệt coi là thẻ, nuốt mất
+    // phần giải thích phía sau) và "&lt;img onerror=…&gt;" thành thẻ thật (XSS).
+    // Nay chỉ: (1) gộp escape chồng (&amp;lt; → &lt;) do lần lưu cũ, (2) khôi phục thẻ allowlist KHÔNG
+    // thuộc tính bị escape (&lt;code&gt; → <code>). Mọi thứ khác giữ nguyên (vẫn là chữ).
+    var SAFE_TAGS = "b|i|u|strong|em|br|p|ul|ol|li|code|pre|sub|sup|span|table|thead|tbody|tfoot|tr|th|td|caption";
+    var RE_BARE_ESC = new RegExp("&lt;(/?)(" + SAFE_TAGS + ")(\\s*/?)&gt;", "gi");
     function decodeHtml(s) {
         if (s == null) return "";
         return String(s)
-            // escape 2+ lớp (&amp;amp;lt; …) → về 1 lớp (&lt;) rồi mới decode, tránh hiện nguyên chữ "&lt;b&gt;"
-            .replace(/&(?:amp;)+(lt|gt|quot|#0*39|#x0*27);/gi, "&$1;")
-            .replace(/&lt;/gi, "<")
-            .replace(/&gt;/gi, ">")
-            .replace(/&quot;/gi, '"')
-            .replace(/&#0*39;/g, "'")
-            .replace(/&#x0*27;/gi, "'")
-            .replace(/&nbsp;/gi, " ")
-            .replace(/&amp;/gi, "&"); // LUÔN để cuối cùng
+            .replace(/&(?:amp;)+(lt|gt|quot|#0*39|#x0*27|amp);/gi, "&$1;")
+            .replace(RE_BARE_ESC, "<$1$2$3>");
     }
     function isAnswered(q) {
         var a = state.answers[q.id];

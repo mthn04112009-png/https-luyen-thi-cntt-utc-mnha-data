@@ -326,7 +326,23 @@ exports.editForm = async (req, res, next) => {
     const file = await A.ghRead(lesson.githubFile);
     if (!file) return res.status(404).render('error', { message: 'Không đọc được đề trên GitHub.' });
 
-    const parts = (file.data.quiz && file.data.quiz.parts) || {};
+    // ★ Đưa giải thích / nội dung chùm đã lưu về dạng DỄ SỬA (&lt;code&gt; → <code>, i&lt;n → i<n):
+    //   tránh hiện nguyên "&lt;code&gt;…" trong ô nhập và tránh bị escape chồng sau mỗi lần Lưu.
+    //   Khi Lưu, sanitizeExplanationHtml chuẩn hoá lại (idempotent). Không đụng bản trên GitHub.
+    const editData = JSON.parse(JSON.stringify(file.data || {}));
+    const toEdit = sanitizeService.htmlToEditable;
+    const eParts = (editData.quiz && editData.quiz.parts) || {};
+    PARTS.forEach((k) => {
+      const part = eParts[k];
+      if (!part) return;
+      (part.questions || []).forEach((q) => {
+        if (q.explanationHtml) q.explanationHtml = toEdit(q.explanationHtml);
+        (q.statements || []).forEach((st) => { if (st.explanationHtml) st.explanationHtml = toEdit(st.explanationHtml); });
+      });
+      (part.clusters || []).forEach((c) => { if (c.text) c.text = toEdit(c.text); });
+    });
+
+    const parts = eParts;
     const rawTexts = {};
     PARTS.forEach((k) => {
       if (!parts[k]) { rawTexts[k] = ''; return; }
@@ -336,7 +352,7 @@ exports.editForm = async (req, res, next) => {
     const lists = await formLists(req.user);
     const submissionCount = await Submission.countDocuments({ lessonId: lesson._id, type: 'quiz' });
     res.render('admin/quiz-form', Object.assign(lists, {
-      mode: 'edit', subjectId: String(lesson.subjectId), quiz: file.data, lesson, rawTexts, submissionCount, sha: file.sha, quizConfig,
+      mode: 'edit', subjectId: String(lesson.subjectId), quiz: editData, lesson, rawTexts, submissionCount, sha: file.sha, quizConfig,
     }));
   } catch (e) { next(e); }
 };

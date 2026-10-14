@@ -116,17 +116,77 @@ function escapeHtml(text) {
         .replace(/'/g, '&#39;');
 }
 
+// ------------------------------------------------------------
+// ★ Chuẩn hoá đầu vào TRƯỚC khi sanitize (idempotent: lưu bao nhiêu lần cũng không đổi)
+//   1. Gộp escape chồng (&amp;lt; → &lt;) do các lần lưu cũ để lại.
+//   2. Khôi phục thẻ allowlist KHÔNG thuộc tính bị escape (&lt;code&gt;count&lt;/code&gt; → <code>count</code>).
+//   3. Mọi dấu "<" còn lại KHÔNG mở một thẻ allowlist (VD "i<n", "<count>") → escape thành chữ thường,
+//      để parser HTML không coi là thẻ rồi nuốt mất phần giải thích phía sau.
+// ------------------------------------------------------------
+const TAG_ALT = EXPLANATION_ALLOWED_TAGS.join('|');
+const RE_STACKED_ESC = /&(?:amp;)+(lt|gt|quot|#0*39|#x0*27|amp);/gi;
+const RE_ESCAPED_BARE_TAG = new RegExp('&lt;(/?)(' + TAG_ALT + ')(\\s*/?)&gt;', 'gi');
+const RE_STRAY_LT = new RegExp('<(?!/?(?:' + TAG_ALT + ')(?=[\\s/>])[^<>]*>)', 'gi');
+
+function normalizeExplanationInput(raw) {
+    return String(raw)
+        .replace(RE_STACKED_ESC, '&$1;')
+        .replace(RE_ESCAPED_BARE_TAG, '<$1$2$3>')
+        .replace(RE_STRAY_LT, '&lt;');
+}
+
+// Bộ làm sạch dự phòng (không cần package) — chỉ dùng khi thiếu sanitize-html.
+// Giữ thẻ allowlist (bỏ mọi thuộc tính, trừ href https của <a> và colspan/rowspan của th/td),
+// escape phần còn lại, tự đóng thẻ còn mở, bỏ thẻ đóng thừa.
+const VOID_TAGS = new Set(['br']);
+function fallbackSanitize(input) {
+    const text = (t) => t.replace(/&(?!(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);)/gi, '&amp;').replace(/>/g, '&gt;');
+    const re = /<(\/?)([a-z][a-z0-9]*)([^<>]*)>/gi;
+    const stack = [];
+    let out = '', last = 0, m;
+    while ((m = re.exec(input))) {
+        out += text(input.slice(last, m.index));
+        last = re.lastIndex;
+        const closing = m[1] === '/', name = m[2].toLowerCase(), attrs = m[3] || '';
+        if (!EXPLANATION_ALLOWED_TAGS.includes(name)) continue; // thẻ lạ: bỏ thẻ, giữ chữ
+        if (closing) {
+            const at = stack.lastIndexOf(name);
+            if (at === -1) continue;
+            while (stack.length > at) out += '</' + stack.pop() + '>';
+            continue;
+        }
+        if (VOID_TAGS.has(name)) { out += '<' + name + '>'; continue; }
+        let extra = '';
+        if (name === 'a') {
+            const h = /href\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+            const url = h ? (h[1] || h[2] || '').trim() : '';
+            extra = ' href="' + (/^https:\/\//i.test(url) ? url.replace(/"/g, '&quot;') : '') + '" rel="noopener noreferrer" target="_blank"';
+        } else if (name === 'th' || name === 'td') {
+            ['colspan', 'rowspan'].forEach((k) => {
+                const v = new RegExp(k + '\\s*=\\s*["\']?(\\d{1,2})', 'i').exec(attrs);
+                if (v) extra += ' ' + k + '="' + v[1] + '"';
+            });
+        }
+        out += '<' + name + extra + '>';
+        stack.push(name);
+    }
+    out += text(input.slice(last));
+    while (stack.length) out += '</' + stack.pop() + '>';
+    return out;
+}
+
 /**
  * Làm sạch HTML giải thích (`++)`) của câu trắc nghiệm.
  * Gọi 2 lớp: khi LƯU đề và khi HIỂN THỊ. Chỉ sau hàm này mới được render bằng `!=`.
+ * ★ Idempotent: <code>count</code> giữ nguyên là thẻ; "i<n" giữ nguyên là chữ; không escape chồng.
  */
 function sanitizeExplanationHtml(raw, opts = {}) {
     if (raw == null || raw === '') return '';
     // Chùm có bảng thường dài hơn 3000 ký tự → gọi với { maxLength: MAX_CLUSTER_TEXT } (hoặc dùng sanitizeClusterHtml)
     const maxLength = opts.maxLength || 3000;
-    const input = String(raw).slice(0, maxLength);
+    const input = normalizeExplanationInput(String(raw).slice(0, maxLength));
 
-    if (!sanitizeHtmlLib) return escapeHtml(input);
+    if (!sanitizeHtmlLib) return fallbackSanitize(input).trim();
 
     return sanitizeHtmlLib(input, {
         allowedTags: EXPLANATION_ALLOWED_TAGS,
@@ -147,6 +207,21 @@ function sanitizeExplanationHtml(raw, opts = {}) {
             })
         }
     }).trim();
+}
+
+/**
+ * Đưa HTML đã lưu về dạng DỄ SỬA trong ô nhập (form sửa đề):
+ * &lt;code&gt; → <code>, "i&lt;n" → "i<n". Lưu lại sẽ được chuẩn hoá lại bởi sanitizeExplanationHtml.
+ */
+function htmlToEditable(html) {
+    if (html == null) return html;
+    return String(html)
+        .replace(RE_STACKED_ESC, '&$1;')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#0*39;|&#x0*27;/gi, "'")
+        .replace(/&amp;/gi, '&');
 }
 
 /**
@@ -188,6 +263,7 @@ module.exports = {
     // trắc nghiệm
     sanitizeExplanationHtml,
     sanitizeClusterHtml,
+    htmlToEditable,
     wrapQuizAnswers,
     escapeHtml
 };
