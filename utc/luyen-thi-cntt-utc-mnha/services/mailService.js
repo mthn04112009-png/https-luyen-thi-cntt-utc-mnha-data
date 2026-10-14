@@ -35,12 +35,12 @@ function getTransporter() {
 async function sendOTP(email, code, type = 'register') {
     const subject =
         type === 'register'
-            ? 'Mã xác minh đăng ký — Luyện thi CNTT UTC'
-            : 'Mã đặt lại mật khẩu — Luyện thi CNTT UTC';
+            ? 'Mã xác minh đăng ký — Luyện thi của MNHA'
+            : 'Mã đặt lại mật khẩu — Luyện thi của MNHA';
 
     const html = `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
-            <h2 style="color: #2563eb;">Luyện thi CNTT UTC</h2>
+            <h2 style="color: #2563eb;">Luyện thi của MNHA</h2>
             <p>Xin chào,</p>
             <p>Mã xác minh của bạn là:</p>
             <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px;
@@ -71,7 +71,7 @@ async function sendOTP(email, code, type = 'register') {
         await tr.sendMail({
             from:
                 process.env.MAIL_FROM ||
-                `"Luyện thi CNTT UTC" <${process.env.MAIL_USER}>`,
+                `"Luyện thi của MNHA" <${process.env.MAIL_USER}>`,
             to: email,
             subject,
             html

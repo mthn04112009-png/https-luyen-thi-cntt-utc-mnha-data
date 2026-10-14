@@ -72,6 +72,7 @@ const showLogin = (req, res) => {
     return res.render('auth/login', {
         title: 'Đăng nhập',
         registered: req.query.registered === '1',
+        otpVerified: req.query.otp === '1',
         resetSuccess: req.query.reset === '1',
         email: req.query.email || '',
         error: null
@@ -430,8 +431,9 @@ const verifyOtp = async (req, res) => {
             `[verifyOtp] ✅ Tạo user: ${email} (role=client, status=pending, userKey=default)`
         );
 
+        // ★ otp=1 → trang login hiện "Nhập mã OTP thành công, vui lòng đăng nhập lại"
         return res.redirect(
-            `/auth/login?registered=1&email=${encodeURIComponent(email)}`
+            `/auth/login?registered=1&otp=1&email=${encodeURIComponent(email)}`
         );
     } catch (error) {
         console.error('Verify OTP error:', error);

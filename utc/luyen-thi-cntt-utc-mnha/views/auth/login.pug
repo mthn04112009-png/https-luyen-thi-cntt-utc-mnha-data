@@ -3,7 +3,7 @@ html(lang="vi")
     head
         meta(charset="UTF-8")
         meta(name="viewport", content="width=device-width, initial-scale=1.0")
-        title Đăng nhập | AI Grading của MNHA dành cho ĐHGTVT-UTC
+        title Đăng nhập | AI Grading của MNHA
 
         script(src="https://cdn.tailwindcss.com")
         script(src="https://unpkg.com/lucide@latest")
@@ -27,7 +27,7 @@ html(lang="vi")
 
                         div(class="text-left")
                             h1(class="text-xl font-bold text-gray-900")
-                                | AI Grading của MNHA dành cho ĐHGTVT-UTC
+                                | AI Grading của MNHA
                             p(class="text-xs text-gray-500")
                                 | Hệ thống học tập trực tuyến
 
@@ -40,6 +40,16 @@ html(lang="vi")
 
                         p(class="text-sm text-gray-500 mt-2")
                             | Đăng nhập để tiếp tục sử dụng hệ thống.
+
+                    //- ★ Nhập đúng mã OTP
+                    if otpVerified
+                        .mb-5.flex.items-start.gap-3.p-4.bg-green-50.border.border-green-200.rounded-xl
+                            i(
+                                data-lucide="circle-check"
+                                class="w-5 h-5 text-green-500 flex-shrink-0"
+                            )
+                            p(class="text-sm text-green-700 font-medium")
+                                | Nhập mã OTP thành công! Vui lòng đăng nhập lại.
 
                     //- ★ Đăng ký thành công
                     if registered

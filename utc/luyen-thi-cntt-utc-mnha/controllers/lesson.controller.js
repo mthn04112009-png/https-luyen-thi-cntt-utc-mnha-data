@@ -483,9 +483,11 @@ exports.showLessonHistory = async (req, res, next) => {
         }
 
         // ---- Thống kê (trên toàn bộ kết quả lọc, không phụ thuộc trang) ----
-        const allRows = await Submission.find(filter)
-            .select("userId score maxScore type")
-            .lean();
+        let allRowsQuery = Submission.find(filter)
+            .select("userId score maxScore type submittedAt createdAt");
+        // Admin: lấy thêm tên sinh viên để hiện trong tooltip biểu đồ
+        if (isAdmin) allRowsQuery = allRowsQuery.populate([{ path: "userId", select: "name" }]);
+        const allRows = await allRowsQuery.lean();
         const isQuizLesson = (lesson.type || "essay") === "quiz";
         let bestScore = null;
         let bestMax = null;
@@ -505,6 +507,52 @@ exports.showLessonHistory = async (req, res, next) => {
             bestScore,
             bestMax,
         };
+
+        // ---- Dữ liệu biểu đồ (điểm theo thời gian) ----
+        // s = điểm quy về thang 10 (trắc nghiệm: score / maxScore * 10) để chia
+        // khoảng [0,1] … [9,10] thống nhất; raw/max giữ điểm gốc cho tooltip.
+        //   admin  : tất cả sinh viên (theo bộ lọc tìm kiếm), kèm tên + id bài nộp
+        //   student: BIỂU ĐỒ hiện điểm của CẢ LỚP (bảng bên dưới vẫn chỉ của mình).
+        //            Bài của người khác chỉ gửi điểm + thời gian, ẨN DANH:
+        //            KHÔNG gửi tên, email, id bài nộp (nên không mở được bài của họ).
+        const CHART_MAX_POINTS = 5000;
+        let chartRows = allRows;
+        if (!isAdmin) {
+            chartRows = await Submission.find({ lessonId: lesson._id })
+                .select("userId score maxScore type submittedAt createdAt")
+                .lean();
+        }
+        const myId = String(user._id);
+        const chartPoints = [];
+        chartRows.forEach((r) => {
+            if (r.score === null || r.score === undefined) return;
+            const raw = Number(r.score);
+            if (Number.isNaN(raw)) return;
+            const t = new Date(r.submittedAt || r.createdAt).getTime();
+            if (Number.isNaN(t)) return;
+            const rowQuiz = (r.type || "essay") === "quiz";
+            const max = rowQuiz ? (Number(r.maxScore) || 10) : 10;
+            const s10 = Math.max(0, Math.min(10, (raw / max) * 10));
+            const mine = !!r.userId && String(r.userId._id || r.userId) === myId;
+            const point = {
+                t,
+                s: Math.round(s10 * 100) / 100,
+                raw,
+                max,
+                q: rowQuiz ? 1 : 0,
+                m: mine ? 1 : 0, // 1 = bài của chính người đang xem
+            };
+            if (isAdmin || mine) {
+                point.id = String(r._id);
+                point.n = isAdmin ? ((r.userId && r.userId.name) || "") : "";
+            }
+            chartPoints.push(point);
+        });
+        chartPoints.sort((a, b) => b.t - a.t);
+        const chartJson = JSON.stringify({
+            isAdmin,
+            points: chartPoints.slice(0, CHART_MAX_POINTS).reverse(),
+        }).replace(/</g, "\\u003c");
 
         // ---- Danh sách phân trang (mới nộp lên đầu) ----
         const { items: submissions, pagination } = await paginate(Submission, filter, req, {
@@ -530,6 +578,7 @@ exports.showLessonHistory = async (req, res, next) => {
             subject,
             submissions,
             stats,
+            chartJson,
             q,
             ...pagination,
         });

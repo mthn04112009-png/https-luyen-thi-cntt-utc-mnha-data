@@ -53,6 +53,59 @@ block content
                 else
                     p(class="text-2xl font-bold text-gray-400") —
 
+        //- ★ Biểu đồ điểm theo thời gian (admin + student).
+        //-   admin: tất cả sinh viên • student: chỉ bài của mình. Vẽ bởi /js/historyChart.js
+        div(class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 mb-6")
+            div(class="flex flex-wrap items-baseline justify-between gap-2")
+                h2(class="text-lg font-bold text-gray-900")
+                    | Biểu đồ điểm
+                    span(id="hcRangeLabel", class="ml-2 text-sm font-medium text-indigo-600")
+                span(id="hcSummary", class="text-xs sm:text-sm text-gray-600 font-mono")
+            p(class="text-xs text-gray-500 mt-1")
+                if isAdmin
+                    | Điểm của tất cả sinh viên đã nộp bài học này.
+                else
+                    | Điểm của cả lớp (ẩn danh) để bạn so sánh — chấm to viền đen là bài của bạn.
+
+            //- Chọn khoảng thời gian: gần nhất
+            div(class="flex flex-wrap items-center gap-2 mt-3")
+                button(type="button", data-hc-range="day", class="px-3 py-1.5 rounded-lg text-sm font-medium border", style="background:#fff;border-color:#d1d5db;") 1 ngày
+                button(type="button", data-hc-range="month", class="px-3 py-1.5 rounded-lg text-sm font-medium border", style="background:#fff;border-color:#d1d5db;") 1 tháng
+                button(type="button", data-hc-range="year", class="px-3 py-1.5 rounded-lg text-sm font-medium border", style="background:#fff;border-color:#d1d5db;") 1 năm
+                button(type="button", data-hc-range="all", class="px-3 py-1.5 rounded-lg text-sm font-medium border", style="background:#fff;border-color:#d1d5db;") Tất cả
+
+                //- Chọn khoảng thời gian: cụ thể (năm / tháng / ngày)
+                span(class="mx-1 text-gray-300 hidden sm:inline") |
+                label(for="hcKind", class="text-sm text-gray-600") Xem theo:
+                select(id="hcKind", class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white")
+                    option(value="year") Năm
+                    option(value="month") Tháng
+                    option(value="day") Ngày
+                input(id="hcYear", type="number", min="2000", max="2100", step="1", class="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm")
+                input(id="hcMonth", type="month", class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm")
+                input(id="hcDay", type="date", class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm")
+
+                div(class="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1")
+                    if !isAdmin
+                        label(class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none")
+                            input(id="hcOthers", type="checkbox")
+                            | Hiện sinh viên khác
+                    label(class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none")
+                        input(id="hcLine", type="checkbox")
+                        = isAdmin ? 'Nối các điểm' : 'Nối các điểm của tôi'
+
+            div(style="position:relative;margin-top:12px;")
+                div(id="hcSvgHost")
+                div(id="hcEmpty", style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#9ca3af;font-size:14px;pointer-events:none;")
+                    | Không có bài nộp trong khoảng này
+                div(id="hcTip", style="display:none;position:absolute;z-index:5;pointer-events:none;background:#111827;color:#fff;font-size:12px;line-height:1.5;padding:8px 10px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.25);white-space:nowrap;")
+
+            //- Chú giải 10 khoảng điểm [0,1] … [9,10] (kèm số bài trong khoảng)
+            div(id="hcLegend", class="flex flex-wrap gap-1.5 mt-3")
+            p(class="text-xs text-gray-400 mt-2")
+                | Mỗi khoảng điểm một màu. Điểm nằm đúng biên thuộc khoảng trên (1 → [1,2]); điểm 10 thuộc [9,10]. Bài trắc nghiệm được quy về thang 10.
+            script(id="hcData", type="application/json")!= chartJson
+
         //- Tìm kiếm (chỉ admin)
         if isAdmin
             form(method="get", action=("/lessons/" + lessonId + "/history"), class="flex flex-wrap items-center gap-2 mb-5")
@@ -212,3 +265,5 @@ block content
 
             //- Phân trang
             include ../pagination
+
+    script(src="/js/historyChart.js")
