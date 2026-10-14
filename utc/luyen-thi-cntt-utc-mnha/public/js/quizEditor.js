@@ -701,7 +701,7 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (d && d.success) {
-                    upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, githubReady: d.githubReady !== false };
+                    upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, uploadMaxBytes: d.uploadMaxBytes || d.maxBytes || upCfg.maxBytes, githubReady: d.githubReady !== false };
                 } else { upCfg.loaded = true; }
                 refreshCloudSelects();
             })
@@ -723,6 +723,44 @@
         el.textContent = text || "";
     }
 
+    // ★ Nén ảnh về ≤ limit byte (Vercel cắt request > 4.5MB). Ảnh nhỏ hơn giữ nguyên.
+    function fileToBlobUnder(file, limit) {
+        return new Promise(function (resolve, reject) {
+            if (file.size <= limit) { resolve(file); return; }
+            if (file.type === "image/gif") { reject(new Error("GIF nặng " + (file.size / 1048576).toFixed(1) + "MB, tối đa " + (limit / 1048576).toFixed(1) + "MB. Hãy dùng PNG/JPEG.")); return; }
+            var url = URL.createObjectURL(file), img = new Image();
+            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Trình duyệt không đọc được ảnh để nén.")); };
+            img.onload = function () {
+                URL.revokeObjectURL(url);
+                var scales = [1, 0.85, 0.7, 0.55, 0.4, 0.3], i = 0;
+                var maxSide = 2400, base = Math.min(1, maxSide / Math.max(img.width, img.height));
+                (function attempt() {
+                    var sc = base * scales[i], cv = document.createElement("canvas");
+                    cv.width = Math.max(1, Math.round(img.width * sc));
+                    cv.height = Math.max(1, Math.round(img.height * sc));
+                    var ctx = cv.getContext("2d");
+                    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);   // nền trắng cho PNG trong suốt
+                    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+                    cv.toBlob(function (blob) {
+                        if (blob && blob.size <= limit) { resolve(blob); return; }
+                        if (++i >= scales.length) { reject(new Error("Không nén được ảnh xuống dưới " + (limit / 1048576).toFixed(1) + "MB. Hãy chọn ảnh nhỏ hơn.")); return; }
+                        attempt();
+                    }, "image/jpeg", 0.88);
+                })();
+            };
+            img.src = url;
+        });
+    }
+
+    function blobToBase64(blob) {
+        return new Promise(function (resolve, reject) {
+            var r = new FileReader();
+            r.onload = function () { resolve(String(r.result).split(",")[1] || ""); };
+            r.onerror = function () { reject(new Error("Không đọc được file ảnh.")); };
+            r.readAsDataURL(blob);
+        });
+    }
+
     function uploadQuizImage(file, c, isCluster) {
         var card = c.card, q = c.q, part = c.part;
         var btn = card.querySelector(isCluster ? '[data-act="upclimg"]' : '[data-act="upimg"]');
@@ -735,19 +773,33 @@
         if (!cloud) { fail("Hãy chọn CLOUDINARY_CLOUD_NAME để kiểm duyệt ảnh."); return; }
         var names = [cloud];
         if (!/^image\/(png|jpeg|webp|gif|bmp|avif)$/.test(file.type)) { fail("Chỉ nhận ảnh PNG / JPEG / WEBP / GIF / BMP / AVIF."); return; }
-        if (file.size > upCfg.maxBytes) { fail("Ảnh nặng " + (file.size / 1048576).toFixed(1) + "MB, tối đa " + Math.round(upCfg.maxBytes / 1048576) + "MB."); return; }
 
+        var sendLimit = upCfg.uploadMaxBytes || upCfg.maxBytes;
         if (btn) btn.disabled = true;
-        setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
+        setUpStatus(card, "busy", "⏳ Đang chuẩn bị ảnh…");
 
-        fetch("/admin/quiz/upload-image", {
-            method: "POST",
-            headers: { "Content-Type": file.type, "X-Cloudinary-Names": names.join(","), "Accept": "application/json" },
-            body: file
+        var sentMime = file.type;
+        fileToBlobUnder(file, sendLimit).then(function (blob) {
+            sentMime = blob.type || file.type;
+            return blobToBase64(blob);
+        }).then(function (b64) {
+            setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
+            return fetch("/admin/quiz/upload-image", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({ mime: sentMime, data: b64, names: names.join(",") })
+            });
         }).then(function (res) {
-            return res.json().catch(function () { return null; }).then(function (data) {
+            // Vercel có thể trả text/HTML (413, timeout…) → đọc text rồi tự parse để thấy lý do thật
+            return res.text().then(function (txt) {
+                var data = null;
+                try { data = JSON.parse(txt); } catch (e) { data = null; }
                 if (!res.ok || !data || !data.success) {
-                    throw new Error((data && data.message) || (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ." : "Không tải được ảnh (HTTP " + res.status + ")."));
+                    var why = (data && data.message) ||
+                        (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB)." :
+                         "Máy chủ trả HTTP " + res.status + (txt ? ": " + txt.replace(/<[^>]+>/g, " ").trim().slice(0, 140) : ""));
+                    throw new Error(why);
                 }
                 return data;
             });
@@ -756,7 +808,8 @@
             if (isCluster) { if (q.cluster) q.cluster.image = data.url; }
             else q.image = data.url;
             renderPart(part);
-            showOk("✓ Đã kiểm duyệt (" + (data.moderatedBy || names).join(", ") + ") và lưu ảnh: " + data.path + " — link raw đã điền vào ô link ảnh. Nhớ bấm Lưu.");
+            showOk("✓ Đã kiểm duyệt (" + (data.moderatedBy || names).join(", ") + ") và lưu ảnh: " + data.path + " — link raw đã điền vào ô link ảnh. Nhớ bấm Lưu." +
+                (data.warning ? " ⚠ " + data.warning : ""));
         }).catch(function (e) {
             if (btn) btn.disabled = false;
             fail(e.message || "Không tải được ảnh.");

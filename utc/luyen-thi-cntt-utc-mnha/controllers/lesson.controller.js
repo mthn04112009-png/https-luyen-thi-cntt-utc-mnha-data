@@ -15,7 +15,8 @@ const { resolvePrompt, findUnknownPlaceholders } = require("../services/promptSe
 const { sanitizeExplanationHtml } = require("../services/sanitizeService");
 const { getContentScope } = require("../services/userKeyService");
 const { formatAiLabel } = require("../utils/aiLabel");
-const { paginate } = require("./pagination.controller");
+const { paginate, paginateArray } = require("./pagination.controller");
+const { sortNewestFirst } = require("../utils/lessonOrder");
 
 /* ============================================================
  * HELPERS
@@ -266,10 +267,10 @@ exports.listLessons = async (req, res, next) => {
         await githubSync.syncKinds(["lessons"]);
 
         // ★ Đề mới nhất lên đầu (mới → cũ)
-        const lessons = await Lesson.find({
+        const lessons = sortNewestFirst(await Lesson.find({
             subjectId: subject._id,
             isDeleted: false,
-        }).sort({ createdAt: -1 }).populate("createdBy", "name").lean();
+        }).populate("createdBy", "name").lean());
 
         const submittedMap = {};
         if (req.user) {
@@ -328,11 +329,10 @@ exports.listAllLessons = async (req, res, next) => {
             if (currentSubject) filter.subjectId = currentSubject._id;
         }
 
-        const lessons = await Lesson.find(filter)
-            .sort({ createdAt: -1 })
+        const lessons = sortNewestFirst(await Lesson.find(filter)
             .populate("createdBy", "name email")
             .populate("updatedBy", "name email")
-            .lean();
+            .lean());
         const lessonsWithSubject = await attachSubjects(lessons);
 
         const submittedMap = {};
@@ -820,18 +820,17 @@ exports.getAdminLessons = async (req, res, next) => {
             filter.title = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
         }
 
-        // ★ FIX: populate để view hiện tên/email người tạo - người sửa
-        //   thay vì chỉ là ObjectId thô (xem lessons.pug)
-        const { items: lessons, pagination } = await paginate(Lesson, filter, req, {
-            limit: 10,
-            // ★ Mới nhất → cũ nhất, giống /subjects/:id: dùng _id (mốc thời gian tạo, ổn định)
-            //   vì createdAt/updatedAt bị đặt lại khi đồng bộ GitHub nên cùng ngày bị xáo trộn
-            sort: { _id: -1 },
-            populate: [
+        // ★ Mới nhất → cũ nhất, KHÔNG phân biệt trắc nghiệm / tự luận.
+        //   Mốc "tạo" = thời gian nhúng trong ObjectId của bài (không đổi khi đồng bộ GitHub).
+        //   Bài cũ có _id suy từ đường dẫn file (không phải ObjectId thời gian thật) → dùng createdAt.
+        //   populate để view hiện tên/email người tạo - người sửa (xem lessons.pug)
+        const all = await Lesson.find(filter)
+            .populate([
                 { path: "createdBy", select: "name email" },
                 { path: "updatedBy", select: "name email" },
-            ],
-        });
+            ])
+            .lean();
+        const { items: lessons, pagination } = paginateArray(sortNewestFirst(all), req, { limit: 10 });
         const lessonsWithSubject = await attachSubjects(lessons);
 
         const allSubjects = await Subject.find({

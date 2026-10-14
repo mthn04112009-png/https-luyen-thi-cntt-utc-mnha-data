@@ -89,4 +89,21 @@ const paginate = async (Model, filter = {}, req, options = {}) => {
   };
 };
 
-module.exports = { paginate, buildBaseUrl };
+/**
+ * Phân trang một MẢNG đã sắp xếp sẵn (dùng khi cách sắp xếp không biểu diễn được bằng sort của model).
+ * Trả về cùng dạng với paginate().
+ */
+const paginateArray = (all, req, options = {}) => {
+  const { limit: defaultLimit = DEFAULT_LIMIT } = options;
+  const limit = Math.min(toPositiveInt(req.query.limit, defaultLimit), MAX_LIMIT);
+  const totalItems = all.length;
+  const totalPages = Math.max(Math.ceil(totalItems / limit), 1);
+  const currentPage = Math.min(toPositiveInt(req.query.page, 1), totalPages);
+  const items = all.slice((currentPage - 1) * limit, currentPage * limit);
+  return {
+    items,
+    pagination: { currentPage, totalPages, totalItems, limit, baseUrl: buildBaseUrl(req) },
+  };
+};
+
+module.exports = { paginate, paginateArray, buildBaseUrl };

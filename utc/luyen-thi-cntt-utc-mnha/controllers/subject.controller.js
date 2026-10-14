@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 const Subject = require('../models/Subject');
 const Lesson = require('../models/Lesson');
-const { paginate } = require('./pagination.controller');
+const { paginate, paginateArray } = require('./pagination.controller');
+const { sortNewestFirst } = require('../utils/lessonOrder');
 // ★ USER KEY: toàn bộ phạm vi xem/sửa môn học lấy từ đây
 const { getContentScope } = require('../services/userKeyService');
 // ★ GitHub là nguồn sự thật của bài học: đồng bộ trước khi đếm / liệt kê
@@ -215,8 +216,8 @@ exports.getSubject = async (req, res, next) => {
         const q = getSearchTerm(req);
         const searchClause = buildSearchClause(q, ['title', 'description']);
 
-        const { items: lessons, pagination } = await paginate(
-            Lesson,
+        // ★ Đề MỚI nhất lên đầu, không phân biệt trắc nghiệm / tự luận (xem utils/lessonOrder.js)
+        const allLessons = await Lesson.find(
             withSearch(
                 {
                     subjectId: subject._id,
@@ -224,19 +225,12 @@ exports.getSubject = async (req, res, next) => {
                     ...scope.filter, // ★ USER KEY: phòng thủ thêm ở cấp bài học
                 },
                 searchClause
-            ),
-            req,
-            {
-                limit: 10,
-                // ★ Đề MỚI nhất lên đầu (mới → cũ). Dùng _id (mốc thời gian tạo, ổn định)
-                //   thay vì createdAt/updatedAt vì đồng bộ GitHub làm các mốc này trùng/đổi.
-                sort: { _id: -1 },
-                populate: [
-                    { path: 'createdBy', select: 'name' },
-                    { path: 'updatedBy', select: 'name' }, // ★ Cập nhật bởi
-                ],
-            }
-        );
+            )
+        ).populate([
+            { path: 'createdBy', select: 'name' },
+            { path: 'updatedBy', select: 'name' }, // ★ Cập nhật bởi
+        ]).lean();
+        const { items: lessons, pagination } = paginateArray(sortNewestFirst(allLessons), req, { limit: 10 });
 
         return res.render('student/subject', {
             title: subject.name,
