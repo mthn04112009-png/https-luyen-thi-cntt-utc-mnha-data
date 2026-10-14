@@ -536,6 +536,10 @@ block content
                             button(type="button", id="photoBtn", class="photo-btn", disabled)
                                 | 📷 Tải ảnh viết tay lên
                             span(id="photoStatus", class="photo-status")
+                            //- ★ Chọn CLOUDINARY_CLOUD_NAME dùng để kiểm duyệt ảnh (ảnh phải qua tất cả tài khoản đã tick)
+                            div(id="photoCloud", class="photo-cloud", hidden)
+                                label(for="photoCloudSelect") 🛡 Kiểm duyệt ảnh bằng:
+                                select(id="photoCloudSelect")
                         div(id="drawingPad")
                         div(class="draw-hint")
                             | 🎨 Vẽ sơ đồ, hình, công thức hoặc viết tay tuỳ ý. Dùng <b>🔍+ / 🔍−</b> để phóng to/thu nhỏ và <b>▲ ▼ ◀ ▶</b> (hoặc ✋ kéo) để di chuyển sang vùng khác của tờ giấy.
@@ -682,7 +686,8 @@ block content
             const photoInput = document.getElementById("photoInput");
             const photoBtn = document.getElementById("photoBtn");
             const photoStatus = document.getElementById("photoStatus");
-            let photoCfg = { enabled: false, maxBytes: 10 * 1024 * 1024 };
+            const photoCloud = document.getElementById("photoCloud");
+            let photoCfg = { enabled: false, maxBytes: 10 * 1024 * 1024, accounts: [], maxSelected: 5 };
             let photoBusy = false;
             let photoToken = null; // token Cloudinary đã duyệt ảnh đang dùng (server kiểm lại khi nộp)
 
@@ -715,11 +720,25 @@ block content
             fetch("/submissions/drawing-upload/config", { cache: "no-store", headers: { "Accept": "application/json" } })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
-                    if (d && d.success) photoCfg = { enabled: !!d.enabled, maxBytes: d.maxBytes || photoCfg.maxBytes };
+                    if (d && d.success) photoCfg = { enabled: !!d.enabled, maxBytes: d.maxBytes || photoCfg.maxBytes, accounts: d.accounts || [], maxSelected: d.maxSelected || 5 };
+                    renderPhotoCloud();
                     if (!photoCfg.enabled) setPhotoStatus("", "Tải ảnh viết tay chưa được bật trên máy chủ.");
                     syncPhotoBtn();
                 })
                 .catch(function () { syncPhotoBtn(); });
+
+            const photoCloudSelect = document.getElementById("photoCloudSelect");
+            function renderPhotoCloud() {
+                if (!photoCloud || !photoCloudSelect) return;
+                if (!photoCfg.accounts.length) { photoCloud.hidden = true; return; }
+                const prev = photoCloudSelect.value;
+                photoCloudSelect.innerHTML = photoCfg.accounts.map(function (n) {
+                    const safe = String(n).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+                    return '<option value="' + safe + '">' + safe + "</option>";
+                }).join("");
+                if (prev && photoCfg.accounts.indexOf(prev) !== -1) photoCloudSelect.value = prev;
+                photoCloud.hidden = false;
+            }
 
             function fmtMB(n) { return (n / 1024 / 1024).toFixed(1).replace(/\.0$/, "") + "MB"; }
 
@@ -734,15 +753,21 @@ block content
                     setPhotoStatus("error", "Ảnh nặng " + fmtMB(file.size) + ", tối đa " + fmtMB(photoCfg.maxBytes) + ".");
                     return;
                 }
+                const cloudName = photoCloudSelect ? photoCloudSelect.value : "";
+                if (!cloudName) {
+                    setPhotoStatus("error", "Hãy chọn CLOUDINARY_CLOUD_NAME để kiểm duyệt ảnh.");
+                    return;
+                }
+                const cloudNames = [cloudName];
                 if (drawPad.hasContent() && !confirm("Ảnh sẽ được thêm đè lên bản vẽ hiện tại (có thể Hoàn tác ↶). Tiếp tục?")) return;
 
                 photoBusy = true;
                 syncPhotoBtn();
                 try {
-                    setPhotoStatus("busy", "⏳ Đang kiểm tra ảnh (kiểm duyệt nội dung)...");
+                    setPhotoStatus("busy", "⏳ Đang kiểm duyệt ảnh (" + cloudNames.join(", ") + ")...");
                     const res = await fetch("/submissions/drawing-upload", {
                         method: "POST",
-                        headers: { "Content-Type": file.type, "Accept": "application/json" },
+                        headers: { "Content-Type": file.type, "Accept": "application/json", "X-Cloudinary-Names": cloudNames.join(",") },
                         body: file
                     });
                     let data = null;

@@ -3,7 +3,8 @@
 // ------------------------------------------------------------
 //  Body = bytes ảnh thô (Content-Type image/png|jpeg|webp), tối đa CLOUDINARY_MAX_BYTES (mặc định 10MB)
 //    1. kiểm tra magic bytes
-//    2. Cloudinary kiểm duyệt: ảnh nhạy cảm → 422 và dừng
+//    2. Cloudinary kiểm duyệt (bằng các CLOUDINARY_CLOUD_NAME người dùng đã chọn — header X-Cloudinary-Names,
+//       cách nhau dấu phẩy; ảnh phải qua TẤT CẢ): ảnh nhạy cảm → 422 và dừng
 //    3. ảnh được duyệt → ghi TẠM lên GitHub (drawing-uploads/<userId>/<id>.<ext>)
 //    4. xoá ảnh khỏi Cloudinary (luôn luôn, kể cả khi lỗi)
 //    5. trả token HMAC; lúc nộp bài server kiểm token rồi xoá file tạm trên GitHub
@@ -14,6 +15,7 @@ const express = require('express');
 
 const githubService = require('../services/githubService');
 const moderation = require('../services/imageModerationService');
+const cloudinaryAccounts = require('../services/cloudinaryAccountService');
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
@@ -56,10 +58,13 @@ function stagingPath(userId, uploadId, ext) {
 }
 
 // GET /submissions/drawing-upload/config
-const getConfig = (req, res) => {
+const getConfig = async (req, res) => {
+    const accounts = await cloudinaryAccounts.listCloudNames();
     res.json({
         success: true,
-        enabled: moderation.isConfigured(),
+        enabled: accounts.length > 0,
+        accounts,                       // danh sách CLOUDINARY_CLOUD_NAME cho ô chọn
+        maxSelected: cloudinaryAccounts.MAX_SELECTED,
         maxBytes: moderation.MAX_UPLOAD_BYTES,
         types: ALLOWED_TYPES
     });
@@ -72,9 +77,12 @@ const uploadDrawingPhoto = async (req, res) => {
         if (!user) return res.status(401).json({ success: false, message: 'Chưa đăng nhập.' });
         const userId = String(user.id || user._id);
 
-        if (!moderation.isConfigured()) {
-            return res.status(503).json({ success: false, message: 'Tính năng tải ảnh chưa được bật (thiếu cấu hình Cloudinary).' });
+        // Tài khoản Cloudinary người dùng đã chọn (header) — kiểm tra trong DB, giải mã trong RAM
+        const available = await cloudinaryAccounts.listCloudNames();
+        if (!available.length) {
+            return res.status(503).json({ success: false, message: 'Tính năng tải ảnh chưa được bật (admin chưa thêm tài khoản Cloudinary).' });
         }
+        const accounts = await cloudinaryAccounts.resolveAccounts(req.get('x-cloudinary-names'));
 
         const buffer = req.body;
         if (!Buffer.isBuffer(buffer) || !buffer.length) {
@@ -107,7 +115,7 @@ const uploadDrawingPhoto = async (req, res) => {
                 buffer,
                 `[Drawing upload] ảnh tạm ${uploadId}`
             );
-        });
+        }, accounts);
 
         return res.json({
             success: true,

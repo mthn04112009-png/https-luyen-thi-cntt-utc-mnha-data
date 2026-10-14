@@ -173,7 +173,33 @@
         return { questions: out, note: "", errors: errors };
     }
 
+    // ★ Dòng "//image: 5,8,10" (AI báo các câu cần ảnh): bỏ khỏi text TRƯỚC khi parse
+    //   (thay bằng dòng trống để số dòng báo lỗi vẫn đúng) và trả về danh sách số câu.
+    function extractImageHint(text) {
+        var nums = [];
+        var out = String(text || "").replace(/\r/g, "").split("\n").map(function (ln) {
+            var m = /^\s*\/\/\s*image\s*:\s*(.*)$/i.exec(ln);
+            if (!m) return ln;
+            m[1].split(/[,;\s]+/).forEach(function (tok) {
+                var r = /^(\d+)\s*-\s*(\d+)$/.exec(tok);
+                if (r) {
+                    var a = +r[1], b = Math.min(+r[2], a + 200);
+                    for (var n = a; n <= b; n++) if (nums.indexOf(n) === -1) nums.push(n);
+                } else if (/^\d+$/.test(tok) && nums.indexOf(+tok) === -1) nums.push(+tok);
+            });
+            return "";
+        }).join("\n");
+        return { text: out, nums: nums };
+    }
+
     function parsePart(part, text) {
+        var h = extractImageHint(text);
+        var r = parsePartCore(part, h.text);
+        r.imageNums = h.nums;
+        return r;
+    }
+
+    function parsePartCore(part, text) {
         if (part === "tf") return parseTf(text);
         var errors = [], questions = [], note = [];
         var t = String(text || "").replace(/\r/g, "").trim();
@@ -372,12 +398,23 @@
     // ============================================================
     // RENDER
     // ============================================================
+    var UP_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif";
+    function upBlock(act, fileF) {
+        return '<div class="qc-uprow"><label class="qc-cldlabel">🛡 Kiểm duyệt bằng:' +
+            '<select class="qc-cld" title="Chọn CLOUDINARY_CLOUD_NAME dùng để kiểm duyệt ảnh">' + cloudOptionsHtml() + "</select></label>" +
+            '<button type="button" class="qf-btn qc-upbtn" data-act="' + act + '"' + (cloudUsable() ? "" : " disabled") + ">⬆ Tải ảnh lên</button>" +
+            '<input type="file" data-f="' + fileF + '" accept="' + UP_ACCEPT + '" hidden>' +
+            '<span class="qc-upstatus"></span></div>';
+    }
+
     function imageBlock(q) {
         var iss = imageIssue(q.image);
         var okImg = q.image && !iss;
-        return '<div class="qc-img"><label class="qc-l" style="margin-top:0">Ảnh minh hoạ (link https, tuỳ chọn)</label>' +
+        return '<div class="qc-img"><label class="qc-l" style="margin-top:0">Ảnh minh hoạ (link https, tuỳ chọn)' +
+            (q.needImage && !String(q.image || "").trim() ? ' <span class="qc-needimg">🖼 Câu này cần ảnh</span>' : "") + "</label>" +
             '<div class="qc-imgrow"><input type="text" data-f="image" value="' + esc(q.image) + '" placeholder="https://raw.githubusercontent.com/…">' +
             '<button type="button" class="qf-btn danger-s" data-act="rmimg"' + (q.image ? "" : " hidden") + ">Xoá ảnh</button></div>" +
+            upBlock("upimg", "imgfile") +
             '<div class="qc-imgwarn">' + esc(iss) + "</div>" +
             '<img class="qc-imgprev" referrerpolicy="no-referrer" alt=""' + (okImg ? ' src="' + esc(q.image) + '"' : " hidden") + "></div>";
     }
@@ -394,6 +431,7 @@
                 '<textarea rows="3" data-f="cltext">' + esc(q.cluster.text) + "</textarea>" +
                 '<label class="qc-l">Ảnh của chùm (link https, tuỳ chọn)</label>' +
                 '<input type="text" data-f="climage" value="' + esc(q.cluster.image) + '" placeholder="https://raw.githubusercontent.com/…">' +
+                upBlock("upclimg", "climgfile") +
                 '<div class="qc-imgwarn">' + esc(iss) + "</div>" +
                 '<div class="qc-note">Các câu liền sau: bấm “＋ Thêm vào chùm ở trên” để dùng chung nội dung này (chùm cần ít nhất 2 câu).</div></div>';
         }
@@ -409,6 +447,7 @@
 
     function cardHtml(part, q, i, n) {
         var h = '<div class="qc" data-k="' + part + '" data-i="' + i + '"><div class="qc-head"><b>Câu ' + (i + 1) + "</b>" +
+            (q.needImage && !String(q.image || "").trim() ? '<span class="qc-needimg">🖼 Cần ảnh</span>' : "") +
             '<span class="qc-tools"><button type="button" data-act="up" title="Lên"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
             '<button type="button" data-act="down" title="Xuống"' + (i === n - 1 ? " disabled" : "") + ">↓</button>" +
             '<button type="button" data-act="del" title="Xoá câu">✕</button></span></div>' +
@@ -471,6 +510,7 @@
             if ($("count-" + k)) $("count-" + k).textContent = cnt + " câu";
             if ($("sum-" + k)) $("sum-" + k).textContent = cnt ? cnt + " × " + fmt(partPoints(k)) + " = " + fmt(pts) + " điểm thô" : "";
         });
+        refreshImgNeed();
         var max = toNum($("fMax").value, 0);
         $("saveSummary").textContent = n
             ? n + " câu · tổng " + fmt(total) + " điểm thô → quy về thang " + fmt(max)
@@ -544,6 +584,11 @@
         var c = ctx(e.target);
         if (!c) return;
         var f = e.target.getAttribute("data-f");
+        if (f === "imgfile" || f === "climgfile") {
+            var file = e.target.files && e.target.files[0];
+            if (file) uploadQuizImage(file, c, f === "climgfile");
+            return;
+        }
         if (f === "correct") {
             var oi = Number(e.target.closest(".qc-opt").getAttribute("data-oi"));
             var at = c.q.correct.indexOf(oi);
@@ -565,6 +610,12 @@
         var c = ctx(btn);
         if (!c) return;
         var act = btn.getAttribute("data-act"), list = state[c.part];
+
+        if (act === "upimg" || act === "upclimg") {
+            var fi = c.card.querySelector('input[data-f="' + (act === "upimg" ? "imgfile" : "climgfile") + '"]');
+            if (fi) { fi.value = ""; fi.click(); }
+            return; // không render lại thẻ
+        }
 
         if (act === "del") {
             if (!confirm("Xoá câu " + (c.i + 1) + "?")) return;
@@ -601,8 +652,119 @@
         renderPart(c.part);
     });
 
+
+    // ============================================================
+    // ★ CÂU CẦN ẢNH (//image) + UP ẢNH (Cloudinary kiểm duyệt → GitHub cache/image)
+    // ============================================================
+    function refreshImgNeed() {
+        var box = $("qfImgNeed");
+        if (!box) return;
+        var parts = [];
+        PARTS.forEach(function (k) {
+            var nums = [];
+            state[k].forEach(function (q, i) {
+                if (q.needImage && !String(q.image || "").trim()) nums.push(i + 1);
+            });
+            if (nums.length) parts.push("<b>" + esc(PART_TITLES[k]) + ":</b> câu " + nums.join(", "));
+        });
+        if (!parts.length) { box.hidden = true; box.innerHTML = ""; return; }
+        box.innerHTML = "🖼 <b>Các câu cần ảnh (chưa có link):</b> " + parts.join(" · ") +
+            ". Bấm “⬆ Tải ảnh lên” ở từng câu — ảnh được kiểm duyệt rồi tự điền link raw.";
+        box.hidden = false;
+    }
+
+    var upCfg = { loaded: false, enabled: false, accounts: [], maxBytes: 10 * 1024 * 1024, githubReady: true };
+    var curCloud = ""; // CLOUDINARY_CLOUD_NAME đang chọn (dùng chung cho mọi ô chọn trên trang)
+
+    function cloudUsable() { return upCfg.enabled && upCfg.accounts.length > 0; }
+
+    function cloudOptionsHtml() {
+        if (!upCfg.loaded) return '<option value="">Đang tải…</option>';
+        if (!upCfg.accounts.length) return '<option value="">Chưa có Cloudinary</option>';
+        if (!curCloud || upCfg.accounts.indexOf(curCloud) === -1) curCloud = upCfg.accounts[0];
+        return upCfg.accounts.map(function (n) {
+            return '<option value="' + esc(n) + '"' + (n === curCloud ? " selected" : "") + ">" + esc(n) + "</option>";
+        }).join("");
+    }
+
+    // Cập nhật mọi ô chọn + nút đang có trên trang (sau khi tải xong cấu hình)
+    function refreshCloudSelects() {
+        document.querySelectorAll("select.qc-cld").forEach(function (sel) { sel.innerHTML = cloudOptionsHtml(); sel.disabled = !upCfg.accounts.length; });
+        document.querySelectorAll(".qc-upbtn").forEach(function (b) {
+            b.disabled = !cloudUsable();
+            b.title = cloudUsable() ? "" : (upCfg.accounts.length ? "GitHub chưa cấu hình nên chưa lưu được ảnh" : "Chưa có tài khoản Cloudinary — thêm ở Quản trị → API Key → Cloudinary");
+        });
+    }
+
+    function loadUploadConfig() {
+        fetch("/admin/quiz/upload-image/config", { cache: "no-store", headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (d && d.success) {
+                    upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, githubReady: d.githubReady !== false };
+                } else { upCfg.loaded = true; }
+                refreshCloudSelects();
+            })
+            .catch(function () { upCfg.loaded = true; refreshCloudSelects(); });
+    }
+    loadUploadConfig();
+
+    // Đổi lựa chọn ở 1 ô → đồng bộ mọi ô còn lại
+    document.addEventListener("change", function (e) {
+        if (!e.target.classList || !e.target.classList.contains("qc-cld")) return;
+        curCloud = e.target.value;
+        document.querySelectorAll("select.qc-cld").forEach(function (sel) { if (sel !== e.target) sel.value = curCloud; });
+    });
+
+    function setUpStatus(card, kind, text) {
+        var el = card && card.querySelector(".qc-upstatus");
+        if (!el) return;
+        el.className = "qc-upstatus" + (kind ? " " + kind : "");
+        el.textContent = text || "";
+    }
+
+    function uploadQuizImage(file, c, isCluster) {
+        var card = c.card, q = c.q, part = c.part;
+        var btn = card.querySelector(isCluster ? '[data-act="upclimg"]' : '[data-act="upimg"]');
+
+        function fail(msg) { setUpStatus(card, "err", "❌ " + msg); }
+
+        if (!upCfg.enabled) { fail(upCfg.accounts.length ? "Chưa lưu được ảnh (GitHub chưa cấu hình)." : "Chưa có tài khoản Cloudinary để kiểm duyệt."); return; }
+        var sel = card.querySelector("select.qc-cld");
+        var cloud = (sel && sel.value) || curCloud;
+        if (!cloud) { fail("Hãy chọn CLOUDINARY_CLOUD_NAME để kiểm duyệt ảnh."); return; }
+        var names = [cloud];
+        if (!/^image\/(png|jpeg|webp|gif|bmp|avif)$/.test(file.type)) { fail("Chỉ nhận ảnh PNG / JPEG / WEBP / GIF / BMP / AVIF."); return; }
+        if (file.size > upCfg.maxBytes) { fail("Ảnh nặng " + (file.size / 1048576).toFixed(1) + "MB, tối đa " + Math.round(upCfg.maxBytes / 1048576) + "MB."); return; }
+
+        if (btn) btn.disabled = true;
+        setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
+
+        fetch("/admin/quiz/upload-image", {
+            method: "POST",
+            headers: { "Content-Type": file.type, "X-Cloudinary-Names": names.join(","), "Accept": "application/json" },
+            body: file
+        }).then(function (res) {
+            return res.json().catch(function () { return null; }).then(function (data) {
+                if (!res.ok || !data || !data.success) {
+                    throw new Error((data && data.message) || (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ." : "Không tải được ảnh (HTTP " + res.status + ")."));
+                }
+                return data;
+            });
+        }).then(function (data) {
+            // Tự điền link raw vào ô link ảnh (dùng tham chiếu câu, không dùng chỉ số — phòng khi đã đổi thứ tự)
+            if (isCluster) { if (q.cluster) q.cluster.image = data.url; }
+            else q.image = data.url;
+            renderPart(part);
+            showOk("✓ Đã kiểm duyệt (" + (data.moderatedBy || names).join(", ") + ") và lưu ảnh: " + data.path + " — link raw đã điền vào ô link ảnh. Nhớ bấm Lưu.");
+        }).catch(function (e) {
+            if (btn) btn.disabled = false;
+            fail(e.message || "Không tải được ảnh.");
+        });
+    }
+
     $("btnParse").addEventListener("click", function () {
-        var errs = [], done = 0;
+        var errs = [], done = 0, missingImg = [];
         PARTS.forEach(function (k) {
             var txt = $("paste-" + k).value;
             if (!txt.trim()) return;
@@ -613,12 +775,18 @@
             }
             if (state[k].length && !confirm(PART_TITLES[k] + " đang có " + state[k].length + " câu. Thay bằng " + r.questions.length + " câu từ text đã dán?")) return;
             state[k] = r.questions;
+            (r.imageNums || []).forEach(function (n) {
+                if (n >= 1 && n <= state[k].length) state[k][n - 1].needImage = true;
+                else missingImg.push(PART_TITLES[k] + ": câu " + n);
+            });
             if (k === "fill" && r.note && $("fillNote") && !$("fillNote").value.trim()) $("fillNote").value = r.note.slice(0, 300);
             renderPart(k);
             done++;
         });
         showErrors(errs);
-        $("syncHint").textContent = errs.length ? "" : (done ? "✓ Đã chuyển " + done + " phần" : "Chưa có text nào để chuyển");
+        $("syncHint").textContent = errs.length ? "" : (done ? "✓ Đã chuyển " + done + " phần" : "Chưa có text nào để chuyển") +
+            (missingImg.length ? " · ⚠ //image nhắc câu không tồn tại: " + missingImg.join("; ") : "");
+        refreshImgNeed();
     });
 
     $("btnExport").addEventListener("click", function () {

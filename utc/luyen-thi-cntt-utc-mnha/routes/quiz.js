@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/quiz.controller');
+const quizImage = require('../controllers/quizImageUpload.controller');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, studentOrAdmin } = require('../middleware/role');
 const rateLimit = require('express-rate-limit');
@@ -73,6 +74,9 @@ router.get('/admin/quiz/:lessonId/edit',  requireAuth, requireRole('admin'), ctr
 
 // --- ADMIN: POST (parse TRƯỚC :lessonId) ---
 router.post('/admin/quiz/parse',          requireAuth, requireRole('admin'), parseLimit, ctrl.parsePreview);
+// ★ Up ảnh câu hỏi (kiểm duyệt Cloudinary → GitHub cache/image/<timestamp>.<đuôi>) — đứng TRƯỚC /:lessonId
+router.get ('/admin/quiz/upload-image/config', requireAuth, requireRole('admin'), quizImage.getConfig);
+router.post('/admin/quiz/upload-image',        requireAuth, requireRole('admin'), quizImage.rawImageBody, quizImage.rawBodyErrorHandler, quizImage.uploadQuizImage);
 router.post('/admin/quiz',                requireAuth, requireRole('admin'), ctrl.create);
 router.post('/admin/quiz/:lessonId',      requireAuth, requireRole('admin'), ctrl.update);
 

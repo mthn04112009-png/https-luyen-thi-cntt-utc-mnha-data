@@ -49,6 +49,8 @@ function stripFences(raw) {
   // bỏ ``` mở đầu nhưng GIỮ nguyên số dòng (thay bằng dòng trống) để báo lỗi "dòng N" đúng
   s = s.replace(/^\s*```[a-zA-Z]*[ \t]*(\r?\n|$)/, (m) => m.replace(/[^\r\n]/g, ''));
   s = s.replace(/(\r?\n)?[ \t]*```\s*$/, '');
+  // dòng "//image: 5,8,10" (AI báo câu cần ảnh) → xoá nội dung, GIỮ dòng trống để số dòng báo lỗi vẫn đúng
+  s = s.replace(/^[ \t]*\/\/[ \t]*image[ \t]*:.*$/gim, '');
   // bỏ dấu ngoặc kép bao quanh cả khối
   const t = s.trim();
   if (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) {

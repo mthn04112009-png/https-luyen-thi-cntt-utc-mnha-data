@@ -176,3 +176,8 @@ body.dp-no-scroll { overflow: hidden; }
 .photo-status.ps-busy { color: #1d4ed8; }
 .photo-status.ps-ok { color: #15803d; }
 .photo-status.ps-error { color: #b91c1c; font-weight: 600; }
+
+/* ★ Chọn CLOUDINARY_CLOUD_NAME kiểm duyệt ảnh (giống ô chọn AI Key) */
+.photo-cloud { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #1e3a8a; }
+.photo-cloud[hidden] { display: none; }
+.photo-cloud select { height: 36px; max-width: 220px; padding: 0 8px; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; }

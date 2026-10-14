@@ -74,6 +74,7 @@ QUY TẮC ĐỊNH DẠNG (bắt buộc, không tự đổi ký hiệu):
 6. (Tuỳ chọn) Giải thích: dòng "++) " + đoạn HTML ngắn, chỉ dùng thẻ <b>, <i>, <br>, <code>, <sub>, <sup>, <ul>, <li>. Đặt ngay sau dòng "=>". Không cần thì bỏ dòng này.
 7. Đáp án phải chính xác; đáp án nhiễu hợp lý; không lặp câu hỏi.
 8. (Tuỳ chọn, CHỈ KHỐI 1 và KHỐI 3 — không dùng cho KHỐI 2) Câu hỏi chùm: khi nhiều câu liên tiếp cùng dựa vào một đoạn dữ kiện, đặt NGAY TRƯỚC câu đầu tiên của chùm một dòng "*)/từ-đến/ " + nội dung chùm (từ, đến là số thứ tự câu trong khối, đếm từ 1, ví dụ "*)/1-3/"). Nội dung chùm có thể viết nhiều dòng và dùng các thẻ <b>, <i>, <u>, <br>, <code>, <sub>, <sup>, <ul>, <li> để in đậm, in nghiêng…; nếu có ảnh thì dòng ngay sau là link ảnh https. Các câu trong chùm viết bình thường ngay bên dưới, không lặp lại dữ kiện. Một chùm có ít nhất 2 câu, các chùm không chồng lên nhau. Câu không thuộc chùm thì KHÔNG viết dòng "*)". Không có chùm thì bỏ qua quy tắc này.
+9. (Tuỳ chọn) Câu CẦN ảnh minh hoạ mà bạn không có link ảnh thật: KHÔNG bịa link và KHÔNG viết dòng ảnh cho câu đó. Thay vào đó, viết ở DÒNG ĐẦU TIÊN của khối chứa câu ấy một dòng "//image: " + số thứ tự các câu cần ảnh trong khối (đếm từ 1, ngăn cách bằng dấu phẩy), ví dụ "//image: 5,8,10". Người ra đề sẽ tự tải ảnh lên sau. Khối nào không có câu nào cần ảnh thì TUYỆT ĐỐI KHÔNG viết dòng "//image" ở khối đó.
 
 VÍ DỤ KHỐI 1:
 - 2 + 3 × 4 bằng bao nhiêu?

@@ -7,6 +7,7 @@ const submissionController = require("../controllers/submission.controller");
 const disputeController = require("../controllers/dispute.controller");
 const promptController = require("../controllers/prompt.controller");
 const aiKeyController = require("../controllers/aikey.controller");
+const cloudinaryController = require("../controllers/cloudinary.controller");
 const userKeyController = require("../controllers/userkey.controller");
 const layoutController = require("../controllers/layout.controller");
 const layoutService = require("../services/layoutService");
@@ -222,6 +223,11 @@ router.post("/prompts/:id/hard-delete", promptController.hardDeletePrompt);
 router.use("/ai-keys", requireDefaultAdmin);
 
 router.get("/ai-keys", aiKeyController.getAIKeys);
+
+// Cloudinary (kiểm duyệt ảnh) — AES-256-GCM, không có bật/tắt
+router.get("/ai-keys/cloudinary", cloudinaryController.getCloudinary);
+router.post("/ai-keys/cloudinary", cloudinaryController.saveCloudinary);
+router.post("/ai-keys/cloudinary/:id/delete", cloudinaryController.deleteCloudinary);
 
 router.post("/ai-keys", aiKeyController.createAIKey);
 router.post("/ai-keys/:id/toggle", aiKeyController.toggleAIKey);

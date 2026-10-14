@@ -2,6 +2,8 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const layoutService = require('../services/layoutService');
+const moderation = require('../services/imageModerationService');
+const cloudinaryAccounts = require('../services/cloudinaryAccountService');
 const { redirectWithFlash, takeFlash } = require('../utils/flash');
 
 const { LayoutError, audit } = layoutService;
@@ -24,6 +26,7 @@ async function showForm(req, res, next) {
                 footerText: layout.footerText || ''
             },
             hasCustomLogo: Boolean(layout.logoFile),
+            cloudNames: await cloudinaryAccounts.listCloudNames(),   // ★ ô chọn Cloudinary kiểm duyệt logo
             flash: takeFlash(req),
             limits: {
                 brandSub: layoutService.MAX_BRAND_SUB,
@@ -37,6 +40,24 @@ async function showForm(req, res, next) {
 
 async function update(req, res, next) {
     try {
+        // ★ Logo mới PHẢI qua kiểm duyệt Cloudinary (bằng CLOUDINARY_CLOUD_NAME đã chọn) trước khi lưu.
+        //   Ảnh trên Cloudinary bị xoá ngay sau khi duyệt (xem imageModerationService).
+        if (req.file && req.file.size > 0) {
+            if (!moderation.sniffMime(req.file.buffer)) {
+                return redirectWithFlash(req, res, '/admin/layout', 'error', 'Logo chỉ nhận PNG, JPEG hoặc WebP.');
+            }
+            try {
+                const accounts = await cloudinaryAccounts.resolveAccounts(req.body.cloudName);
+                await moderation.moderate(req.file.buffer, null, accounts);
+            } catch (modErr) {
+                if (!modErr.status) console.error('[layout.moderate]', modErr);
+                return redirectWithFlash(
+                    req, res, '/admin/layout', 'error',
+                    modErr.status ? modErr.message : 'Không kiểm duyệt được logo lúc này. Vui lòng thử lại.'
+                );
+            }
+        }
+
         // userKey luôn lấy từ admin đang đăng nhập, không nhận từ body
         const result = await layoutService.saveLayout(req.actor.userKey, {
             file: req.file,

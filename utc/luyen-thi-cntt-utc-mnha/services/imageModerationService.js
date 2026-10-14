@@ -10,7 +10,9 @@
 //         d. LUÔN xoá ảnh khỏi Cloudinary (finally), dù thành công hay lỗi
 //    2. signUploadToken / verifyUploadToken: token HMAC chứng nhận "user này đã có ảnh qua kiểm duyệt"
 //
-//  Env cần có:  CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+//  Tài khoản Cloudinary: lưu ở MongoDB (trang /admin/ai-keys/cloudinary, mã hoá AES-256-GCM) —
+//  người upload chọn 1 hoặc nhiều CLOUDINARY_CLOUD_NAME; ảnh phải được TẤT CẢ tài khoản đã chọn duyệt.
+//  (.env CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET vẫn dùng được như 1 tài khoản dự phòng.)
 //  Env tuỳ chọn:
 //    CLOUDINARY_MODERATION   mặc định "aws_rek" (hoặc "aws_rek:explicit_nudity:0.6:..." / "webpurify")
 //    CLOUDINARY_MAX_BYTES    mặc định 10485760 (10MB = giới hạn ảnh của gói Free Cloudinary)
@@ -38,14 +40,6 @@ function fail(message, status, code) {
     return e;
 }
 
-function isConfigured() {
-    return !!(
-        process.env.CLOUDINARY_CLOUD_NAME &&
-        process.env.CLOUDINARY_API_KEY &&
-        process.env.CLOUDINARY_API_SECRET
-    );
-}
-
 /** Nhận diện loại ảnh bằng magic bytes (không tin Content-Type do client gửi). */
 function sniffMime(buf) {
     if (!Buffer.isBuffer(buf) || buf.length < 12) return null;
@@ -55,24 +49,44 @@ function sniffMime(buf) {
     return null;
 }
 
-let _cld = null;
-function cloudinary() {
-    if (_cld) return _cld;
-    let lib;
+/**
+ * Nhận diện ảnh nhiều đuôi bằng magic bytes (dùng cho ảnh câu hỏi).
+ * @returns {null | {mime:string, ext:string}}  png | jpg | webp | gif | bmp | avif
+ */
+function sniffImage(buf) {
+    if (!Buffer.isBuffer(buf) || buf.length < 12) return null;
+    const m = sniffMime(buf);
+    if (m) return { mime: m, ext: MIME_EXT[m] };
+    const head6 = buf.toString('ascii', 0, 6);
+    if (head6 === 'GIF87a' || head6 === 'GIF89a') return { mime: 'image/gif', ext: 'gif' };
+    if (buf[0] === 0x42 && buf[1] === 0x4d) return { mime: 'image/bmp', ext: 'bmp' };
+    if (buf.toString('ascii', 4, 8) === 'ftyp') {
+        const brand = buf.toString('ascii', 8, 12);
+        if (brand === 'avif' || brand === 'avis') return { mime: 'image/avif', ext: 'avif' };
+    }
+    return null;
+}
+
+let _lib = null;
+function cloudinaryLib() {
+    if (_lib) return _lib;
     try {
-        lib = require('cloudinary').v2;
+        _lib = require('cloudinary').v2;
     } catch (e) {
         console.error('[imageModeration] Thiếu package "cloudinary" — chạy: npm i cloudinary');
         throw fail('Máy chủ chưa cài đặt dịch vụ kiểm duyệt ảnh.', 503);
     }
-    lib.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET,
+    return _lib;
+}
+
+/** Tuỳ chọn xác thực cho TỪNG lần gọi (không dùng cấu hình toàn cục vì có nhiều tài khoản). */
+function authOptions(account) {
+    return {
+        cloud_name: account.cloudName,
+        api_key: account.apiKey,
+        api_secret: account.apiSecret,
         secure: true
-    });
-    _cld = lib;
-    return lib;
+    };
 }
 
 function uploadBuffer(lib, buffer, options) {
@@ -108,25 +122,27 @@ function describeLabels(result) {
     }
 }
 
-async function destroyQuietly(lib, publicId) {
+async function destroyQuietly(lib, account, publicId) {
     if (!publicId) return;
     try {
-        await lib.uploader.destroy(publicId, { resource_type: 'image', type: 'private', invalidate: true });
+        await lib.uploader.destroy(publicId, {
+            ...authOptions(account),
+            resource_type: 'image',
+            type: 'private',
+            invalidate: true
+        });
     } catch (e) {
-        console.warn(`[imageModeration] Không xoá được ảnh Cloudinary ${publicId}: ${e.message || e}`);
+        console.warn(`[imageModeration] Không xoá được ảnh Cloudinary (${account.cloudName}) ${publicId}: ${e.message || e}`);
     }
 }
 
 /**
- * Kiểm duyệt 1 ảnh qua Cloudinary.
- * @param {Buffer} buffer
- * @param {() => Promise<any>} [onApproved]  chạy khi ảnh ĐƯỢC DUYỆT, trong lúc ảnh còn trên Cloudinary
- * @returns {Promise<any>} kết quả của onApproved
- * @throws Error có .status: 422 (nhạy cảm, code SENSITIVE_IMAGE) | 413 (quá lớn) | 502/503 (lỗi dịch vụ)
+ * Kiểm duyệt ảnh bằng MỘT tài khoản Cloudinary.
+ * onApproved chạy khi ảnh được duyệt, trong lúc ảnh còn trên Cloudinary.
  */
-async function moderate(buffer, onApproved) {
-    if (!isConfigured()) throw fail('Chưa cấu hình Cloudinary (thiếu CLOUDINARY_* trong .env).', 503);
-    const lib = cloudinary();
+async function moderateOne(buffer, onApproved, account) {
+    const lib = cloudinaryLib();
+    const auth = authOptions(account);
 
     const publicId = `${UPLOAD_FOLDER}/${crypto.randomBytes(16).toString('hex')}`;
     let uploaded = null;
@@ -134,17 +150,21 @@ async function moderate(buffer, onApproved) {
     try {
         try {
             uploaded = await uploadBuffer(lib, buffer, {
+                ...auth,
                 resource_type: 'image',
-                type: 'private',            // không công khai ảnh của học viên
+                type: 'private',            // không công khai ảnh
                 public_id: publicId,
                 overwrite: false,
                 moderation: MODERATION
             });
         } catch (e) {
             const raw = String((e && (e.message || (e.error && e.error.message))) || e);
-            console.error('[imageModeration] Upload Cloudinary lỗi:', raw);
+            console.error(`[imageModeration] Upload Cloudinary (${account.cloudName}) lỗi:`, raw);
             if (/too large|maximum|exceed|megapixel/i.test(raw)) {
                 throw fail('Ảnh vượt giới hạn của Cloudinary (tối đa 10MB và 25 megapixel). Hãy chọn ảnh nhỏ hơn.', 413);
+            }
+            if (/invalid (api_key|signature|cloud)|unknown api key|must supply|cloud_name|401|403/i.test(raw)) {
+                throw fail(`Cloudinary "${account.cloudName}" từ chối kết nối (sai cloud name / API key / secret). Báo admin kiểm tra lại.`, 502);
             }
             throw fail('Không kiểm duyệt được ảnh lúc này. Vui lòng thử lại sau.', 502);
         }
@@ -152,23 +172,44 @@ async function moderate(buffer, onApproved) {
         const verdict = verdictOf(uploaded);
 
         if (verdict === 'rejected') {
-            console.warn(`[imageModeration] ẢNH NHẠY CẢM bị chặn (${describeLabels(uploaded) || 'không rõ nhãn'})`);
+            console.warn(`[imageModeration] ẢNH NHẠY CẢM bị chặn bởi "${account.cloudName}" (${describeLabels(uploaded) || 'không rõ nhãn'})`);
             throw fail('Ảnh bị từ chối vì có nội dung nhạy cảm. Vui lòng chọn ảnh khác.', 422, 'SENSITIVE_IMAGE');
         }
         if (verdict !== 'approved') {
             // missing = add-on chưa bật; pending = đang chờ duyệt → không chắc chắn thì chặn
             console.error(
-                `[imageModeration] Kết quả kiểm duyệt "${verdict}" — kiểm tra đã bật add-on moderation ` +
+                `[imageModeration] "${account.cloudName}": kết quả kiểm duyệt "${verdict}" — kiểm tra đã bật add-on moderation ` +
                 `("${MODERATION}") trong Cloudinary Console chưa.`
             );
-            throw fail('Chưa kiểm duyệt được ảnh nên chưa thể nhận. Vui lòng thử lại sau hoặc báo admin.', 503);
+            throw fail(`Cloudinary "${account.cloudName}" chưa kiểm duyệt được ảnh (có thể chưa bật add-on moderation). Thử tài khoản khác hoặc báo admin.`, 503);
         }
 
         return onApproved ? await onApproved() : undefined;
     } finally {
         // Dù duyệt xong, bị chặn hay lỗi giữa chừng → luôn xoá ảnh khỏi Cloudinary
-        await destroyQuietly(lib, (uploaded && uploaded.public_id) || (uploaded ? publicId : null));
+        await destroyQuietly(lib, account, (uploaded && uploaded.public_id) || (uploaded ? publicId : null));
     }
+}
+
+/**
+ * Kiểm duyệt 1 ảnh qua các tài khoản Cloudinary ĐÃ CHỌN.
+ * Ảnh phải được TẤT CẢ tài khoản duyệt (lần lượt từng tài khoản); chỉ khi qua hết mới chạy onApproved.
+ * Mọi bản sao trên Cloudinary đều bị xoá ở cuối (kể cả khi lỗi).
+ *
+ * @param {Buffer} buffer
+ * @param {() => Promise<any>} onApproved
+ * @param {{cloudName:string, apiKey:string, apiSecret:string}[]} accounts  từ cloudinaryAccountService.resolveAccounts
+ * @returns {Promise<any>} kết quả của onApproved
+ * @throws Error có .status: 422 (nhạy cảm, code SENSITIVE_IMAGE) | 413 (quá lớn) | 502/503 (lỗi dịch vụ)
+ */
+async function moderate(buffer, onApproved, accounts) {
+    if (!Array.isArray(accounts) || !accounts.length) {
+        throw fail('Chưa chọn tài khoản Cloudinary để kiểm duyệt ảnh.', 400);
+    }
+    const run = (i) => (i >= accounts.length
+        ? (onApproved ? onApproved() : undefined)
+        : moderateOne(buffer, () => run(i + 1), accounts[i]));
+    return run(0);
 }
 
 // ---------------- token chứng nhận ảnh đã qua kiểm duyệt ----------------
@@ -208,8 +249,8 @@ function verifyUploadToken(token, userId) {
 module.exports = {
     MAX_UPLOAD_BYTES,
     MIME_EXT,
-    isConfigured,
     sniffMime,
+    sniffImage,
     moderate,
     signUploadToken,
     verifyUploadToken

@@ -109,3 +109,15 @@
     .qc-imgrow { flex-direction: column; }
     .qc-tf { flex-direction: column; }
 }
+
+/* ★ Up ảnh câu hỏi + chọn Cloudinary + câu cần ảnh (//image) */
+.qc-uprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.qc-upbtn { padding: 7px 12px; }
+.qc-upstatus { font-size: 12px; font-weight: 600; color: #475569; }
+.qc-upstatus:empty { display: none; }
+.qc-upstatus.busy { color: #1c4385; }
+.qc-upstatus.err { color: #b91c1c; }
+.qc-needimg { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 700; }
+.qc-cldlabel { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #1e3a8a; }
+.qc-cld { max-width: 200px; padding: 6px 8px; border: 1px solid #cfd5de; border-radius: 7px; background: #fff; font: inherit; font-size: 12.5px; font-family: ui-monospace, Consolas, monospace; }
+.qc-cld:disabled { opacity: .6; }

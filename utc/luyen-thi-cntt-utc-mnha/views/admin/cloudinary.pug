@@ -1,0 +1,191 @@
+extends ../layout
+
+block content
+    div(class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
+
+        //- Header
+        div(class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8")
+            div
+                a(href="/admin/ai-keys" class="text-sm text-indigo-600 hover:underline") ← API Key AI
+                h1(class="text-2xl sm:text-3xl font-bold text-gray-900 mt-1")
+                    | Cloudinary
+                p(class="text-gray-500 mt-1")
+                    | Tài khoản dùng để kiểm duyệt ảnh trước khi nhận (ảnh câu hỏi, ảnh viết tay)
+
+            button(
+                type="button"
+                onclick="document.getElementById('cldModal').classList.remove('hidden')"
+                class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+            )
+                i(data-lucide="plus", class="w-4 h-4")
+                | Thêm Cloudinary
+
+        //- Flash
+        if success
+            div(class="mb-6 p-4 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm")
+                = success
+        if error
+            div(class="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm")
+                = error
+
+        //- Security notice
+        div(class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6")
+            div(class="flex items-start gap-3")
+                i(data-lucide="shield-check", class="w-5 h-5 text-blue-600 mt-0.5")
+                div
+                    p(class="font-medium text-blue-900")
+                        | Bảo mật Cloudinary
+                    p(class="text-sm text-blue-700 mt-1")
+                        | CLOUDINARY_API_KEY và CLOUDINARY_API_SECRET được lưu ở dạng mã hóa AES-256-GCM, không hiển thị đầy đủ trong giao diện.
+                    p(class="text-sm text-blue-700 mt-1")
+                        | Cần bật add-on kiểm duyệt (Amazon Rekognition AI Moderation) trong Cloudinary Console. Khi tải ảnh, người dùng chọn một hoặc nhiều CLOUDINARY_CLOUD_NAME ở dưới để kiểm duyệt; ảnh phải qua tất cả tài khoản đã chọn.
+
+        //- Danh sách
+        div(class="grid grid-cols-1 lg:grid-cols-2 gap-5")
+            if accounts && accounts.length
+                each acc in accounts
+                    div(class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm")
+                        div(class="flex items-start justify-between")
+                            div(class="flex items-center gap-3")
+                                div(class="w-10 h-10 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center")
+                                    i(data-lucide="cloud", class="w-5 h-5")
+                                div
+                                    h2(class="font-semibold text-gray-900 break-all")= acc.cloudName
+                                    p(class="text-xs text-gray-500 mt-0.5") CLOUDINARY_CLOUD_NAME
+                            if acc.source === 'env'
+                                span(class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium") Từ .env
+                            else
+                                span(class="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium") Đã mã hóa
+
+                        div(class="mt-5 space-y-2")
+                            div(class="p-3 bg-gray-50 rounded-lg font-mono text-sm text-gray-600")
+                                span(class="text-xs text-gray-400 mr-2") API_KEY
+                                = acc.maskedKey
+                            div(class="p-3 bg-gray-50 rounded-lg font-mono text-sm text-gray-600")
+                                span(class="text-xs text-gray-400 mr-2") API_SECRET
+                                | ••••••••••••••••
+
+                        div(class="mt-4 flex items-center justify-between pt-3 border-t border-gray-100")
+                            p(class="text-xs text-gray-500")
+                                if acc.source === 'env'
+                                    | Cấu hình trong biến môi trường (không xóa được ở đây)
+                                else
+                                    | Cập nhật:
+                                    = ' ' + (acc.updatedAt ? new Date(acc.updatedAt).toLocaleString('vi-VN') : '—')
+
+                            if acc.source !== 'env'
+                                div(class="flex items-center gap-2")
+                                    button(
+                                        type="button"
+                                        class="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-medium"
+                                        data-cld-edit=acc.cloudName
+                                    ) Đổi key
+
+                                    form(
+                                        action=BASE_PATH + "/" + acc._id + "/delete"
+                                        method="POST"
+                                        class="inline"
+                                        onsubmit="return confirm('Xóa Cloudinary này? Ảnh sẽ không còn được kiểm duyệt bằng tài khoản này.')"
+                                    )
+                                        button(
+                                            type="submit"
+                                            class="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center"
+                                        )
+                                            i(data-lucide="trash-2", class="w-4 h-4")
+            else
+                div(class="lg:col-span-2 bg-white border border-gray-200 rounded-2xl py-12 text-center")
+                    i(data-lucide="cloud", class="w-10 h-10 mx-auto text-gray-300")
+                    p(class="text-gray-500 mt-3")
+                        | Chưa có tài khoản Cloudinary — chưa thể tải ảnh có kiểm duyệt.
+                    button(
+                        type="button"
+                        onclick="document.getElementById('cldModal').classList.remove('hidden')"
+                        class="inline-flex items-center gap-2 mt-5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                    )
+                        i(data-lucide="plus", class="w-4 h-4")
+                        | Thêm Cloudinary đầu tiên
+
+        //- Modal thêm / đổi key
+        div#cldModal(class="hidden fixed inset-0 z-50 bg-black/50 p-4")
+            div(class="min-h-full flex items-center justify-center")
+                div(class="bg-white rounded-2xl w-full max-w-lg shadow-xl")
+                    div(class="px-6 py-5 border-b border-gray-200 flex items-center justify-between")
+                        h2(class="font-bold text-gray-900" id="cldModalTitle")
+                            | Thêm Cloudinary
+                        button(
+                            type="button"
+                            onclick="document.getElementById('cldModal').classList.add('hidden')"
+                            class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center"
+                        )
+                            i(data-lucide="x", class="w-5 h-5")
+
+                    form(
+                        action=BASE_PATH
+                        method="POST"
+                        class="p-6 space-y-5"
+                        autocomplete="off"
+                    )
+                        div
+                            label(class="block text-sm font-medium text-gray-700 mb-2")
+                                | CLOUDINARY_CLOUD_NAME *
+                            input(
+                                type="text"
+                                name="cloudName"
+                                id="cldName"
+                                required
+                                maxlength="64"
+                                pattern="[A-Za-z0-9_-]{2,64}"
+                                autocomplete="off"
+                                placeholder="ví dụ: dxxxxxxxx"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                            )
+                            p(class="text-xs text-gray-500 mt-1")
+                                | Nhập trùng tên đã có = cập nhật lại API key / secret của tài khoản đó.
+
+                        div
+                            label(class="block text-sm font-medium text-gray-700 mb-2")
+                                | CLOUDINARY_API_KEY *
+                            input(
+                                type="password"
+                                name="apiKey"
+                                required
+                                autocomplete="off"
+                                placeholder="123456789012345"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                            )
+
+                        div
+                            label(class="block text-sm font-medium text-gray-700 mb-2")
+                                | CLOUDINARY_API_SECRET *
+                            input(
+                                type="password"
+                                name="apiSecret"
+                                required
+                                autocomplete="new-password"
+                                placeholder="••••••••••••••••"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                            )
+                            p(class="text-xs text-gray-500 mt-1")
+                                | Key và secret được mã hoá AES-256-GCM trước khi lưu vào MongoDB.
+
+                        div(class="flex justify-end gap-3 pt-2")
+                            button(
+                                type="button"
+                                onclick="document.getElementById('cldModal').classList.add('hidden')"
+                                class="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+                            ) Hủy
+                            button(
+                                type="submit"
+                                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700"
+                            ) Lưu
+
+        script.
+            if (window.lucide) lucide.createIcons();
+            // Nút "Đổi key": mở modal, điền sẵn cloud name (key/secret phải nhập lại)
+            document.querySelectorAll('[data-cld-edit]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    document.getElementById('cldName').value = b.getAttribute('data-cld-edit');
+                    document.getElementById('cldModalTitle').textContent = 'Đổi key — ' + b.getAttribute('data-cld-edit');
+                    document.getElementById('cldModal').classList.remove('hidden');
+                });
+            });

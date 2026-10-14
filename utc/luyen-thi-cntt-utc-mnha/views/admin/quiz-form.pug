@@ -30,6 +30,7 @@ block content
 
         div(id="qfErrors", class="qf-alert err", hidden)
         div(id="qfOk", class="qf-alert ok", hidden)
+        div(id="qfImgNeed", class="qf-alert warn", hidden)
 
         //- ========== 1. THÔNG TIN CHUNG ==========
         section(class="qf-card")
@@ -115,6 +116,9 @@ block content
                 button(type="button", id="btnParse", class="qf-btn primary") ⬇ Chuyển text → câu hỏi
                 button(type="button", id="btnExport", class="qf-btn") ⬆ Xuất câu hỏi → text
                 span(id="syncHint", class="qf-msg")
+
+            p(class="qf-hint")
+                | 🛡 Ảnh câu hỏi: mỗi câu có ô <b>“Kiểm duyệt bằng”</b> để chọn CLOUDINARY_CLOUD_NAME, bấm <b>⬆ Tải ảnh lên</b> → Cloudinary kiểm duyệt → lưu GitHub <code>cache/image/&lt;timestamp&gt;.&lt;đuôi ảnh&gt;</code> → link raw tự điền (ảnh trên Cloudinary được xoá ngay sau khi duyệt). Dòng <code>//image: 5,8,10</code> trong text AI = các câu cần ảnh.
 
             each part in [{ k: 'mcq', t: 'Phần 1 · Trắc nghiệm nhiều đáp án', hint: 'Mỗi câu: “- câu hỏi”, các dòng “+)đáp án”, rồi “=> A” (nhiều đáp án đúng: “=> A, C”). Câu hỏi chùm: thêm dòng “*)/1-3/ nội dung chùm” (có thể in đậm/nghiêng bằng <b>, <i>) ngay trước câu 1; không có dòng *) = không phải câu chùm.' }, { k: 'tf', t: 'Phần 2 · Đúng / Sai', hint: 'Mỗi câu: “- câu dẫn”, rồi nhiều ý: “+)ý a”, “=> Đúng/Sai”, (tuỳ chọn) “++) giải thích ý”; lặp lại cho ý b, c, d.' }, { k: 'fill', t: 'Phần 3 · Điền số liệu / đáp án', hint: 'Mỗi câu: “- câu hỏi”, rồi “=> đáp án” (nhiều cách viết ngăn bằng |). Câu hỏi chùm: thêm dòng “*)/1-3/ nội dung chùm” ngay trước câu 1 (ghi chú hướng dẫn điền, nếu có, đặt trước dòng *) đầu tiên).' }]
                 div(class="qf-part", id="part-" + part.k)

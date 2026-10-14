@@ -11,13 +11,21 @@ block content
                 p(class="text-gray-500 mt-1")
                     | Quản lý khóa API dùng cho hệ thống chấm bài
 
-            button(
-                type="button"
-                onclick="document.getElementById('keyModal').classList.remove('hidden')"
-                class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
-            )
-                i(data-lucide="plus", class="w-4 h-4")
-                | Thêm API Key
+            div(class="flex flex-wrap items-center gap-3")
+                a(
+                    href="/admin/ai-keys/cloudinary"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+                )
+                    i(data-lucide="cloud", class="w-4 h-4")
+                    | Cloudinary
+
+                button(
+                    type="button"
+                    onclick="document.getElementById('keyModal').classList.remove('hidden')"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                )
+                    i(data-lucide="plus", class="w-4 h-4")
+                    | Thêm API Key
 
         //- Flash
         if success
