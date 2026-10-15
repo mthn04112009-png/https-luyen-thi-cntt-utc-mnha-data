@@ -445,6 +445,43 @@
         return h + "</div>";
     }
 
+    // ============================================================
+    // ★ XEM TRƯỚC CÔNG THỨC (MathJax) cho nội dung câu hỏi / chùm / đáp án / ý đúng-sai
+    //   - Chỉ hiện khung xem trước khi ô có công thức ($...$, \\(...\\), $$...$$, \\[...\\]) hoặc ký hiệu xuống dòng "\\n".
+    //     Câu không cần công thức → không có gì thay đổi.
+    //   - "\\n" (2 ký tự: \ + n) = xuống dòng, KHÔNG đổi lệnh LaTeX bắt đầu bằng \n (\\neq, \\nu, \\notin…).
+    //   - Nội dung đưa vào khung bằng textContent (không phải HTML) nên an toàn; MathJax vẽ lại sau mỗi lần gõ (trễ 250ms).
+    // ============================================================
+    var MATH_RE = /\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/;
+    var BREAK_RE = /(?<!\\)\\n(?![A-Za-z])/g;
+    function breakLines(t) { return String(t == null ? "" : t).replace(BREAK_RE, "\n"); }
+    function needsPreview(t) { t = String(t == null ? "" : t); return MATH_RE.test(t) || /(?<!\\)\\n(?![A-Za-z])/.test(t); }
+    function typesetMath(el) {
+        try {
+            if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+                if (typeof window.MathJax.typesetClear === "function") window.MathJax.typesetClear([el]);
+                window.MathJax.typesetPromise([el]).catch(function () {});
+            }
+        } catch (e) { /* MathJax chưa tải: bỏ qua */ }
+    }
+    function updateMathPreview(field) {
+        var host = field.closest(".qc-opt") || field;          // hàng đáp án / ý, hoặc chính ô nhập
+        var next = host.nextElementSibling;
+        var box = next && next.classList && next.classList.contains("qc-math") ? next : null;
+        if (!needsPreview(field.value)) { if (box) box.remove(); return; }
+        if (!box) {
+            box = document.createElement("div");
+            box.className = "qc-math";
+            host.parentNode.insertBefore(box, host.nextSibling);
+        }
+        box.textContent = breakLines(field.value);
+        clearTimeout(box._mjT);
+        box._mjT = setTimeout(function () { typesetMath(box); }, 250);
+    }
+    function refreshMathCard(card) {
+        card.querySelectorAll('[data-f="text"],[data-f="cltext"],[data-f="opt"],[data-f="stext"]').forEach(updateMathPreview);
+    }
+
     function cardHtml(part, q, i, n) {
         var h = '<div class="qc" data-k="' + part + '" data-i="' + i + '"><div class="qc-head"><b>Câu ' + (i + 1) + "</b>" +
             (q.needImage && !String(q.image || "").trim() ? '<span class="qc-needimg">🖼 Cần ảnh</span>' : "") +
@@ -497,6 +534,7 @@
         var list = state[part], box = $("cards-" + part);
         if (!box) return;
         box.innerHTML = list.map(function (q, i) { return cardHtml(part, q, i, list.length); }).join("");
+        box.querySelectorAll(".qc").forEach(refreshMathCard);
         refreshMeta();
     }
     function renderAll() { PARTS.forEach(renderPart); }
@@ -544,6 +582,7 @@
         var c = ctx(e.target);
         if (c) {
             var f = e.target.getAttribute("data-f");
+            if (f === "text" || f === "cltext" || f === "opt" || f === "stext") updateMathPreview(e.target);
             if (f === "text") c.q.text = e.target.value;
             else if (f === "explanation") c.q.explanation = e.target.value;
             else if (f === "answers") c.q.answers = e.target.value;

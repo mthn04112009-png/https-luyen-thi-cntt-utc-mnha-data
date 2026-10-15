@@ -1,6 +1,31 @@
 // config/quizConfig.js
 // Toàn bộ hằng số cho tính năng trắc nghiệm. KHÔNG đặt trong .env.
 
+// ★ Quy tắc MathJax đưa vào prompt mẫu nhờ AI tạo đề (dùng String.raw: dấu \ giữ nguyên, KHÔNG viết `${` hay dấu backtick trong này).
+//   Phía hiển thị (trang làm bài, xem kết quả, xem trước ở trang soạn đề) đã nhúng MathJax:
+//   $...$ hoặc \(...\) = công thức trong dòng; $$...$$ hoặc \[...\] = công thức đứng riêng; "\n" = xuống dòng.
+const MATH_PROMPT_RULES = String.raw`10. (Tuỳ chọn) Công thức toán MathJax — CHỈ dùng khi câu thật sự cần gõ phương trình, bất phương trình, hệ phương trình / hệ bất phương trình, phân số, căn, luỹ thừa, tích phân, ma trận… Câu không cần công thức thì viết chữ bình thường, TUYỆT ĐỐI KHÔNG dùng MathJax.
+   a) Công thức nằm trong câu: nhúng TỰ NHIÊN giữa câu văn, bọc bằng $...$ (hoặc \(...\)). Ví dụ: - Nghiệm của phương trình $x^2-5x+6=0$ là:
+   b) Muốn XUỐNG DÒNG rồi mới viết công thức: gõ đúng hai ký tự \n (dấu gạch chéo ngược + chữ n, KHÔNG xuống dòng thật) ngay trước công thức, rồi viết công thức bọc bằng $$...$$ (hoặc \[...\]). Ví dụ: - Giải hệ bất phương trình:\n$$\begin{cases} x+y\ge 2 \\ x-y<1 \end{cases}$$
+   c) Hệ phương trình / hệ bất phương trình dùng \begin{cases} ... \\ ... \end{cases}. Cả câu hỏi (kể cả công thức) viết trên MỘT dòng, không xuống dòng thật bên trong câu hay bên trong công thức; không dùng \n bên trong công thức.
+   d) Dùng được ở nội dung câu hỏi, đáp án (dòng "+)"), nội dung chùm, ý Đúng/Sai và phần giải thích "++)" (trong "++)" muốn xuống dòng thì dùng <br>, không dùng \n). Đáp án ở dòng "=>" (đặc biệt KHỐI 3) luôn là chữ/số thuần, không dùng MathJax.
+   e) Ký hiệu đô la chỉ dùng để bọc công thức; nếu cần chữ "$" tiền tệ thì viết \$ (ví dụ giá \$5).`;
+
+const MATH_PROMPT_EXAMPLE = String.raw`VÍ DỤ CÔNG THỨC (CHỈ khi câu cần công thức — nhúng tự nhiên; xuống dòng bằng \n rồi viết công thức):
+- Nghiệm của phương trình $x^2-5x+6=0$ là:
++)$x=2$ hoặc $x=3$
++)$x=-2$ hoặc $x=-3$
++)$x=1$ hoặc $x=6$
++)$x=-1$ hoặc $x=-6$
+=> A
+++) Phân tích $x^2-5x+6=(x-2)(x-3)$.
+- Giải hệ bất phương trình:\n$$\begin{cases} x+y\ge 2 \\ x-y<1 \end{cases}$$\nĐiểm nào sau đây thuộc miền nghiệm?
++)$(2;1)$
++)$(0;0)$
++)$(-1;-1)$
++)$(0;3)$
+=> A`;
+
 module.exports = {
   // 3 phần
   PARTS: ['mcq', 'tf', 'fill'],
@@ -75,6 +100,7 @@ QUY TẮC ĐỊNH DẠNG (bắt buộc, không tự đổi ký hiệu):
 7. Đáp án phải chính xác; đáp án nhiễu hợp lý; không lặp câu hỏi.
 8. (Tuỳ chọn, CHỈ KHỐI 1 và KHỐI 3 — không dùng cho KHỐI 2) Câu hỏi chùm: khi nhiều câu liên tiếp cùng dựa vào một đoạn dữ kiện, đặt NGAY TRƯỚC câu đầu tiên của chùm một dòng "*)/từ-đến/ " + nội dung chùm (từ, đến là số thứ tự câu trong khối, đếm từ 1, ví dụ "*)/1-3/"). Nội dung chùm có thể viết nhiều dòng và dùng các thẻ <b>, <i>, <u>, <br>, <code>, <sub>, <sup>, <ul>, <li> để in đậm, in nghiêng…; nếu có ảnh thì dòng ngay sau là link ảnh https. Các câu trong chùm viết bình thường ngay bên dưới, không lặp lại dữ kiện. Một chùm có ít nhất 2 câu, các chùm không chồng lên nhau. Câu không thuộc chùm thì KHÔNG viết dòng "*)". Không có chùm thì bỏ qua quy tắc này.
 9. (Tuỳ chọn) Câu CẦN ảnh minh hoạ mà bạn không có link ảnh thật: KHÔNG bịa link và KHÔNG viết dòng ảnh cho câu đó. Thay vào đó, viết ở DÒNG ĐẦU TIÊN của khối chứa câu ấy một dòng "//image: " + số thứ tự các câu cần ảnh trong khối (đếm từ 1, ngăn cách bằng dấu phẩy), ví dụ "//image: 5,8,10". Người ra đề sẽ tự tải ảnh lên sau. Khối nào không có câu nào cần ảnh thì TUYỆT ĐỐI KHÔNG viết dòng "//image" ở khối đó.
+${MATH_PROMPT_RULES}
 
 VÍ DỤ KHỐI 1:
 - 2 + 3 × 4 bằng bao nhiêu?
@@ -121,7 +147,9 @@ Làm tròn đến 2 chữ số thập phân, chỉ nhập số.
 - Diện tích đáy của hình trụ là bao nhiêu?
 => 12.57 | 12,57
 - Thể tích của hình trụ là bao nhiêu?
-=> 62.83 | 62,83`,
+=> 62.83 | 62,83
+
+${MATH_PROMPT_EXAMPLE}`,
 
   // Prompt phân tích mặc định (fallback cuối, khi DB chưa có prompt quiz default)
   DEFAULT_QUIZ_ANALYSIS_PROMPT: `Bạn là giảng viên hướng dẫn học tập. Dưới đây là đề trắc nghiệm (kèm đáp án đúng và giải thích của giảng viên) và bài làm của sinh viên {student_name}.

@@ -1233,3 +1233,13 @@
     .exam-page .exam-bar { position: static; }
     .exam-page .fill-note, .exam-page .multi-hint, .exam-page .q-image { margin-left: 0; }
 }
+
+
+/* ★ Nội dung có công thức MathJax / ký hiệu xuống dòng "\n": giữ xuống dòng, công thức dài cuộn ngang thay vì tràn khung */
+.exam-page .question-title h2,
+.exam-page .option-text,
+.exam-page .tf-text,
+.exam-page .cluster-text,
+.exam-page .review-option > span:not(.option-letter),
+.exam-page .review-card h4 { white-space: pre-line; }
+.exam-page mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; }

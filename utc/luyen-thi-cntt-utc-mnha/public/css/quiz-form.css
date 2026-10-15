@@ -121,3 +121,8 @@
 .qc-cldlabel { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #1e3a8a; }
 .qc-cld { max-width: 200px; padding: 6px 8px; border: 1px solid #cfd5de; border-radius: 7px; background: #fff; font: inherit; font-size: 12.5px; font-family: ui-monospace, Consolas, monospace; }
 .qc-cld:disabled { opacity: .6; }
+
+/* ★ Xem trước công thức MathJax (chỉ hiện khi ô có công thức hoặc ký hiệu xuống dòng "\n") */
+.qc-math { margin: 4px 0 10px; padding: 8px 12px; border: 1px dashed #94a3b8; border-radius: 8px; background: #f8fafc; color: #0f172a; font-size: 15px; line-height: 1.7; white-space: pre-line; overflow-x: auto; }
+.qc-math::before { content: "Xem trước"; display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+.qc-math mjx-container[display="true"] { margin: .5em 0 !important; overflow-x: auto; overflow-y: hidden; max-width: 100%; }

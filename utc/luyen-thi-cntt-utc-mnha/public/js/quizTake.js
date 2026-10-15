@@ -83,6 +83,24 @@
             .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
+    // ★ Văn bản câu hỏi / đáp án có thể chứa công thức MathJax và ký hiệu xuống dòng "\n" (2 ký tự: \ + n):
+    //   - brk(): đổi "\n" thành xuống dòng THẬT, nhưng KHÔNG đụng lệnh LaTeX bắt đầu bằng \n
+    //     (\neq, \nu, \notin, \neg…: sau "\n" là chữ cái) và không đụng "\\n" (ngắt dòng LaTeX \\ + n).
+    //   - etxt(): brk() rồi escape HTML (CSS white-space: pre-line giữ xuống dòng).
+    //   - typesetMath(): vẽ công thức cho phần HTML vừa chèn (MathJax tự quét trang lúc tải, nhưng KHÔNG tự quét nội dung JS chèn sau).
+    function brk(s) {
+        return String(s == null ? "" : s).replace(/(?<!\\)\\n(?![A-Za-z])/g, "\n");
+    }
+    function etxt(s) { return esc(brk(s)); }
+    function typesetMath(root) {
+        try {
+            if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+                if (typeof window.MathJax.typesetClear === "function") window.MathJax.typesetClear(root ? [root] : undefined);
+                window.MathJax.typesetPromise(root ? [root] : undefined).catch(function () {});
+            }
+            // MathJax chưa tải xong: khi tải xong nó tự vẽ toàn bộ trang (gồm cả nội dung đã chèn)
+        } catch (e) { /* bỏ qua: công thức hiện dạng chữ */ }
+    }
     // ★ Chuẩn bị HTML giải thích / nội dung chùm để chèn vào DOM (innerHTML).
     // Server đã sanitize: thẻ allowlist là thẻ thật, mọi "<" khác đã thành &lt;.
     // Trước đây hàm này giải mã MỌI entity → "i&lt;n" thành "i<n" (trình duyệt coi là thẻ, nuốt mất
@@ -124,7 +142,7 @@
         var label = r ? (r[0] === r[1] ? "câu " + r[0] : "câu " + r[0] + "–" + r[1]) : "";
         return '<div class="cluster-box">' +
             '<div class="cluster-label">📖 Dữ kiện dùng chung' + (label ? " cho " + label : "") + "</div>" +
-            (c.text ? '<div class="cluster-text">' + decodeHtml(c.text) + "</div>" : "") +
+            (c.text ? '<div class="cluster-text">' + decodeHtml(brk(c.text)) + "</div>" : "") +
             (c.image ? '<img class="cluster-image" src="' + esc(c.image) + '" alt="Hình minh hoạ chùm" loading="lazy" referrerpolicy="no-referrer">' : "") +
             "</div>";
     }
@@ -318,14 +336,14 @@
                     '<input type="' + (multi ? "checkbox" : "radio") + '" name="q-' + esc(q.id) + '" value="' + esc(o.key) + '"' +
                     (on ? " checked" : "") + (dis ? " disabled" : "") + ">" +
                     '<span class="option-letter">' + esc(o.key || LETTERS[i]) + "</span>" +
-                    '<span class="option-text">' + esc(o.text) + "</span></label>";
+                    '<span class="option-text">' + etxt(o.text) + "</span></label>";
             }).join("") + "</div>";
         } else if (q.part === "tf") {
             body = '<div class="multi-hint">' + esc(tfScoringHint()) + "</div>" +
                 '<div class="tf-statements">' + (q.statements || []).map(function (st, si) {
                     var cur = state.answers[st.id];
                     return '<div class="tf-statement" style="margin:10px 0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">' +
-                        '<div class="tf-text" style="margin-bottom:8px"><b>' + tfLabel(si) + ")</b> " + esc(st.text) + "</div>" +
+                        '<div class="tf-text" style="margin-bottom:8px"><b>' + tfLabel(si) + ")</b> " + etxt(st.text) + "</div>" +
                         '<div class="options" style="display:flex;gap:10px;flex-wrap:wrap">' +
                         [[true, "Đ", "Đúng"], [false, "S", "Sai"]].map(function (c) {
                             var on = cur === c[0];
@@ -345,11 +363,12 @@
             '<article class="question-card">' +
             '<span class="part-tag">Phần ' + (PART_ORDER.indexOf(q.part) + 1) + " · " + PART_TITLES[q.part] + "</span>" +
             clusterBox(q) +
-            '<div class="question-title"><span class="q-number">' + (state.current + 1) + "</span><h2>" + esc(q.text) + "</h2></div>" +
+            '<div class="question-title"><span class="q-number">' + (state.current + 1) + "</span><h2>" + etxt(q.text) + "</h2></div>" +
             (q.image ? '<img class="q-image" src="' + esc(q.image) + '" alt="Hình minh hoạ" loading="lazy" referrerpolicy="no-referrer">' : "") +
             (q.part === "mcq" && q.multi ? '<div class="multi-hint">☑ Câu này có thể có nhiều đáp án đúng — chọn tất cả.</div>' : "") +
             (q.part === "fill" && q.partNote ? '<div class="fill-note">📝 ' + esc(q.partNote) + "</div>" : "") +
             body + "</article>";
+        typesetMath(el.qContainer);
 
         // Gắn sự kiện
         if (q.part === "fill") {
@@ -571,6 +590,7 @@
             var first = q.cluster && (i === 0 || !questions[i - 1].cluster || questions[i - 1].cluster.id !== q.cluster.id);
             return (first ? clusterBox(q) : "") + reviewCard(q, i, byId[q.id] || {});
         }).join("");
+        typesetMath(el.review);
 
         el.result.classList.remove("hidden");
         setTimeout(function () { el.result.scrollIntoView({ behavior: "smooth", block: "start" }); }, 100);
@@ -595,7 +615,7 @@
                 var isRight = right.indexOf(o.key) !== -1, isMine = picked.indexOf(o.key) !== -1;
                 var cls = isRight ? " correct-option" : (isMine ? " wrong-option" : "");
                 var tag = isRight ? '<strong class="answer-tag">ĐÁP ÁN ĐÚNG</strong>' : (isMine ? '<strong class="your-answer-tag">BẠN CHỌN</strong>' : "");
-                return '<div class="review-option' + cls + '"><span class="option-letter">' + esc(o.key || LETTERS[oi]) + "</span><span>" + esc(o.text) + "</span>" + tag + "</div>";
+                return '<div class="review-option' + cls + '"><span class="option-letter">' + esc(o.key || LETTERS[oi]) + "</span><span>" + etxt(o.text) + "</span>" + tag + "</div>";
             }).join("") + "</div>";
         } else if (q.part === "tf") {
             inner = '<div class="review-options">' + (q.statements || []).map(function (st, si) {
@@ -607,7 +627,7 @@
                 var mineTxt = typeof mineSt === "boolean" ? (mineSt ? "Đúng" : "Sai") : "bỏ trống";
                 var rightTxt = hasKey ? (rightTf ? "Đúng" : "Sai") : "";
                 var sx = sit.explanationHtml ? '<div class="explanation"><strong>💡</strong><span>' + decodeHtml(sit.explanationHtml) + "</span></div>" : "";
-                return '<div class="review-option' + cls + '" style="flex-wrap:wrap"><span class="option-letter">' + tfLabel(si) + "</span><span>" + esc(st.text) + "</span>" +
+                return '<div class="review-option' + cls + '" style="flex-wrap:wrap"><span class="option-letter">' + tfLabel(si) + "</span><span>" + etxt(st.text) + "</span>" +
                     '<strong class="your-answer-tag">Bạn chọn: ' + mineTxt + "</strong>" +
                     (rightTxt ? '<strong class="answer-tag">Đáp án: ' + rightTxt + "</strong>" : "") + sx + "</div>";
             }).join("") + "</div>";
@@ -625,7 +645,7 @@
 
         return '<article class="review-card ' + (ok ? "review-correct" : "review-wrong") + '" id="review-' + esc(q.id) + '">' +
             '<div class="review-question-head"><div><span class="review-number">Câu ' + (i + 1) + " · " + PART_TITLES[q.part] + "</span><h4>" +
-            esc(q.text) + '</h4></div><span class="review-status">' + status + "</span></div>" +
+            etxt(q.text) + '</h4></div><span class="review-status">' + status + "</span></div>" +
             (q.image ? '<img class="review-image" src="' + esc(q.image) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : "") +
             inner + expl + "</article>";
     }
@@ -691,6 +711,7 @@
                         if (hq) card.insertAdjacentHTML("beforeend", '<div class="explanation"><strong>💡 Giải thích:</strong><span>' + decodeHtml(hq) + "</span></div>");
                     }
                 });
+                typesetMath(el.review);
                 if (!found) throw new Error("chưa có dữ liệu");
             })
             .catch(function (err) {

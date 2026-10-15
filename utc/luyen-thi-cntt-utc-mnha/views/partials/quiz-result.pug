@@ -13,6 +13,9 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
   //- Khôi phục thẻ HTML ngắn (allowlist, KHÔNG thuộc tính) bị escape 1–2 lần khi lưu đề:
   //-   &lt;b&gt; hoặc &amp;lt;b&amp;gt;  →  <b>.  Mọi thứ khác giữ nguyên (vẫn escape) → không mở lỗ XSS.
   - const restoreTags = function (s) { return String(s == null ? '' : s).replace(/&(?:amp;)*lt;(\/?)(b|i|u|strong|em|br|p|ul|ol|li|code|pre|sub|sup|span)(\s*\/?)&(?:amp;)*gt;/gi, '<$1$2$3>') }
+  //- ★ Văn bản có công thức MathJax: "\n" (2 ký tự \ + n) = xuống dòng. KHÔNG đổi lệnh LaTeX bắt đầu bằng \n
+  //-   (\neq, \nu, \notin… vì sau "\n" là chữ cái) và không đổi "\\n". Công thức được MathJax (layout) tự vẽ khi tải trang.
+  - const brk = function (s) { return String(s == null ? '' : s).replace(/(?<!\\)\\n(?![A-Za-z])/g, '\n') }
   -
     const PART_KEYS = ['mcq', 'tf', 'fill']
     const PART_TITLE = { mcq: 'Phần 1 — Trắc nghiệm', tf: 'Phần 2 — Đúng/Sai', fill: 'Phần 3 — Điền đáp án' }
@@ -102,7 +105,8 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
     .qr-img{max-height:220px;margin:6px 0;border-radius:6px}
     .qr-opt{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-top:6px}
     .qr-opt-key{font-weight:700;min-width:1.2em}
-    .qr-opt-text{flex:1;min-width:0}
+    .qr-opt-text{flex:1;min-width:0;white-space:pre-line}
+    mjx-container[display="true"]{overflow-x:auto;overflow-y:hidden;max-width:100%}
     .qr-opt.is-correct{background:#f0fdf4;border-color:#16a34a;color:#166534;font-weight:600}
     .qr-opt.is-wrong{background:#fef2f2;border-color:#dc2626;color:#991b1b}
     .qr-tag{font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:999px;background:#e5e7eb;color:#374151}
@@ -178,7 +182,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
             .qr-cluster
               .qr-cluster-title 📖 Dữ kiện dùng chung cho câu #{clNos}
               if cl.text
-                div(style="white-space:pre-line")!= restoreTags(cl.text)
+                div(style="white-space:pre-line")!= restoreTags(brk(cl.text))
               if cl.image
                 img.qr-img(src=cl.image, loading="lazy", referrerpolicy="no-referrer")
           - const m = meta[q.id] || { no: '?', status: 'blank', earned: null, points: null }
@@ -190,7 +194,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
               if m.points != null && m.earned != null
                 span.qr-q-pts #{fmt(m.earned)}/#{fmt(m.points)} điểm
             //- q.text là text thuần → render bằng `=` (tự escape), xuống dòng bằng CSS
-            .qr-q-text(style="white-space:pre-line")= q.text
+            .qr-q-text(style="white-space:pre-line")= brk(q.text)
             if q.image
               img.qr-img(src=q.image, loading="lazy", referrerpolicy="no-referrer")
 
@@ -204,7 +208,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
                 - const isCorrect = (q.correct || []).indexOf(o.key) !== -1
                 .qr-opt(class=(isCorrect ? 'is-correct' : '') + (chosen && !isCorrect ? ' is-wrong' : ''))
                   span.qr-opt-key= o.key + '.'
-                  span.qr-opt-text= o.text
+                  span.qr-opt-text= brk(o.text)
                   if chosen
                     span.qr-tag.qr-tag-you Bạn chọn
                   if isCorrect
@@ -222,7 +226,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
                 .qr-st(class='qr-st-' + sStat, id='review-' + s.id)
                   .qr-st-main
                     span.qr-st-key= sLabel + ')'
-                    span.qr-st-text(style="white-space:pre-line")= s.text
+                    span.qr-st-text(style="white-space:pre-line")= brk(s.text)
                     span.qr-badge(class='qr-b-' + sStat) #{ST[sStat].icon} #{ST[sStat].text}
                   .qr-st-ans Bạn chọn: <b>#{tfText(sit.studentAnswer)}</b> — Đáp án: <b class="qr-ok">#{tfText(s.correct)}</b>
                   if s.explanationHtml
