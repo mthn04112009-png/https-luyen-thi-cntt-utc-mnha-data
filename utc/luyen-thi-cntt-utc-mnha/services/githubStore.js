@@ -217,7 +217,7 @@ const KINDS = {
                     : (json.score !== undefined && json.score !== null ? 'graded' : 'failed');
                 if (json.model !== undefined) r.model = json.model || null;
                 if (json.aiKeyName !== undefined) r.aiKeyName = json.aiKeyName || null;
-                if (['gemini', 'vilao'].includes(json.aiProvider)) r.aiProvider = json.aiProvider;
+                if (typeof json.aiProvider === 'string' && /^[a-z][a-z0-9_-]{1,31}$/.test(json.aiProvider)) r.aiProvider = json.aiProvider;   // id nhà cung cấp (AI-database/index.json)
                 if (json.latencyMs !== undefined) r.latencyMs = json.latencyMs || null;
                 if (json.errorMessage !== undefined) r.errorMessage = json.errorMessage || null;
                 const errs = json.grammar && Array.isArray(json.grammar.errors) ? json.grammar.errors.length : null;

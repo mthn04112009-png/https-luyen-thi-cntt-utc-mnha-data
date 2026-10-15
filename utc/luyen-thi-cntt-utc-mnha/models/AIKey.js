@@ -8,21 +8,24 @@ const aiKeySchema = new mongoose.Schema(
             trim: true
         },
 
-        // ★ Nhà cung cấp AI: 'gemini' (mặc định) | 'vilao' (vilao.ai).
-        //   'google' là giá trị cũ → GIỮ trong enum để doc cũ không lỗi
-        //   validate khi .save() (markKeyUsed/markKeyQuotaError gọi save()).
-        //   Doc cũ thiếu provider ⇒ coi là 'gemini'. Query .lean() không áp
-        //   default → nơi đọc phải viết `key.provider || 'gemini'`.
+        // ★ Nhà cung cấp AI = `id` trong AI-database/index.json (GitHub):
+        //   'gemini' (mặc định) | 'vilao' | 'openai' | 'deepseek' | … (thêm trên web: /admin/ai-keys/Supplier).
+        //   'google' là giá trị cũ của Gemini (alias). Doc cũ thiếu provider ⇒ coi là 'gemini'.
+        //   KHÔNG dùng enum cứng nữa — danh sách nhà cung cấp là dữ liệu động, được kiểm tra ở
+        //   aikey.controller (isValidProvider) trước khi lưu. Query .lean() không áp default →
+        //   nơi đọc phải đi qua normalizeProvider() (config/aiModels.js).
         provider: {
             type: String,
-            enum: ['gemini', 'google', 'vilao'],
+            trim: true,
+            lowercase: true,
+            maxlength: 32,
             default: 'gemini'
         },
 
         // Model dùng cho key
-        //   provider vilao  → ★ MODEL THỰC TẾ ĐƯỢC GỌI (aiService.resolveModelForKey).
-        //                     Phải là model mà key ĐÃ subscribe trên dashboard
-        //                     vilao.ai, nếu để trống sẽ dùng VILAO_DEFAULT_MODEL
+        //   provider openai-kind có modelPerKey (vilao.ai) → ★ MODEL THỰC TẾ ĐƯỢC GỌI
+        //                     (aiService.resolveModelForKey). Phải là model mà key ĐÃ subscribe trên
+        //                     dashboard nhà cung cấp, nếu để trống sẽ dùng model mặc định của nhà cung cấp
         //                     và có thể dính 403 "Please subscribe to model".
         //   provider gemini → chỉ là nhãn gợi ý, aiService KHÔNG dùng (giữ nguyên
         //                     hành vi cũ: getSafeModel(model yêu cầu))
@@ -120,9 +123,11 @@ const aiKeySchema = new mongoose.Schema(
 // Index cho query tìm key active
 aiKeySchema.index({ isActive: 1, isRevoked: 1, disabledUntil: 1 });
 
-// Virtual: providerLabel ("Gemini" / "vilao.ai")
+// Virtual: providerLabel (tên nhà cung cấp lấy từ AI-database/index.json: "Gemini" / "vilao.ai" / …)
 aiKeySchema.virtual('providerLabel').get(function () {
-    return this.provider === 'vilao' ? 'vilao.ai' : 'Gemini';
+    // require trễ: tránh vòng phụ thuộc khi nạp model
+    const { getProviderLabel } = require('../config/aiModels');
+    return getProviderLabel(this.provider);
 });
 
 // Virtual: maskedKey

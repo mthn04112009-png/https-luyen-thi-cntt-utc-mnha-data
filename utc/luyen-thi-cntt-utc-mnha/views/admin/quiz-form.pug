@@ -91,7 +91,7 @@ block content
                         each k in (aiKeys || [])
                             label(class="qf-check")
                                 input(type="checkbox", name="aiKeyIds", value=k._id, checked=(chosenAi.indexOf(String(k._id)) !== -1))
-                                span= (k.provider === 'vilao' ? 'vilao.ai' : 'Gemini') + ': ' + k.name
+                                span= k.aiLabel || ((k.provider || 'Gemini') + ': ' + k.name)
                         if !(aiKeys || []).length
                             small Chưa có AI Key nào đang bật.
                     small Không chọn = dùng AI của bài / xoay key Gemini.

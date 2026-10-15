@@ -306,7 +306,7 @@ async function formLists(actor) {
     GradingPrompt.find({ kind: 'quiz', active: true }).sort({ name: 1 }).lean(),
     isDefaultAdmin(actor) ? AIKey.find(AI_KEY_USABLE).sort({ name: 1 }).lean() : [],
   ]);
-  return { subjects, prompts, aiKeys: aiKeys.map((k) => Object.assign({}, k, { provider: k.provider || 'gemini' })), canPickAIKey: isDefaultAdmin(actor) };
+  return { subjects, prompts, aiKeys: aiKeys.map((k) => Object.assign({}, k, { provider: k.provider || 'gemini', aiLabel: A.formatAiLabel(k.provider || 'gemini', k.name) })), canPickAIKey: isDefaultAdmin(actor) };
 }
 
 exports.newForm = async (req, res, next) => {

@@ -13,6 +13,12 @@ block content
 
             div(class="flex flex-wrap items-center gap-3")
                 a(
+                    href="/admin/ai-keys/Supplier"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+                )
+                    i(data-lucide="layers", class="w-4 h-4")
+                    | Nhà cung cấp AI
+                a(
                     href="/admin/ai-keys/cloudinary"
                     class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
                 )
@@ -61,12 +67,15 @@ block content
                                         div(class="flex items-center gap-2 mt-1")
                                             span(class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700")
                                                 = key.model || 'Chưa chọn model'
-                                            if (key.provider || 'gemini') === 'vilao'
-                                                span(class="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700")
-                                                    | vilao.ai
-                                            else
+                                            if key.providerMissing
+                                                span(class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700")
+                                                    = key.providerLabel
+                                            else if key.provider === 'gemini'
                                                 span(class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700")
-                                                    | Gemini
+                                                    = key.providerLabel
+                                            else
+                                                span(class="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700")
+                                                    = key.providerLabel
 
                             if key.isActive && !key.isRevoked
                                 span(class="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium")
@@ -166,12 +175,10 @@ block content
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                             )
                                 option(value="") — Không cố định (dùng mọi model) —
-                                each m in supportedModels
-                                    option(value=m, data-provider="gemini")
-                                        = m
-                                each m in (vilaoModels || [])
-                                    option(value=m, data-provider="vilao", hidden, disabled)
-                                        = m
+                                each pv in (providers || [])
+                                    each m in (pv.models || [])
+                                        option(value=m, data-provider=pv.id, hidden, disabled)
+                                            = m
                             p(class="text-xs text-gray-500 mt-1")
                                 | Chỉ là nhãn tham khảo. Key vẫn dùng được cho mọi model được hỗ trợ khi chấm bài.
 
@@ -196,8 +203,12 @@ block content
                                 id="providerSelect"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                             )
-                                option(value="gemini", selected) Gemini (Google)
-                                option(value="vilao") vilao.ai
+                                each pv in (providers || [])
+                                    option(value=pv.id, selected=(pv.id === 'gemini'))= pv.label
+                            p(class="text-xs text-gray-500 mt-1")
+                                | Muốn dùng AI khác (ChatGPT, DeepSeek…)? Thêm tại 
+                                a(href="/admin/ai-keys/Supplier" class="text-indigo-600 hover:underline") Nhà cung cấp AI
+                                | .
 
                         //- API Key
                         div
@@ -231,6 +242,8 @@ block content
                             )
                                 | Lưu API Key
 
+        script#aiProvidersData(type="application/json")!= providersJson
+
         script.
             (function () {
                 var provider = document.getElementById('providerSelect');
@@ -238,6 +251,8 @@ block content
                 var keyInput = document.getElementById('apiKeyInput');
                 var warn = document.getElementById('apiKeyWarn');
                 if (!provider || !modelSel || !keyInput) return;
+                var providers = JSON.parse(document.getElementById('aiProvidersData').textContent) || [];
+                function cfg(id) { return providers.filter(function (x) { return x.id === id; })[0] || {}; }
 
                 function syncProvider() {
                     var p = provider.value;
@@ -253,20 +268,20 @@ block content
                     if (cur && cur.getAttribute('data-provider') && cur.getAttribute('data-provider') !== p) {
                         modelSel.value = '';
                     }
-                    keyInput.placeholder = p === 'vilao' ? 'sk-...' : 'AIza...';
+                    keyInput.placeholder = cfg(p).keyPlaceholder || 'API key...';
                     checkPrefix();
                 }
 
                 // Chỉ cảnh báo mềm, không chặn lưu
                 function checkPrefix() {
                     var v = keyInput.value.trim();
-                    var p = provider.value;
+                    var c = cfg(provider.value);
+                    var prefixes = c.keyPrefixes || [];
                     var msg = '';
-                    if (v) {
-                        if (p === 'gemini' && v.indexOf('AIza') !== 0) {
-                            msg = 'Key Gemini thường bắt đầu bằng "AIza". Kiểm tra lại nhà cung cấp nếu bạn nhập nhầm.';
-                        } else if (p === 'vilao' && v.indexOf('sk-') !== 0) {
-                            msg = 'Key vilao.ai thường bắt đầu bằng "sk-". Kiểm tra lại nhà cung cấp nếu bạn nhập nhầm.';
+                    if (v && prefixes.length) {
+                        var ok = prefixes.some(function (x) { return v.indexOf(x) === 0; });
+                        if (!ok) {
+                            msg = 'Key ' + (c.label || provider.value) + ' thường bắt đầu bằng ' + prefixes.map(function (x) { return '"' + x + '"'; }).join(' hoặc ') + '. Kiểm tra lại nhà cung cấp nếu bạn nhập nhầm.';
                         }
                     }
                     warn.textContent = msg;
@@ -275,5 +290,12 @@ block content
 
                 provider.addEventListener('change', syncProvider);
                 keyInput.addEventListener('input', checkPrefix);
+
+                // Từ trang Nhà cung cấp: /admin/ai-keys?provider=<id> → mở sẵn form với nhà cung cấp đó
+                var q = new URLSearchParams(window.location.search).get('provider');
+                if (q && cfg(q).id) {
+                    provider.value = q;
+                    document.getElementById('keyModal').classList.remove('hidden');
+                }
                 syncProvider();
             })();

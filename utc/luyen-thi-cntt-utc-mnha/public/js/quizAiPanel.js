@@ -25,8 +25,16 @@
             .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
-    function isVilao(p) { return /vilao/i.test(String(p || "")); }
-    function providerName(p) { return isVilao(p) ? "vilao.ai" : "Gemini"; }
+    // ★ Nhà cung cấp AI đọc từ /api/ai/models (AI-database/index.json)
+    var providerInfo = {};
+    function normProvider(p) {
+        var s = String(p || "").trim().toLowerCase();
+        return !s || s === "google" ? "gemini" : s;
+    }
+    function providerName(p) {
+        var id = normProvider(p);
+        return (providerInfo[id] && providerInfo[id].label) || (id === "gemini" ? "Gemini" : id === "vilao" ? "vilao.ai" : id);
+    }
 
     // "mcq-3" → "TN 3", "tf-2-b" → "ĐS 2b", "fill-1" → "ĐK 1" (dùng khi trang không truyền chipLabel)
     function defaultChipLabel(id) {
@@ -201,8 +209,9 @@
         var defaultModels = { gemini: "", vilao: "" };
 
         function fillModelOptions(provider, extraModel) {
-            var useVilao = provider === "vilao" && modelLists.vilao.length;
-            var items = (useVilao ? modelLists.vilao : modelLists.gemini).slice();
+            var pid = normProvider(provider);
+            var useOther = pid !== "gemini" && modelLists[pid] && modelLists[pid].length;
+            var items = (useOther ? modelLists[pid] : modelLists.gemini).slice();
             if (extraModel && items.indexOf(extraModel) === -1) items.unshift(extraModel);
             modelSelect.innerHTML = '<option value="">— Chọn AI Key trước —</option>';
             items.forEach(function (m) {
@@ -211,7 +220,7 @@
                 o.textContent = m;
                 modelSelect.appendChild(o);
             });
-            modelSelect.dataset.default = defaultModels[useVilao ? "vilao" : "gemini"] || "";
+            modelSelect.dataset.default = defaultModels[useOther ? pid : "gemini"] || "";
         }
         function selectModelValue(v) {
             for (var i = 0; i < modelSelect.options.length; i++) {
@@ -228,6 +237,11 @@
                     modelLists.vilao = data.vilaoModels || [];
                     defaultModels.gemini = data.defaultModel || "";
                     defaultModels.vilao = data.vilaoDefaultModel || "";
+                    (data.providers || []).forEach(function (p) {
+                        providerInfo[p.id] = p;
+                        modelLists[p.id] = p.models || [];
+                        defaultModels[p.id] = p.defaultModel || "";
+                    });
                     fillModelOptions("gemini");
                 }
             } catch (e) {
@@ -243,11 +257,12 @@
             var lbl = keySelect.value && opt ? opt.getAttribute("data-label") : "";
             if (labelText) labelText.textContent = lbl ? "🤖 " + lbl : "";
 
-            fillModelOptions(keyProvider, keyProvider === "vilao" ? keyModel : "");
+            var perKey = !!(providerInfo[keyProvider] ? providerInfo[keyProvider].modelPerKey : keyProvider === "vilao");
+            fillModelOptions(keyProvider, perKey ? keyModel : "");
             modelSelect.disabled = false;
             if (keyModel && selectModelValue(keyModel)) {
-                // Key vilao.ai đã gắn model → server luôn dùng model này
-                if (keyProvider === "vilao") modelSelect.disabled = true;
+                // Key kiểu vilao.ai (model theo key) → server luôn dùng model này
+                if (perKey) modelSelect.disabled = true;
                 return;
             }
             var def = modelSelect.dataset.default;
@@ -275,7 +290,7 @@
                     // Ưu tiên nhãn do server dựng sẵn (formatAiLabel), không có thì tự ghép
                     var base = allowedLabel[String(k._id)] ||
                         (k.provider ? providerName(k.provider) + ": " : "") + k.name;
-                    o.setAttribute("data-provider", isVilao(k.provider) || isVilao(base) ? "vilao" : "gemini");
+                    o.setAttribute("data-provider", normProvider(k.provider));
                     o.setAttribute("data-label", base);
                     var label = base + (k.model ? " (" + k.model + ")" : "");
                     if (!k.usable) {

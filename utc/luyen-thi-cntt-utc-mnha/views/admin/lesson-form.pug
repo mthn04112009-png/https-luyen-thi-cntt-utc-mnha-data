@@ -80,7 +80,7 @@ block content
                                             data-provider=(k.provider || 'gemini')
                                             selected=(lesson && lesson.aiKeyId && String(lesson.aiKeyId) === String(k._id))
                                         )
-                                            = k.aiLabel || ((k.provider === 'vilao' ? 'vilao.ai' : 'Gemini') + ': ' + k.name)
+                                            = k.aiLabel || ((k.providerLabel || k.provider || 'Gemini') + ': ' + k.name)
                                             if k.model
                                                 |  (#{k.model})
                             p(class="text-xs text-gray-500 mt-1")
@@ -102,21 +102,25 @@ block content
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                             )
                                 option(value="") — Chọn AI Key trước —
-                                if supportedModels && supportedModels.length
+                                //- ★ Model của MỌI nhà cung cấp (AI-database/index.json); JS bên dưới chỉ hiện model đúng nhà cung cấp của key đang chọn
+                                - const curKey = (aiKeys || []).filter(function (k) { return lesson && lesson.aiKeyId && String(k._id) === String(lesson.aiKeyId); })[0]
+                                - const curProv = curKey ? (curKey.provider || 'gemini') : 'gemini'
+                                if providers && providers.length
+                                    each pv in providers
+                                        each m in (pv.models || [])
+                                            option(
+                                                value=m
+                                                data-provider=pv.id
+                                                hidden=(pv.id !== 'gemini')
+                                                disabled=(pv.id !== 'gemini')
+                                                selected=(lesson && lesson.model === m && pv.id === curProv)
+                                            )
+                                                = m
+                                else if supportedModels && supportedModels.length
                                     each m in supportedModels
                                         option(
                                             value=m
                                             data-provider="gemini"
-                                            selected=(lesson && lesson.model === m)
-                                        )
-                                            = m
-                                if vilaoModels && vilaoModels.length
-                                    each m in vilaoModels
-                                        option(
-                                            value=m
-                                            data-provider="vilao"
-                                            hidden
-                                            disabled
                                             selected=(lesson && lesson.model === m)
                                         )
                                             = m

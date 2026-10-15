@@ -16,9 +16,10 @@ const AuditLog = require('../models/AuditLog');
 
 const { paginate } = require('./pagination.controller');
 const { formatAiLabel } = require('../utils/aiLabel');
+const { isOpenAiProvider, getProviderLabel } = require('../config/aiModels');
 const AIKey = require('../models/AIKey');
 
-// ★ Nhãn AI của 1 bài nộp: "Gemini: tên" / "vilao.ai: tên".
+// ★ Nhãn AI của 1 bài nộp: "Gemini: tên" / "vilao.ai: tên" / "<nhà cung cấp>: tên".
 //   - Bài mới: dùng snapshot submission.aiProvider.
 //   - Bài cũ (chưa có aiProvider, .lean() không áp default): tra provider thật
 //     của key qua aiKeyId, tránh hiện nhầm "Gemini" cho key vilao.ai.
@@ -329,16 +330,17 @@ const createSubmission = async (req, res) => {
             let friendlyMsg = result.errorMessage || 'Chấm bài thất bại.';
             const msg = String(friendlyMsg).toLowerCase();
 
-            if (result.aiProvider === 'vilao') {
-                // ★ vilao.ai: không dùng thông báo "Google" của Gemini
+            if (isOpenAiProvider(result.aiProvider)) {
+                // ★ Nhà cung cấp kiểu OpenAI (vilao.ai, ChatGPT, DeepSeek…): không dùng thông báo "Google" của Gemini
+                const pl = getProviderLabel(result.aiProvider);
                 if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('invalid api key')) {
-                    friendlyMsg = 'API Key vilao.ai không hợp lệ hoặc chưa được cấp quyền. Liên hệ admin.';
+                    friendlyMsg = `API Key ${pl} không hợp lệ hoặc chưa được cấp quyền. Liên hệ admin.`;
                 } else if (msg.includes('quota') || msg.includes('429') || msg.includes('rate limit')) {
-                    friendlyMsg = 'vilao.ai đã hết quota hoặc bị giới hạn tốc độ. Vui lòng thử lại sau 1 phút.';
+                    friendlyMsg = `${pl} đã hết quota hoặc bị giới hạn tốc độ. Vui lòng thử lại sau 1 phút.`;
                 } else if (msg.includes('503') || msg.includes('502') || msg.includes('504') || msg.includes('timeout') || msg.includes('overloaded')) {
-                    friendlyMsg = 'vilao.ai đang quá tải. Vui lòng thử nộp lại sau 30 giây.';
+                    friendlyMsg = `${pl} đang quá tải. Vui lòng thử nộp lại sau 30 giây.`;
                 } else if (msg.includes('model') && (msg.includes('not found') || msg.includes('does not exist') || msg.includes('không hỗ trợ'))) {
-                    friendlyMsg = 'Model vilao.ai không tồn tại. Liên hệ admin đổi model.';
+                    friendlyMsg = `Model ${pl} không tồn tại. Liên hệ admin đổi model.`;
                 } else if (msg.includes('không tải được nội dung prompt')) {
                     friendlyMsg = 'Hệ thống chưa đồng bộ xong prompt. Vui lòng thử nộp lại sau ít phút.';
                 }

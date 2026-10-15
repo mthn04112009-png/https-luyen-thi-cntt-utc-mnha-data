@@ -7,6 +7,7 @@ const submissionController = require("../controllers/submission.controller");
 const disputeController = require("../controllers/dispute.controller");
 const promptController = require("../controllers/prompt.controller");
 const aiKeyController = require("../controllers/aikey.controller");
+const aiProviderController = require("../controllers/aiProvider.controller");
 const cloudinaryController = require("../controllers/cloudinary.controller");
 const userKeyController = require("../controllers/userkey.controller");
 const layoutController = require("../controllers/layout.controller");
@@ -223,6 +224,14 @@ router.post("/prompts/:id/hard-delete", promptController.hardDeletePrompt);
 router.use("/ai-keys", requireDefaultAdmin);
 
 router.get("/ai-keys", aiKeyController.getAIKeys);
+
+// Nhà cung cấp AI (Gemini, vilao.ai, ChatGPT, DeepSeek…): xem / thêm / sửa / bật-tắt / xoá — lưu ở GitHub AI-database/index.json
+// (đặt TRƯỚC "/ai-keys/:id/..." — không trùng vì khác số đoạn đường dẫn)
+router.get("/ai-keys/Supplier", aiProviderController.getSuppliers);
+router.post("/ai-keys/Supplier", aiProviderController.saveSupplier);
+router.post("/ai-keys/Supplier/init", aiProviderController.initSupplierDb);
+router.post("/ai-keys/Supplier/:id/toggle", aiProviderController.toggleSupplier);
+router.post("/ai-keys/Supplier/:id/delete", aiProviderController.deleteSupplier);
 
 // Cloudinary (kiểm duyệt ảnh) — AES-256-GCM, không có bật/tắt
 router.get("/ai-keys/cloudinary", cloudinaryController.getCloudinary);

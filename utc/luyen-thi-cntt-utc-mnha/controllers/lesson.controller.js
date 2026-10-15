@@ -38,7 +38,7 @@ function isObjectId(str) {
     return mongoose.Types.ObjectId.isValid(str) && String(str).length === 24;
 }
 
-// ★ vilao.ai: gắn nhãn "Gemini: {tên}" / "vilao.ai: {tên}" cho từng key (key cũ thiếu provider = gemini)
+// ★ Gắn nhãn "{nhà cung cấp}: {tên}" cho từng key (key cũ thiếu provider = gemini)
 function withAiLabels(aiKeys) {
     return (aiKeys || []).map((k) => ({
         ...k,
@@ -74,7 +74,7 @@ async function getAiKeyProviderMap() {
             .lean();
         const map = {};
         rows.forEach((r) => {
-            map[String(r._id)] = String(r.provider || "gemini").toLowerCase();
+            map[String(r._id)] = require("../config/aiModels").normalizeProvider(r.provider);   // id nhà cung cấp đã chuẩn hoá ("google" → "gemini")
         });
         return map;
     } catch (err) {
@@ -863,7 +863,7 @@ exports.getAdminLessons = async (req, res, next) => {
 exports.showCreateLesson = async (req, res, next) => {
     try {
         const AIKey = require("../models/AIKey");
-        const { SUPPORTED_MODELS, DEFAULT_MODEL, VILAO_MODELS, VILAO_DEFAULT_MODEL } = require("../config/aiModels");
+        const { SUPPORTED_MODELS, getDefaultGeminiModel, VILAO_MODELS, VILAO_DEFAULT_MODEL, getProvidersForClient } = require("../config/aiModels");
 
         // ★ USER KEY: admin user_key KHÔNG được thấy/chọn AI key (README: menu API Key
         //   ẩn hoàn toàn) → không query AIKey, trả mảng rỗng + cờ để view ẩn dropdown.
@@ -888,7 +888,8 @@ exports.showCreateLesson = async (req, res, next) => {
             aiKeys: withAiLabels(aiKeys),
             canPickAIKey,
             supportedModels: SUPPORTED_MODELS,
-            defaultModel: DEFAULT_MODEL,
+            defaultModel: getDefaultGeminiModel(),
+            providers: getProvidersForClient(),          // ★ mọi nhà cung cấp (AI-database/index.json)
             vilaoModels: VILAO_MODELS || [],            // ★ vilao.ai
             vilaoDefaultModel: VILAO_DEFAULT_MODEL || "", // ★ vilao.ai
             isAdminView: true,
@@ -1037,7 +1038,7 @@ exports.showEditLesson = async (req, res, next) => {
         }
 
         const AIKey = require("../models/AIKey");
-        const { SUPPORTED_MODELS, DEFAULT_MODEL, VILAO_MODELS, VILAO_DEFAULT_MODEL } = require("../config/aiModels");
+        const { SUPPORTED_MODELS, getDefaultGeminiModel, VILAO_MODELS, VILAO_DEFAULT_MODEL, getProvidersForClient } = require("../config/aiModels");
 
         // ★ USER KEY (xem showCreateLesson)
         const scope = await getContentScope(req);
@@ -1090,7 +1091,8 @@ exports.showEditLesson = async (req, res, next) => {
             aiKeys: withAiLabels(aiKeys),
             canPickAIKey,
             supportedModels: SUPPORTED_MODELS,
-            defaultModel: DEFAULT_MODEL,
+            defaultModel: getDefaultGeminiModel(),
+            providers: getProvidersForClient(),          // ★ mọi nhà cung cấp (AI-database/index.json)
             vilaoModels: VILAO_MODELS || [],            // ★ vilao.ai
             vilaoDefaultModel: VILAO_DEFAULT_MODEL || "", // ★ vilao.ai
             isAdminView: true,

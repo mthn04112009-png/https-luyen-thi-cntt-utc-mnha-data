@@ -10,6 +10,12 @@
 //   node migrateMongoToGithub.js --only=prompts,lessons,submissions   (chọn loại)
 //   node migrateMongoToGithub.js --only=auditlogs [--run]            → chuyển TOÀN BỘ audit log trong MongoDB (collection `auditlogs`)
 //                                                                       sang 1 file GitHub: auditlogs/index.json (gộp, không ghi đè bản đã có)
+//   node migrateMongoToGithub.js --only=aiproviders [--run]         → tạo AI-database/index.json trên GitHub: danh sách NHÀ CUNG CẤP AI
+//                                                                       (tên API, biến API: địa chỉ/đường dẫn/max_tokens, và các model) lấy từ
+//                                                                       config/aiProviderSeed.js (dữ liệu trước đây nằm cứng trong config/aiModels.js
+//                                                                       + services/aiService.js). Đối chiếu provider đang dùng trong MongoDB (aikeys:
+//                                                                       'gemini' / 'vilao' giữ NGUYÊN). Key API vẫn ở MongoDB, KHÔNG đụng tới.
+//                                                                       Chỉ THÊM nhà cung cấp còn thiếu, không ghi đè phần đã chỉnh ở /admin/ai-keys/Supplier.
 //   node migrateMongoToGithub.js --orphans               → LIỆT KÊ collection dư thừa trong MongoDB (không xoá)
 //   node migrateMongoToGithub.js --run --drop-orphans=tenA,tenB → BACKUP rồi XOÁ đúng các collection dư thừa nêu tên
 //      (lessons/gradingprompts/submissions chỉ xoá khi MỌI document đã có file trên GitHub; --force-drop để bỏ qua kiểm tra)
@@ -63,7 +69,7 @@ const argVal = (name) => {
     const a = argv.find((x) => x.startsWith(`--${name}=`));
     return a ? a.slice(name.length + 3) : null;
 };
-const ALL_KINDS = ['prompts', 'lessons', 'submissions', 'auditlogs'];
+const ALL_KINDS = ['prompts', 'lessons', 'submissions', 'auditlogs', 'aiproviders'];
 const ONLY = (argVal('only') ? argVal('only').split(',') : ALL_KINDS)
     .map((s) => s.trim())
     .filter((s) => ALL_KINDS.includes(s));
@@ -733,6 +739,92 @@ async function processAuditlogsBatch(docs) {
 }
 
 // ============================================================
+// 5. AI PROVIDERS  (config/aiProviderSeed.js + MongoDB aikeys → AI-database/index.json)
+//    - Dữ liệu chuyển từ JS: tên nhà cung cấp, biến API (baseUrl, chatPath, maxTokens, …), danh sách model,
+//      model mặc định, model dự phòng — trước đây cứng trong config/aiModels.js / services/aiService.js.
+//    - MongoDB: collection aikeys có field `provider` ('gemini' | 'vilao'; 'google' = cũ của Gemini) → GIỮ NGUYÊN,
+//      chính là `id` của nhà cung cấp. Script chỉ ĐỌC để đối chiếu, không sửa/xoá gì ở MongoDB.
+//    - Idempotent: chỉ thêm nhà cung cấp CÒN THIẾU trên GitHub; không ghi đè phần đã chỉnh trên web.
+// ============================================================
+const aiProviderService = require('./services/aiProviderService');
+const aiSeed = require('./config/aiProviderSeed');
+
+let aiDbState = null;   // { current:{data,sha}|null, usage:{id:count} }
+
+async function readAiDbState() {
+    if (aiDbState) return aiDbState;
+    const current = await githubService.readJsonFileWithSha(aiProviderService.AI_DB_PATH);
+    const usage = {};
+    const rows = await legacy('aikeys').aggregate([{ $group: { _id: '$provider', n: { $sum: 1 } } }]).toArray();
+    for (const r of rows) {
+        const raw = typeof r._id === 'string' ? r._id.trim().toLowerCase() : '';
+        const id = !raw || raw === 'google' ? 'gemini' : raw;
+        usage[id] = (usage[id] || 0) + r.n;
+    }
+    aiDbState = { current, usage };
+    return aiDbState;
+}
+
+async function collectAiproviders() {
+    const { current } = await readAiDbState();
+    const have = new Set(((current && current.data && current.data.providers) || []).map((p) => p.id));
+    return aiSeed.seedProviders().filter((p) => !have.has(p.id));
+}
+
+async function processAiprovidersBatch(missing) {
+    const st = stat('aiproviders');
+    const { current, usage } = await readAiDbState();
+    const PATH = aiProviderService.AI_DB_PATH;
+
+    // Đối chiếu provider đang dùng trong MongoDB
+    const known = new Set([
+        ...aiSeed.seedProviders().map((p) => p.id),
+        ...((current && current.data && current.data.providers) || []).map((p) => p.id)
+    ]);
+    console.log('   Key API trong MongoDB theo provider (giữ nguyên):');
+    const ids = Object.keys(usage);
+    if (!ids.length) console.log('   (chưa có key nào)');
+    for (const id of ids) {
+        const ok = known.has(id);
+        console.log(`   - ${id}: ${usage[id]} key ${ok ? '✅' : '⚠️  chưa có cấu hình nhà cung cấp'}`);
+        if (!ok) st.skipped.push(`provider "${id}" (${usage[id]} key) chưa có trong AI-database — thêm ở /admin/ai-keys/Supplier (id phải trùng "${id}")`);
+    }
+
+    console.log(`   ${tag}${current ? 'File đã có trên GitHub' : 'File CHƯA có trên GitHub'}: ${PATH}`);
+    console.log(`   ${tag}Nhà cung cấp sẽ thêm: ${missing.map((p) => `${p.id} (${p.kind}, ${p.models.length} model)`).join(', ') || '(không — đã đủ)'}`);
+    for (const p of missing) {
+        const vars = Object.entries(p.jsVars || {}).map(([k, v]) => `${v}→${k}`).join(', ');
+        console.log(`     • ${p.id}: ${p.label}${p.baseUrl ? ` | ${p.baseUrl}${p.chatPath}` : ''} | mặc định ${p.defaultModel}${vars ? ` | biến: ${vars}` : ''}`);
+    }
+    if (!missing.length) return;
+    if (!RUN) return;
+
+    const base = current && current.data ? aiProviderService.sanitizeDocument(current.data) : aiSeed.buildSeedDocument();
+    const doc = {
+        ...base,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        providers: [...base.providers.filter((p) => !missing.some((m) => m.id === p.id)), ...missing]
+    };
+    // gemini luôn đứng đầu, còn lại giữ thứ tự
+    doc.providers.sort((a, b) => (a.id === 'gemini' ? -1 : b.id === 'gemini' ? 1 : 0));
+    const clean = aiProviderService.sanitizeDocument(doc);
+    clean.updatedAt = doc.updatedAt;
+
+    const res = await putJson(PATH, clean, current ? current.sha : null, 'Chuyển danh sách nhà cung cấp AI (API/biến API/model) từ JS sang GitHub');
+    st.written += missing.length;
+
+    // Đọc lại kiểm tra: đủ nhà cung cấp, đủ model
+    const back = await githubService.readJsonFile(PATH);
+    const backIds = new Set(((back && back.providers) || []).map((p) => p.id));
+    const lost = clean.providers.filter((p) => !backIds.has(p.id)).map((p) => p.id);
+    if (lost.length) { st.failed.push(`đọc lại thiếu nhà cung cấp: ${lost.join(', ')}`); return; }
+    aiDbState = null;
+    console.log(`   ✅ Đã ghi ${PATH} (sha ${String(res.sha).slice(0, 7)}): ${clean.providers.map((p) => `${p.id}[${p.models.length} model]`).join(', ')}`);
+    console.log('   ℹ️  MongoDB không bị thay đổi: key API và field provider giữ nguyên. Từ nay danh sách này sửa ở /admin/ai-keys/Supplier.');
+}
+
+// ============================================================
 // BACKUP trước khi xoá
 // ============================================================
 function writeBackup(plan) {
@@ -784,14 +876,14 @@ function writeBackup(plan) {
         : '🔎 DRY-RUN: chỉ báo cáo, không ghi GitHub, không sửa MongoDB. Thêm --run để chạy thật.');
     console.log(`Loại dữ liệu: ${ONLY.join(', ')}${LIMIT ? ` | giới hạn ${LIMIT} bản ghi/loại` : ''}\n`);
 
-    const collectors = { prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs };
+    const collectors = { prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs, aiproviders: collectAiproviders };
     const processors = { prompts: processPrompt, lessons: processLesson, submissions: processSubmission };
 
     // Bước 1: gom danh sách cần xử lý
     const plan = {};
     for (const kind of ONLY) {
         let docs = await collectors[kind]();
-        if (LIMIT) docs = docs.slice(0, LIMIT);
+        if (LIMIT && kind !== 'aiproviders') docs = docs.slice(0, LIMIT);
         plan[kind] = docs;
         stat(kind).total = docs.length;
         console.log(`• ${kind}: ${docs.length} bản ghi còn dữ liệu cần xử lý`);
@@ -799,11 +891,17 @@ function writeBackup(plan) {
     console.log('');
 
     // Bước 2: backup (chỉ khi chạy thật)
-    if (RUN && !NO_BACKUP && ONLY.some((k) => plan[k] && plan[k].length)) writeBackup(plan);
+    // (aiproviders không xoá gì ở MongoDB nên không cần backup)
+    if (RUN && !NO_BACKUP && ONLY.some((k) => k !== 'aiproviders' && plan[k] && plan[k].length)) writeBackup(plan);
     else if (RUN && NO_BACKUP) console.log('⏭️  --no-backup: không tạo file backup.');
 
     // Bước 3: xử lý tuần tự (prompts → lessons → submissions)
     for (const kind of ALL_KINDS) {
+        if (kind === 'aiproviders' && plan[kind]) {
+            console.log(`\n===== ${kind.toUpperCase()} =====`);
+            try { await processAiprovidersBatch(plan[kind]); } catch (e) { stat(kind).failed.push(e.message); console.error(`   ❌ aiproviders: ${e.message}`); }
+            continue;
+        }
         if (!plan[kind] || !plan[kind].length) continue;
         console.log(`\n===== ${kind.toUpperCase()} =====`);
         if (kind === 'auditlogs') { await processAuditlogsBatch(plan[kind]); continue; }   // xử lý theo lô

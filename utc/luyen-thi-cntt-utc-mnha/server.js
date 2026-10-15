@@ -195,6 +195,9 @@ app.use(async (req, res, next) => {
     }
 });
 
+// ★ Danh sách nhà cung cấp AI (GitHub: AI-database/index.json) → nạp vào RAM; lỗi thì dùng bản mặc định, không chặn request.
+app.use(require("./services/aiProviderService").middleware);
+
 // ★ WEBHOOK GitHub (push) → cập nhật lessons/prompts/submissions đọc từ GitHub.
 //   Đặt TRƯỚC session/auth: GitHub không có cookie, chỉ xác thực bằng chữ ký HMAC.
 app.use("/webhooks/github", require("./routes/githubWebhook"));

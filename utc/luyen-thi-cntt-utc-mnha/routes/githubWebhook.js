@@ -38,6 +38,16 @@ router.post('/', async (req, res) => {
     if (event === 'ping') return res.json({ ok: true, pong: true });
     if (event !== 'push') return res.status(202).json({ ok: true, ignored: `event ${event}` });
 
+    // ★ Sửa trực tiếp AI-database/index.json trên GitHub (danh sách nhà cung cấp AI) → nạp lại ngay
+    try {
+        const commits = (req.body && req.body.commits) || [];
+        const touched = commits.some((c) => [...(c.added || []), ...(c.modified || []), ...(c.removed || [])]
+            .some((f) => String(f).startsWith('AI-database/')));
+        if (touched) {
+            await require('../services/aiProviderService').ensureFresh({ force: true }).catch(() => {});
+        }
+    } catch (_) { /* không ảnh hưởng webhook */ }
+
     try {
         const result = await Promise.race([
             githubStore.applyPush(req.body),

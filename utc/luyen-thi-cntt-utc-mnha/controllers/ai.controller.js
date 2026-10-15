@@ -10,7 +10,6 @@ const {
     testGeminiConnection,
     createCodeGradingPrompt,
     SUPPORTED_MODELS,
-    DEFAULT_MODEL,
     getSafeModel,
 } = require("../services/aiService");
 
@@ -22,8 +21,9 @@ const {
     formatAiLabel,
     getModelOptionsForKey,
     resolveModelForKey,
-    VILAO_MODELS,
-    VILAO_DEFAULT_MODEL,
+    isOpenAiProvider,
+    getProvidersForClient,
+    getDefaultGeminiModel,
 } = require("../config/aiModels");
 
 const GradingPrompt = (() => {
@@ -72,13 +72,13 @@ function pickModels(body) {
         const filtered = models
             .map((m) => String(m).trim())
             .filter((m) => !SUPPORTED_MODELS.length || SUPPORTED_MODELS.includes(m));
-        return filtered.length ? filtered : [DEFAULT_MODEL];
+        return filtered.length ? filtered : [getDefaultGeminiModel()];
     }
     if (models === "all") return [...SUPPORTED_MODELS];
     if (model && (!SUPPORTED_MODELS.length || SUPPORTED_MODELS.includes(model))) {
         return [model];
     }
-    return [DEFAULT_MODEL];
+    return [getDefaultGeminiModel()];
 }
 
 function toObjId(v) {
@@ -99,11 +99,12 @@ async function loadKeyMeta(aiKeyId) {
 }
 
 // ★ Chọn model cuối cùng theo key:
-//   - Có key vilao → resolveModelForKey (model gắn trên key thắng, tránh 403 subscribe)
+//   - Có key của nhà cung cấp kiểu OpenAI (vilao.ai, ChatGPT, DeepSeek…) → resolveModelForKey
+//     (vilao.ai: model gắn trên key thắng, tránh 403 subscribe)
 //   - Gemini / không chọn key → getSafeModel như cũ
 async function resolveModelByKeyId(aiKeyId, requestedModel) {
     const keyDoc = await loadKeyMeta(aiKeyId);
-    if (keyDoc && normalizeProvider(keyDoc.provider) === "vilao") {
+    if (keyDoc && isOpenAiProvider(keyDoc.provider)) {
         return resolveModelForKey(keyDoc, requestedModel);
     }
     return getSafeModel(requestedModel);
@@ -534,9 +535,9 @@ async function testPrompt(req, res) {
 
         // Chọn model(s) để chạy
         const keyMeta = await loadKeyMeta(aiKeyId);
-        const isVilaoKey = keyMeta && normalizeProvider(keyMeta.provider) === "vilao";
+        const isVilaoKey = keyMeta && isOpenAiProvider(keyMeta.provider);   // key kiểu OpenAI (vilao.ai, ChatGPT…)
         const runAll = req.body?.models === "all";
-        // Key vilao: chỉ chạy 1 model (model đã subscribe trên key), không chạy list Gemini
+        // Key kiểu OpenAI: chỉ chạy 1 model (vilao.ai: model đã subscribe trên key), không chạy list Gemini
         const modelsToRun = isVilaoKey
             ? [resolveModelForKey(keyMeta, safeStr(req.body?.model).trim() || null)]
             : runAll
@@ -924,16 +925,21 @@ async function listModels(req, res) {
             });
         }
         // Trang làm bài đọc 1 lần: models/defaultModel = Gemini,
-        // vilaoModels/vilaoDefaultModel = vilao.ai (chọn theo provider của key đang chọn)
+        // providers = TẤT CẢ nhà cung cấp (AI-database/index.json) → chọn theo provider của key đang chọn;
+        // vilaoModels/vilaoDefaultModel giữ lại cho trang cũ chưa đọc `providers`.
+        const providers = getProvidersForClient();
+        const gem = providers.find((p) => p.id === "gemini");
+        const vil = providers.find((p) => p.id === "vilao");
         return res.json({
             success: true,
             provider: "gemini",
-            defaultModel: DEFAULT_MODEL,
+            defaultModel: gem ? gem.defaultModel : getDefaultGeminiModel(),
             fixed: false,
-            total: SUPPORTED_MODELS.length,
-            models: SUPPORTED_MODELS,
-            vilaoModels: VILAO_MODELS,
-            vilaoDefaultModel: VILAO_DEFAULT_MODEL,
+            total: gem ? gem.models.length : SUPPORTED_MODELS.length,
+            models: gem ? gem.models : SUPPORTED_MODELS,
+            vilaoModels: vil ? vil.models : [],
+            vilaoDefaultModel: vil ? vil.defaultModel : "",
+            providers,
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
