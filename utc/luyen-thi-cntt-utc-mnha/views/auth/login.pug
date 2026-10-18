@@ -80,6 +80,10 @@ html(lang="vi")
                             )
                             p(class="text-sm text-red-700")
                                 = error
+                                if lockedSeconds
+                                    |  (còn 
+                                    strong#lockCountdown= lockedSeconds
+                                    | s)
 
                     //- Success (dùng chung — nếu controller render trực tiếp)
                     if success
@@ -181,8 +185,10 @@ html(lang="vi")
 
                         //- Submit
                         button(
+                            id="loginSubmit"
                             type="submit"
-                            class="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition"
+                            data-locked=(lockedSeconds ? lockedSeconds : 0)
+                            class="w-full py-3 disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition"
                         )
                             | Đăng nhập
 
@@ -201,6 +207,27 @@ html(lang="vi")
 
         script.
             lucide.createIcons();
+
+            // Đếm ngược khi thiết bị bị khoá 1 phút do sai 5/5 lần
+            (function () {
+                var btn = document.getElementById('loginSubmit');
+                var left = btn ? parseInt(btn.getAttribute('data-locked'), 10) || 0 : 0;
+                if (!btn || left <= 0) return;
+                var label = btn.textContent;
+                var cd = document.getElementById('lockCountdown');
+                btn.disabled = true;
+                var t = setInterval(function () {
+                    left -= 1;
+                    if (cd) cd.textContent = Math.max(left, 0);
+                    btn.textContent = 'Thử lại sau ' + Math.max(left, 0) + 's';
+                    if (left <= 0) {
+                        clearInterval(t);
+                        btn.disabled = false;
+                        btn.textContent = label;
+                    }
+                }, 1000);
+                btn.textContent = 'Thử lại sau ' + left + 's';
+            })();
 
             const togglePassword = document.getElementById('togglePassword');
             const password = document.getElementById('password');

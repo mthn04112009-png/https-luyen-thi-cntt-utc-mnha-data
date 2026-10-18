@@ -453,9 +453,14 @@
     //   - Nội dung đưa vào khung bằng textContent (không phải HTML) nên an toàn; MathJax vẽ lại sau mỗi lần gõ (trễ 250ms).
     // ============================================================
     var MATH_RE = /\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/;
-    var BREAK_RE = /(?<!\\)\\n(?![A-Za-z])/g;
-    function breakLines(t) { return String(t == null ? "" : t).replace(BREAK_RE, "\n"); }
-    function needsPreview(t) { t = String(t == null ? "" : t); return MATH_RE.test(t) || /(?<!\\)\\n(?![A-Za-z])/.test(t); }
+    function breakLines(t) {
+        // (không dùng lookbehind để chạy được trên Safari cũ): "\\n" (đã có \ đứng trước) được giữ nguyên
+        return String(t == null ? "" : t).replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
+    }
+    function needsPreview(t) {
+        t = String(t == null ? "" : t);
+        return MATH_RE.test(t) || breakLines(t) !== t;
+    }
     function typesetMath(el) {
         try {
             if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {

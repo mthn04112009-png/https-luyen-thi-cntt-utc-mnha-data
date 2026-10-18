@@ -45,7 +45,7 @@ html(lang="vi")
 
                         if user
 
-                            //- ===== MENU CHUNG: Môn học / Luyện tập / Lịch sử =====
+                            //- ===== MENU CHUNG: Môn học / Luyện tập / Lịch sử / Ứng dụng =====
                             a(
                                 class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                 href="/subjects"
@@ -66,6 +66,13 @@ html(lang="vi")
                             )
                                 i(data-lucide="file-check-2", class="w-4 h-4 inline-block mr-1")
                                 | Lịch sử
+
+                            a(
+                                class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                href="/apps"
+                            )
+                                i(data-lucide="layout-grid", class="w-4 h-4 inline-block mr-1")
+                                | Ứng dụng
 
                             //- ===== MENU RIÊNG ADMIN =====
                             if user.role === 'admin'
@@ -248,6 +255,13 @@ html(lang="vi")
                                         i(data-lucide="file-check-2", class="w-4 h-4")
                                         | Lịch sử nộp
 
+                                    a(
+                                        class="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                                        href="/apps"
+                                    )
+                                        i(data-lucide="layout-grid", class="w-4 h-4")
+                                        | Ứng dụng
+
                                     //- ADMIN thêm link quản trị
                                     if user.role === 'admin'
 
@@ -337,6 +351,13 @@ html(lang="vi")
                         )
                             i(data-lucide="file-check-2", class="w-5 h-5")
                             | Lịch sử nộp
+
+                        a(
+                            class="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+                            href="/apps"
+                        )
+                            i(data-lucide="layout-grid", class="w-5 h-5")
+                            | Ứng dụng
 
                         a(
                             class="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600"

@@ -6300,6 +6300,1929 @@
 
 
 
+
+
+<!-- SLIDE 94: Quan hệ hai ngôi là gì? -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.1 · KHÁI NIỆM QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 30px;">Quan hệ hai ngôi là gì?</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 40px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Định nghĩa và ký hiệu -->
+            <div style="flex: 1.2;">
+                <ul style="margin: 0; padding-left: 20px; font-size: 16px; color: #334155; line-height: 1.8; list-style-type: disc;">
+                    <li style="margin-bottom: 20px;">
+                        <b>Định nghĩa:</b> cho \(A, B\) là hai tập hợp. Một quan hệ hai ngôi từ \(A\) đến \(B\) là một tập con \(R \subseteq A \times B\).
+                    </li>
+                    <li style="margin-bottom: 20px;">
+                        <b>Ký hiệu \(aRb\)</b> nghĩa là \((a, b) \in R\) — “a có quan hệ với b”.
+                    </li>
+                    <li>
+                        <b>Quan hệ trên một tập \(A\):</b> là quan hệ từ \(A\) đến chính \(A\), tức \(R \subseteq A \times A\).
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Cột phải: Hình vẽ minh họa -->
+            <div style="flex: 1; display: flex; justify-content: center; align-items: flex-start;">
+                <svg width="100%" height="380" viewBox="0 0 500 380" style="overflow: visible; max-width: 450px;">
+                    <!-- Nhãn tập A và B -->
+                    <text x="105" y="40" font-size="22" font-weight="700" fill="#475569" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif">A</text>
+                    <text x="395" y="45" font-size="22" font-weight="700" fill="#475569" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif">B</text>
+
+                    <!-- Hình viên thuốc tập A -->
+                    <rect x="30" y="90" width="150" height="270" rx="75" ry="75" fill="none" stroke="#64748b" stroke-width="2.5" />
+
+                    <!-- Hình viên thuốc tập B -->
+                    <rect x="320" y="90" width="150" height="270" rx="75" ry="75" fill="none" stroke="#64748b" stroke-width="2.5" />
+
+                    <!-- Các mũi tên -->
+                    <g stroke="#b45309" stroke-width="2.5" fill="none">
+                        <line x1="105" y1="128" x2="388" y2="152" />
+                        <line x1="105" y1="248" x2="388" y2="248" />
+                        <line x1="105" y1="318" x2="388" y2="285" />
+                    </g>
+                    <g fill="#b45309">
+                        <polygon points="396,153 380,146 381,160" />
+                        <polygon points="396,248 380,241 380,255" />
+                        <polygon points="396,284.5 380,278 382,292" />
+                    </g>
+
+                    <!-- Các đỉnh tập A (xám đậm) -->
+                    <g fill="#475569" stroke="#1e293b" stroke-width="1.5">
+                        <circle cx="105" cy="128" r="12" />
+                        <circle cx="105" cy="248" r="12" />
+                        <circle cx="105" cy="318" r="12" />
+                    </g>
+
+                    <!-- Các đỉnh tập B (cam) -->
+                    <g fill="#f59e0b" stroke="#b45309" stroke-width="1.5">
+                        <circle cx="395" cy="152" r="12" />
+                        <circle cx="395" cy="248" r="12" />
+                        <circle cx="395" cy="285" r="12" />
+                    </g>
+
+                    <!-- Chú thích dưới -->
+                    <text x="250" y="375" font-size="16" font-weight="700" fill="#334155" text-anchor="middle" font-family="'Courier New', monospace">(a, b) ∈ R</text>
+                </svg>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>94</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 95: Ví dụ & ứng dụng CNTT -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.1 • KHÁI NIỆM QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Ví dụ &amp; ứng dụng CNTT</h1>
+
+        <!-- Nội dung: Phần Ví dụ -->
+        <div style="margin-bottom: 50px;">
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                Ví dụ
+            </div>
+            <div style="font-size: 15.5px; color: #334155; line-height: 1.7; font-family: 'Cambria Math', 'Times New Roman', serif;">
+                <p style="margin: 0 0 8px 0;">
+                    Cho \(A = \{1, 2, 3, 4\}\), quan hệ \(R = \{(a,b) \mid a \text{ là ước của } b\}\) trên \(A\):
+                </p>
+                <p style="margin: 0;">
+                    \(R = \{(1,1), (1,2), (1,3), (1,4), (2,2), (2,4), (3,3), (4,4)\}\)
+                </p>
+            </div>
+        </div>
+
+        <!-- Nội dung: 2 cột Ứng dụng -->
+        <div style="display: flex; gap: 40px; justify-content: space-around; align-items: flex-start; margin-top: 20px;">
+
+            <!-- Cột 1: Mạng xã hội -->
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;">
+                <!-- Icon -->
+                <div style="width: 90px; height: 90px; border-radius: 50%; background: #cbd5e1; margin-bottom: 20px; display: flex; justify-content: center; align-items: center;">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                
+                <!-- Title & Desc -->
+                <h3 style="font-size: 18px; font-weight: 700; color: #475569; margin: 0 0 12px 0;">
+                    Mạng xã hội
+                </h3>
+                <p style="font-size: 14.5px; color: #475569; line-height: 1.6; margin: 0; max-width: 320px;">
+                    Quan hệ “là bạn của” giữa các tài khoản người dùng là một quan hệ hai ngôi trên tập Users.
+                </p>
+            </div>
+
+            <!-- Cột 2: CSDL quan hệ -->
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;">
+                <!-- Icon -->
+                <div style="width: 90px; height: 90px; border-radius: 50%; background: #fed7aa; margin-bottom: 20px; display: flex; justify-content: center; align-items: center;">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a3412" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                </div>
+                
+                <!-- Title & Desc -->
+                <h3 style="font-size: 18px; font-weight: 700; color: #475569; margin: 0 0 12px 0;">
+                    CSDL quan hệ
+                </h3>
+                <p style="font-size: 14.5px; color: #475569; line-height: 1.6; margin: 0; max-width: 320px;">
+                    Quan hệ n-ngôi là nền tảng lý thuyết của mọi bảng (table) trong hệ quản trị CSDL quan hệ.
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>95</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 96: Bốn tính chất cơ bản -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.2 - TÍNH CHẤT QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Bốn tính chất cơ bản</h1>
+
+        <!-- Bảng tính chất -->
+        <div style="border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-top: 15px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
+                <thead>
+                    <tr style="background: #94a3b8; color: #ffffff;">
+                        <th style="padding: 16px; text-align: center; font-weight: 700; width: 22%;">Tính chất</th>
+                        <th style="padding: 16px; text-align: left; font-weight: 700; width: 78%;">Định nghĩa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Phản xạ -->
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <td style="padding: 18px 16px; text-align: center; color: #1e293b; font-weight: 600;">Phản xạ</td>
+                        <td style="padding: 18px 16px; color: #334155; line-height: 1.6;">
+                            \(\forall a \in A, (a,a) \in R\) &nbsp;&mdash;&nbsp; mọi phần tử quan hệ với chính nó
+                        </td>
+                    </tr>
+                    
+                    <!-- Đối xứng -->
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <td style="padding: 18px 16px; text-align: center; color: #1e293b; font-weight: 600;">Đối xứng</td>
+                        <td style="padding: 18px 16px; color: #334155; line-height: 1.6;">
+                            \((a,b) \in R \rightarrow (b,a) \in R\) &nbsp;&mdash;&nbsp; quan hệ 2 chiều
+                        </td>
+                    </tr>
+
+                    <!-- Phản đối xứng -->
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <td style="padding: 18px 16px; text-align: center; color: #1e293b; font-weight: 600;">Phản đối xứng</td>
+                        <td style="padding: 18px 16px; color: #334155; line-height: 1.6;">
+                            \((a,b) \in R \land (b,a) \in R \rightarrow a = b\) &nbsp;&mdash;&nbsp; không có cặp phần biệt liên quan lẫn nhau
+                        </td>
+                    </tr>
+
+                    <!-- Bắc cầu -->
+                    <tr style="background: #f8fafc;">
+                        <td style="padding: 18px 16px; text-align: center; color: #1e293b; font-weight: 600;">Bắc cầu</td>
+                        <td style="padding: 18px 16px; color: #334155; line-height: 1.6;">
+                            \((a,b) \in R \land (b,c) \in R \rightarrow (a,c) \in R\) &nbsp;&mdash;&nbsp; quan hệ được “truyền” qua trung gian
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>96</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 97: Demo — Kiểm tra quan hệ “là ước” trên Z+ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.2 - TÍNH CHẤT QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 30px;">Demo — Kiểm tra quan hệ “là ước” trên \(\mathbb{Z}^+\)</h1>
+
+        <!-- Nội dung chính -->
+        <div class="highlight-card" style="background: #ffffff; padding: 30px 40px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-top: 10px;">
+            
+            <div style="display: flex; flex-direction: column; gap: 28px;">
+                
+                <!-- Dòng 1: Phản xạ -->
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <!-- Icon Check -->
+                    <div style="flex: 0 0 44px; height: 44px; border-radius: 50%; background: #dcfce7; color: #166534; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">
+                        ✓
+                    </div>
+                    <!-- Text -->
+                    <div style="flex: 0 0 180px; font-size: 18px; font-weight: 700; color: #1e293b;">
+                        Phản xạ ?
+                    </div>
+                    <!-- Math -->
+                    <div style="flex: 1; font-size: 18px; color: #334155; font-family: 'Cambria Math', serif;">
+                        \(a \mid a\) với mọi \(a \in \mathbb{Z}^+\)
+                    </div>
+                </div>
+
+                <!-- Dòng 2: Đối xứng -->
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <!-- Icon Cross -->
+                    <div style="flex: 0 0 44px; height: 44px; border-radius: 50%; background: #ffe4e6; color: #be123c; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold;">
+                        ✕
+                    </div>
+                    <!-- Text -->
+                    <div style="flex: 0 0 180px; font-size: 18px; font-weight: 700; color: #1e293b;">
+                        Đối xứng ?
+                    </div>
+                    <!-- Math -->
+                    <div style="flex: 1; font-size: 18px; color: #334155; font-family: 'Cambria Math', serif;">
+                        \(1 \mid 2\) nhưng \(2 \nmid 1\)
+                    </div>
+                </div>
+
+                <!-- Dòng 3: Phản đối xứng -->
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <!-- Icon Check -->
+                    <div style="flex: 0 0 44px; height: 44px; border-radius: 50%; background: #dcfce7; color: #166534; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">
+                        ✓
+                    </div>
+                    <!-- Text -->
+                    <div style="flex: 0 0 180px; font-size: 18px; font-weight: 700; color: #1e293b;">
+                        Phản đối xứng ?
+                    </div>
+                    <!-- Math -->
+                    <div style="flex: 1; font-size: 18px; color: #334155; font-family: 'Cambria Math', serif;">
+                        \(a \mid b\) và \(b \mid a \Rightarrow a = b\)
+                    </div>
+                </div>
+
+                <!-- Dòng 4: Bắc cầu -->
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <!-- Icon Check -->
+                    <div style="flex: 0 0 44px; height: 44px; border-radius: 50%; background: #dcfce7; color: #166534; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">
+                        ✓
+                    </div>
+                    <!-- Text -->
+                    <div style="flex: 0 0 180px; font-size: 18px; font-weight: 700; color: #1e293b;">
+                        Bắc cầu ?
+                    </div>
+                    <!-- Math -->
+                    <div style="flex: 1; font-size: 18px; color: #334155; font-family: 'Cambria Math', serif;">
+                        \(b = ak, c = bl \Rightarrow c = a(kl)\), nên \(a \mid c\)
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>97</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 98: Phép toán tập hợp & hợp thành -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.3 - PHÉP TOÁN TRÊN QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Phép toán tập hợp &amp; hợp thành</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 30px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Text -->
+            <div style="flex: 1.2;">
+                <ul style="margin: 0; padding-left: 20px; font-size: 15.5px; color: #334155; line-height: 1.8; list-style-type: disc;">
+                    <li style="margin-bottom: 20px;">
+                        Vì R là tập hợp các cặp, các phép toán tập hợp áp dụng trực tiếp: \(R_1 \cup R_2\), \(R_1 \cap R_2\), \(R_1 - R_2\).
+                    </li>
+                    <li style="margin-bottom: 20px;">
+                        <b>Hợp thành (composition):</b> cho R từ \(A \rightarrow B\), S từ \(B \rightarrow C\). Hợp thành \(S \circ R\) gồm các cặp \((a,c)\) sao cho tồn tại \(b \in B\) với \((a,b) \in R\) và \((b,c) \in S\).
+                    </li>
+                    <li>
+                        Đọc hợp thành từ phải sang trái — giống hợp thành hàm \(f \circ g\) đã học ở Chương 1.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Cột phải: Hình vẽ minh họa -->
+            <div style="flex: 1; display: flex; justify-content: center; align-items: center; padding-top: 20px;">
+                <svg width="100%" height="300" viewBox="0 0 450 250" style="overflow: visible; max-width: 400px;">
+                    <!-- Nhãn tập A, B, C -->
+                    <g font-size="16" fill="#64748b" font-weight="700" font-family="Georgia, 'Times New Roman', serif" text-anchor="middle">
+                        <text x="30" y="30">A</text>
+                        <text x="225" y="38">B</text>
+                        <text x="420" y="32">C</text>
+                    </g>
+
+                    <!-- Các cạnh (mảnh) -->
+                    <g stroke="#475569" stroke-width="1.5" fill="none">
+                        <!-- a -> b -->
+                        <line x1="48" y1="78" x2="196" y2="170" />
+                        <!-- b -> c -->
+                        <line x1="256" y1="168" x2="396" y2="85" />
+                    </g>
+                    <!-- Đầu mũi tên nhỏ -->
+                    <g fill="#475569">
+                        <polygon points="200,173 187,172 192,163" />
+                        <polygon points="400,82 388,83 393,92" />
+                    </g>
+
+                    <!-- Nhãn R, S (nghiêng, serif, nằm cạnh mũi tên) -->
+                    <text x="105" y="110" font-size="15" font-style="italic" fill="#475569" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif">R</text>
+                    <text x="345" y="108" font-size="15" font-style="italic" fill="#475569" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif">S</text>
+
+                    <!-- Các đỉnh -->
+                    <g>
+                        <!-- Đỉnh a -->
+                        <circle cx="30" cy="65" r="22" fill="#64748b" />
+                        <text x="30" y="70" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+
+                        <!-- Đỉnh b (cam nhạt) -->
+                        <circle cx="225" cy="178" r="20" fill="#f3d9bd" />
+                        <text x="225" y="183" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle" font-family="Arial, sans-serif">b</text>
+
+                        <!-- Đỉnh c -->
+                        <circle cx="420" cy="72" r="22" fill="#64748b" />
+                        <text x="420" y="77" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">c</text>
+                    </g>
+
+                    <!-- Chú thích dưới -->
+                    <text x="225" y="238" font-size="15" font-weight="700" fill="#64748b" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif">S ∘ R</text>
+                </svg>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>98</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 99: Ví dụ hợp thành & lũy thừa quan hệ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.3 - PHÉP TOÁN TRÊN QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Ví dụ hợp thành &amp; lũy thừa quan hệ</h1>
+
+        <!-- Ví dụ hợp thành -->
+        <div class="highlight-card" style="background: #f8fafc; padding: 20px 24px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 40px;">
+            <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                Ví dụ hợp thành
+            </div>
+            
+            <div style="font-family:'Cambria Math', 'Times New Roman', serif; font-size: 16px; color: #334155; line-height: 1.8;">
+                <div style="margin-bottom: 10px;">
+                    \(R = \{(1,1), (1,4), (2,3), (3,1), (3,4)\}\) và \(S = \{(1,0), (2,0), (3,1), (3,2), (4,1)\}\).
+                </div>
+                <div style="margin-bottom: 10px;">
+                    Cặp \((2,3) \in R\) và \((3,1) \in S \Rightarrow (2,1) \in S \circ R\).
+                </div>
+                <div style="font-weight: 600; color: #1e40af;">
+                    Kết quả: \(S \circ R = \{(1,0), (1,1), (2,1), (2,2), (3,0), (3,1)\}\)
+                </div>
+            </div>
+        </div>
+
+        <!-- Ứng dụng: quan hệ cha/mẹ -->
+        <div>
+            <div style="font-size: 16px; color: #1e293b; margin-bottom: 25px; text-align: center;">
+                <b>Ứng dụng:</b> quan hệ “là cha/mẹ của” \(\rightarrow\) \(R \circ R \equiv\) quan hệ “là ông/bà của”
+            </div>
+
+            <!-- Hình vẽ minh họa -->
+            <div style="display: flex; justify-content: center; align-items: center; margin-top: 10px;">
+                <svg width="100%" height="180" viewBox="0 0 600 180" style="overflow: visible; max-width: 650px;">
+                    <!-- Định nghĩa mũi tên -->
+                    <defs>
+                        <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                            <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8" />
+                        </marker>
+                        <marker id="arrowHeadBelow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                            <path d="M0,0 L8,4 L0,8 Z" fill="#64748b" />
+                        </marker>
+                    </defs>
+
+                    <!-- Các đỉnh (Nodes) -->
+                    <g>
+                        <!-- Ông -->
+                        <circle cx="100" cy="50" r="28" fill="#cbd5e1" stroke="#64748b" stroke-width="2" />
+                        <text x="100" y="56" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">Ông</text>
+
+                        <!-- Cha -->
+                        <circle cx="300" cy="50" r="28" fill="#fed7aa" stroke="#9a3412" stroke-width="2" />
+                        <text x="300" y="56" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">Cha</text>
+
+                        <!-- Con -->
+                        <circle cx="500" cy="50" r="28" fill="#cbd5e1" stroke="#64748b" stroke-width="2" />
+                        <text x="500" y="56" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">Con</text>
+                    </g>
+
+                    <!-- Mũi tên nối Ông -> Cha -->
+                    <g stroke="#94a3b8" stroke-width="2">
+                        <line x1="130" y1="50" x2="265" y2="50" marker-end="url(#arrowHead)" stroke-dasharray="4,4" />
+                    </g>
+
+                    <!-- Mũi tên nối Cha -> Con -->
+                    <g stroke="#94a3b8" stroke-width="2">
+                        <line x1="330" y1="50" x2="465" y2="50" marker-end="url(#arrowHead)" stroke-dasharray="4,4" />
+                    </g>
+
+                    <!-- Mũi tên dưới: Ông -> Con (R o R) -->
+                    <g stroke="#64748b" stroke-width="2">
+                        <line x1="100" y1="110" x2="495" y2="110" marker-end="url(#arrowHeadBelow)" stroke-dasharray="2,4" />
+                    </g>
+
+                    <!-- Nhãn R ∘ R -->
+                    <text x="300" y="140" font-size="18" font-weight="700" fill="#475569" text-anchor="middle" font-family="'Cambria Math', serif">
+                        R ∘ R
+                    </text>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>99</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 100: Biểu diễn bằng ma trận Boolean -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.4 - BIỂU DIỄN QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Biểu diễn bằng ma trận Boolean</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 30px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Lý thuyết & Công thức -->
+            <div style="flex: 1.3; font-size: 15.5px; color: #334155; line-height: 1.9;">
+                <div style="margin-bottom: 15px;">
+                    Cho R từ \(A = \{a_1, ..., a_m\}\) đến \(B = \{b_1, ..., b_n\}\).
+                </div>
+                <div style="margin-bottom: 15px;">
+                    Ma trận \(M_R = [m_{ij}]\) với \(m_{ij} = 1\) nếu \((a_i, b_j) \in R\), ngược lại \(= 0\).
+                </div>
+                <div style="margin-bottom: 10px;">
+                    Hợp/giao 2 quan hệ dùng phép Boolean:
+                </div>
+                <div style="margin-bottom: 10px; padding-left: 15px;">
+                    \(M_{R1 \cup R2} = M_{R1} \lor M_{R2}\) ;
+                </div>
+                <div style="padding-left: 15px;">
+                    \(M_{R1 \cap R2} = M_{R1} \land M_{R2}\).
+                </div>
+            </div>
+
+            <!-- Cột phải: Ma trận minh họa -->
+            <div style="flex: 1; display: flex; justify-content: center; padding-top: 10px;">
+                <table style="border-collapse: collapse; text-align: center; font-size: 16px; width: 220px; border: 2px solid #94a3b8;">
+                    <tr>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; width: 25%;"></th>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">1</th>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">2</th>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">3</th>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">1</th>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">0</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">2</th>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">0</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; border: 1px solid #64748b; padding: 12px; color: white; font-weight: normal;">3</th>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">0</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                        <td style="border: 1px solid #64748b; padding: 12px; background-color: #ffffff;">1</td>
+                    </tr>
+                </table>
+            </div>
+
+        </div>
+
+        <!-- Khung cảnh báo -->
+        <div class="highlight-card" style="background: #f1f5f9; padding: 18px 24px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 45px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 8px;">
+                ⚠️ Cảnh báo lỗi thường gặp
+            </div>
+            <div style="font-size: 14.5px; color: #334155; line-height: 1.7;">
+                Đây KHÔNG phải phép nhân/cộng ma trận số học thông thường — chỉ dùng OR (\(\lor\)) và AND (\(\land\)) trên từng phần tử 0/1.
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>100</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 101: Nhận diện tính chất qua ma trận -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.4 - BIỂU DIỄN QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Nhận diện tính chất qua ma trận</h1>
+
+        <!-- Bảng tính chất -->
+        <div style="border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
+                <thead>
+                    <tr style="background: #94a3b8; color: #ffffff;">
+                        <th style="padding: 14px 20px; text-align: center; font-weight: 700; width: 30%; border-right: 1px solid #cbd5e1;">Tính chất</th>
+                        <th style="padding: 14px 20px; text-align: left; font-weight: 700; width: 70%;">Đặc điểm trên \(M_R\)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <td style="padding: 16px 20px; text-align: center; color: #1e293b; font-weight: 600;">Phản xạ</td>
+                        <td style="padding: 16px 20px; color: #334155;">Toàn bộ đường chéo chính bằng 1</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <td style="padding: 16px 20px; text-align: center; color: #1e293b; font-weight: 600;">Đối xứng</td>
+                        <td style="padding: 16px 20px; color: #334155;">\(M_R\) là ma trận đối xứng: \(M_R = M_R^T\)</td>
+                    </tr>
+                    <tr style="background: #ffffff;">
+                        <td style="padding: 16px 20px; text-align: center; color: #1e293b; font-weight: 600;">Phản đối xứng</td>
+                        <td style="padding: 16px 20px; color: #334155;">Không có cặp \(m_{ij} = m_{ji} = 1\) với \(i \neq j\)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 3 Ma trận minh họa -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 15px; padding: 0 10px;">
+
+            <!-- Ma trận 1: Phản xạ -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <table style="border-collapse: collapse; text-align: center; font-size: 14px; width: 210px; table-layout: fixed;">
+                    <colgroup><col style="width: 30%;"><col style="width: 23%;"><col style="width: 23%;"><col style="width: 24%;"></colgroup>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px;"></th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #e8c9a8; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #e8c9a8; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #e8c9a8; color: #475569;">1</td>
+                    </tr>
+                </table>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 6px;">Phản xạ</div>
+            </div>
+
+            <!-- Ma trận 2: Đối xứng -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <table style="border-collapse: collapse; text-align: center; font-size: 14px; width: 210px; table-layout: fixed;">
+                    <colgroup><col style="width: 30%;"><col style="width: 23%;"><col style="width: 23%;"><col style="width: 24%;"></colgroup>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px;"></th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                    </tr>
+                </table>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 6px;">Đối xứng (M=M<sup>T</sup>)</div>
+            </div>
+
+            <!-- Ma trận 3: Phản đối xứng -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <table style="border-collapse: collapse; text-align: center; font-size: 14px; width: 210px; table-layout: fixed;">
+                    <colgroup><col style="width: 30%;"><col style="width: 23%;"><col style="width: 23%;"><col style="width: 24%;"></colgroup>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px;"></th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">1</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">2</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                    </tr>
+                    <tr>
+                        <th style="background-color: #94a3b8; padding: 12px 8px; color: #e2e8f0; font-weight: normal;">3</th>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">0</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 12px 8px; background-color: #ffffff; color: #475569;">1</td>
+                    </tr>
+                </table>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 6px;">Phản đối xứng</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>101</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 102: Bao đóng phản xạ & đối xứng -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 - BAO ĐÓNG CỦA QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 30px;">Bao đóng phản xạ &amp; đối xứng</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: stretch; margin-top: 20px;">
+
+            <!-- Cột trái: Bao đóng phản xạ -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 24px 28px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        + Bao đóng phản xạ
+                    </div>
+                    
+                    <div style="font-family:'Cambria Math', 'Times New Roman', serif; font-size: 17px; color: #1e40af; margin-bottom: 20px;">
+                        \(R \cup \Delta\), với \(\Delta = \{(a,a) \mid a \in A\}\)
+                    </div>
+
+                    <div style="font-size: 15px; color: #334155; line-height: 1.7;">
+                        <b>Ví dụ:</b> bao đóng phản xạ của \(R = \{(a,b) \mid a < b\}\) trên \(\mathbb{Z}\) là \(\{(a,b) \mid a \le b\}\).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Bao đóng đối xứng -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #ffffff; padding: 24px 28px; border-radius: 8px; border: 1px solid #e2e8f0; height: 100%; box-sizing: border-box; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        + Bao đóng đối xứng
+                    </div>
+                    
+                    <div style="font-family:'Cambria Math', 'Times New Roman', serif; font-size: 17px; color: #1e40af; margin-bottom: 20px;">
+                        \(R \cup R^{-1}\), với \(R^{-1} = \{(b,a) \mid (a,b) \in R\}\)
+                    </div>
+
+                    <div style="font-size: 15px; color: #334155; line-height: 1.7;">
+                        <b>Ví dụ:</b> bao đóng đối xứng của \(R = \{(a,b) \mid a > b\}\) trên \(\mathbb{Z}^+\) là \(\{(a,b) \mid a \neq b\}\).
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Ghi chú dưới cùng -->
+        <div style="text-align: center; font-size: 16px; color: #64748b; font-style: italic; margin-top: 50px;">
+            Cả hai loại bao đóng này chỉ cần “thêm cặp còn thiếu” — ĐƠN GIẢN.
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>102</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+<!-- SLIDE 103: Bao đóng bắc cầu — Vì sao phức tạp? -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 - BAO ĐÓNG CỦA QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Bao đóng bắc cầu — Vì sao phức tạp?</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 30px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Nội dung lý thuyết -->
+            <div style="flex: 1.3; font-size: 15.5px; color: #334155; line-height: 1.9;">
+                <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                    <li style="margin-bottom: 15px;">
+                        Chỉ thêm 1 lượt các cặp (a,c) suy từ (a,b), (b,c) \(\in R\) là KHÔNG ĐỦ — các cặp mới thêm có thể tiếp tục sinh cặp mới khác.
+                    </li>
+                    <li style="margin-bottom: 15px;">
+                        Cần lặp lại đến khi không còn cặp mới nào được sinh ra.
+                    </li>
+                    <li style="margin-bottom: 25px;">
+                        Định nghĩa hình thức: quan hệ liên thông \(R^* = \cup_n R^n\) — hợp mọi lũy thừa của \(R\).
+                    </li>
+                </ul>
+
+                <div style="font-size: 14.5px; color: #64748b; font-style: italic; margin-top: 20px;">
+                    Đồ thị quan hệ minh họa (dùng lại cho demo Warshall):
+                </div>
+            </div>
+
+            <!-- Cột phải: Đồ thị minh họa -->
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 5px;">
+                <svg width="100%" height="320" viewBox="0 0 450 320" style="overflow: visible; max-width: 380px;">
+                    <!-- Các cạnh (nét dày, màu nâu cam đậm) -->
+                    <g stroke="#b45309" stroke-width="4" fill="none">
+                        <!-- a -> d -->
+                        <line x1="124" y1="50" x2="285" y2="50" />
+                        <!-- b -> a -->
+                        <line x1="100" y1="246" x2="100" y2="76" />
+                        <!-- b -> c -->
+                        <line x1="124" y1="270" x2="285" y2="270" />
+                        <!-- c -> a (đường chéo) -->
+                        <line x1="303" y1="252" x2="116" y2="68" />
+                        <!-- c -> d (đi lên) -->
+                        <line x1="326" y1="246" x2="326" y2="78" />
+                        <!-- d -> c (đi xuống) -->
+                        <line x1="314" y1="76" x2="314" y2="244" />
+                    </g>
+
+                    <!-- Đầu mũi tên -->
+                    <g fill="#b45309">
+                        <!-- a -> d -->
+                        <polygon points="296,50 280,41 280,59" />
+                        <!-- b -> a -->
+                        <polygon points="100,64 91,80 109,80" />
+                        <!-- b -> c -->
+                        <polygon points="296,270 280,261 280,279" />
+                        <!-- c -> a -->
+                        <polygon points="108,60 114,78 126,66" />
+                        <!-- c -> d -->
+                        <polygon points="326,66 317,82 335,82" />
+                        <!-- d -> c -->
+                        <polygon points="314,256 305,240 323,240" />
+                    </g>
+
+                    <!-- Các đỉnh -->
+                    <g fill="#475569" stroke="#1e293b" stroke-width="2">
+                        <circle cx="100" cy="50" r="26" />
+                        <circle cx="320" cy="50" r="26" />
+                        <circle cx="100" cy="270" r="26" />
+                        <circle cx="320" cy="270" r="26" />
+                    </g>
+                    <g font-size="19" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">
+                        <text x="100" y="57">a</text>
+                        <text x="320" y="57">d</text>
+                        <text x="100" y="277">b</text>
+                        <text x="320" y="277">c</text>
+                    </g>
+                </svg>
+
+                <!-- Danh sách cạnh -->
+                <div style="margin-top: 25px; font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #475569; text-align: left; width: 100%; padding-left: 20px;">
+                    <div style="font-weight: 700; margin-bottom: 8px; color: #1e293b; font-family: Arial, sans-serif;">Cạnh:</div>
+                    a→d, &nbsp; b→a, &nbsp; b→c,<br>
+                    c→a, &nbsp; c→d, &nbsp; d→c
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>103</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 104: Thuật toán Warshall -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 - BAO ĐÓNG CỦA QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Thuật toán Warshall</h1>
+
+        <!-- Nội dung chính -->
+        <div style="font-size: 16px; color: #1e293b; line-height: 1.8; padding-left: 5px;">
+            <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 15px;">
+                    <b>Ý tưởng:</b> lần lượt cho phép từng đỉnh \(v_k\) làm “trạm trung gian” trên đường đi.
+                </li>
+                <li style="margin-bottom: 15px;">
+                    <b>Công thức:</b> 
+                    <span style="font-family:'Cambria Math', 'Times New Roman', serif; font-size: 18px; margin-left: 8px;">
+                        \(w_{ij}^{(k)} = w_{ij}^{(k-1)} \lor (w_{ik}^{(k-1)} \land w_{kj}^{(k-1)})\)
+                    </span>
+                </li>
+                <li>
+                    <b>Độ phức tạp:</b> \(2n^3\) phép toán bit — hiệu quả hơn nhiều so với cách tính trực tiếp \(R \cup R^2 \cup ... \cup R^n\).
+                </li>
+            </ul>
+        </div>
+
+        <!-- Code Block -->
+        <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 24px 28px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 14.5px; line-height: 1.8; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 35px;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#7c3aed;">procedure</span> <span style="color:#38bdf8;">Warshall</span>(M<sub>R</sub> : ma trận 0-1 cỡ n×n)
+    W := M<sub>R</sub>
+    <span style="color:#be185d;">for</span> k := <span style="color:#f59e0b;">1</span> <span style="color:#be185d;">to</span> n
+        <span style="color:#be185d;">for</span> i := <span style="color:#f59e0b;">1</span> <span style="color:#be185d;">to</span> n
+            <span style="color:#be185d;">for</span> j := <span style="color:#f59e0b;">1</span> <span style="color:#be185d;">to</span> n
+                W[i][j] := W[i][j] <span style="color:#38bdf8;">OR</span> (W[i][k] <span style="color:#38bdf8;">AND</span> W[k][j])
+    <span style="color:#be185d;">return</span> W    <span style="color:#64748b;">{ W chính là ma trận bao đóng bắc cầu M<sub>R</sub>* }</span></pre>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>104</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 105: Thuật toán Warshall tìm bao đóng bắc cầu -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 5 - LÝ THUYẾT QUAN HỆ</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Thuật toán Warshall tìm bao đóng bắc cầu</h1>
+
+        <!-- Nội dung chính -->
+        <div style="font-size: 16px; color: #334155; line-height: 1.9; padding-left: 5px;">
+            
+            <p style="margin-bottom: 20px;">
+                Gọi R là một quan hệ trên tập A có n phần tử, \(A = \{v_1, v_2, \dots, v_n\}\).
+            </p>
+
+            <p style="margin-bottom: 15px; font-weight: 700; color: #0284c7;">
+                Thuật toán Warshall
+            </p>
+
+            <p style="margin-bottom: 15px;">
+                Xây dựng một dãy ma trận \(W_0, W_1, \dots, W_n\), trong đó \(W_0 = M_R\).
+            </p>
+
+            <p style="margin-bottom: 20px;">
+                \(W_k = [w_{ij}^{(k)}]\), \(w_{ij}^{(k)} = 1\) nếu có đường đi từ \(v_i\) đến \(v_j\) sao cho tất cả các đỉnh trong trên đường đi này là thuộc tập \(\{v_1, v_2, \dots, v_k\}\).
+            </p>
+
+            <!-- Công thức -->
+            <div style="text-align: center; margin: 30px 0; font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 19px; color: #1e293b;">
+                <div style="margin-bottom: 20px;">
+                    \(w_{ij}^{(k)} = w_{ij}^{(k-1)} \lor \left( w_{ik}^{(k-1)} \land w_{kj}^{(k-1)} \right)\)
+                </div>
+                <div>
+                    \(W_k = W_{k-1} \lor \left( C_k^{[k-1]} \odot H_k^{[k-1]} \right)\)
+                </div>
+            </div>
+
+            <!-- Nhận xét -->
+            <p style="margin-top: 30px; font-weight: 600;">
+                Nhận xét: \(W_n\), ma trận biểu diễn bao đóng bắc cầu của R.
+            </p>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>105</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 106: Bước 1: W0 -> W1 -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 • DEMO THUẬT TOÁN WARSHALL</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Bước 1: \(W_0 \rightarrow W_1\)</h1>
+
+        <!-- Nội dung chính -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Các ma trận W0 và W1 -->
+            <div style="flex: 1.6; display: flex; align-items: center; justify-content: space-between;">
+
+                <!-- Ma trận W0 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>0</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 8px; width: 24px;"></td>
+                                <td style="padding: 5px 8px; width: 28px; background: #fde047; color: #475569;">a</td>
+                                <td style="padding: 5px 8px; width: 28px; background: #fde047; color: #475569;">b</td>
+                                <td style="padding: 5px 8px; width: 28px; background: #fde047; color: #475569;">c</td>
+                                <td style="padding: 5px 8px; width: 28px; background: #fde047; color: #475569;">d</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 8px; background: #fde047; color: #475569;">a</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 8px; background: #fde047; color: #475569;">b</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 8px; background: #fde047; color: #475569;">c</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 8px; background: #fde047; color: #475569;">d</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 8px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 8px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif;">W<sub>0</sub> = M<sub>R</sub></div>
+                </div>
+
+                <!-- Mũi tên dài -->
+                <svg width="110" height="16" viewBox="0 0 110 16" style="flex: 0 0 auto;">
+                    <line x1="2" y1="8" x2="96" y2="8" stroke="#b45309" stroke-width="2.5" />
+                    <polygon points="108,8 94,2 94,14" fill="#b45309" />
+                </svg>
+
+                <!-- Ma trận W1 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>1</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; background: #fde047; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif;">W<sub>1</sub> (k = a)</div>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Đồ thị và Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+
+                <!-- Đồ thị nhỏ -->
+                <div style="display: flex; justify-content: center;">
+                    <svg width="150" height="150" viewBox="0 0 150 150" style="overflow: visible;">
+                        <!-- Cạnh -->
+                        <g stroke="#b45309" stroke-width="3" fill="none">
+                            <line x1="43" y1="25" x2="100" y2="25" />
+                            <line x1="25" y1="107" x2="25" y2="50" />
+                            <line x1="43" y1="125" x2="100" y2="125" />
+                            <line x1="112" y1="112" x2="45" y2="45" />
+                            <line x1="131" y1="107" x2="131" y2="50" />
+                            <line x1="119" y1="43" x2="119" y2="100" />
+                        </g>
+                        <!-- Đầu mũi tên -->
+                        <g fill="#b45309">
+                            <polygon points="109,25 98,19 98,31" />
+                            <polygon points="25,41 19,52 31,52" />
+                            <polygon points="109,125 98,119 98,131" />
+                            <polygon points="38,38 47.9,40.9 40.9,47.9" />
+                            <polygon points="131,41 125,52 137,52" />
+                            <polygon points="119,109 113,98 125,98" />
+                        </g>
+                        <!-- Đỉnh -->
+                        <g fill="#475569" stroke="#1e293b" stroke-width="1.5">
+                            <circle cx="25" cy="25" r="16" />
+                            <circle cx="125" cy="25" r="16" />
+                            <circle cx="25" cy="125" r="16" />
+                            <circle cx="125" cy="125" r="16" />
+                        </g>
+                        <g font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">
+                            <text x="25" y="30">a</text>
+                            <text x="125" y="30">d</text>
+                            <text x="25" y="130">b</text>
+                            <text x="125" y="130">c</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Hộp giải thích -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; line-height: 1.6; color: #334155;">
+                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 5px;">Giải thích</div>
+                    Cho phép a làm đỉnh trung gian:<br>
+                    xuất hiện đường đi mới b &rarr; a &rarr; d,<br>
+                    nên ô (b,d) đổi từ 0 thành 1.
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Phần công thức tính toán dưới cùng -->
+        <div style="margin-top: 40px; display: flex; align-items: center; gap: 20px;">
+
+            <!-- Công thức tổng quát -->
+            <div style="font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 18px; color: #1e293b; white-space: nowrap;">
+                Tính \(W_1 = W_0 \lor (C_1^{[0]} \odot H_1^{[0]})\)
+            </div>
+
+            <!-- Phép nhân -->
+            <div style="display: flex; align-items: center; gap: 14px; margin-left: auto;">
+
+                <div style="font-size: 16px; color: #475569; white-space: nowrap;">\(C_1^{[0]} \odot H_1^{[0]}\) =</div>
+
+                <!-- Cột C1 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                </table>
+
+                <!-- Ký hiệu nhân -->
+                <div style="font-size: 24px; color: #334155;">&odot;</div>
+
+                <!-- Hàng H1 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+                <!-- Dấu bằng -->
+                <div style="font-size: 20px; color: #334155;">=</div>
+
+                <!-- Ma trận kết quả -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border-left: 3px solid #334155; border-right: 3px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr style="background: #fde047;">
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr style="background: #fde047;">
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>106</span>
+    </div>
+</div>
+
+
+
+<!-- SLIDE 107: Bước 2: W1 -> W2 -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 • DEMO THUẬT TOÁN WARSHALL</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Bước 2: \(W_1 \rightarrow W_2\)</h1>
+
+        <!-- Nội dung chính -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Các ma trận W1 và W2 -->
+            <div style="flex: 1.6; display: flex; align-items: center; justify-content: space-between;">
+
+                <!-- Ma trận W1 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>1</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; background: #fde047; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif;">W<sub>1</sub> (k = a)</div>
+                </div>
+
+                <!-- Mũi tên dài -->
+                <svg width="110" height="16" viewBox="0 0 110 16" style="flex: 0 0 auto;">
+                    <line x1="2" y1="8" x2="96" y2="8" stroke="#b45309" stroke-width="2.5" />
+                    <polygon points="108,8 94,2 94,14" fill="#b45309" />
+                </svg>
+
+                <!-- Ma trận W2 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>2</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif; text-align: center; line-height: 1.3;">
+                        W<sub>2</sub> (k = a,b)<br>không đổi
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Đồ thị và Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+
+                <!-- Đồ thị nhỏ -->
+                <div style="display: flex; justify-content: center; padding-top: 5px;">
+                    <svg width="150" height="150" viewBox="0 0 150 150" style="overflow: visible;">
+                        <!-- Cạnh -->
+                        <g stroke="#b45309" stroke-width="3" fill="none">
+                            <line x1="43" y1="25" x2="100" y2="25" />
+                            <line x1="25" y1="107" x2="25" y2="50" />
+                            <line x1="43" y1="125" x2="100" y2="125" />
+                            <line x1="112" y1="112" x2="45" y2="45" />
+                            <line x1="131" y1="107" x2="131" y2="50" />
+                            <line x1="119" y1="43" x2="119" y2="100" />
+                        </g>
+                        <!-- Đầu mũi tên -->
+                        <g fill="#b45309">
+                            <polygon points="109,25 98,19 98,31" />
+                            <polygon points="25,41 19,52 31,52" />
+                            <polygon points="109,125 98,119 98,131" />
+                            <polygon points="38,38 47.9,40.9 40.9,47.9" />
+                            <polygon points="131,41 125,52 137,52" />
+                            <polygon points="119,109 113,98 125,98" />
+                        </g>
+                        <!-- Đỉnh -->
+                        <g fill="#475569" stroke="#1e293b" stroke-width="1.5">
+                            <circle cx="25" cy="25" r="16" />
+                            <circle cx="125" cy="25" r="16" />
+                            <circle cx="25" cy="125" r="16" />
+                            <circle cx="125" cy="125" r="16" />
+                        </g>
+                        <g font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">
+                            <text x="25" y="30">a</text>
+                            <text x="125" y="30">d</text>
+                            <text x="25" y="130">b</text>
+                            <text x="125" y="130">c</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Hộp giải thích -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; line-height: 1.6; color: #334155;">
+                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 5px;">Giải thích</div>
+                    \(W_2 = W_1\) vì không có cạnh nào đi đến b (không có đường đi mới).
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Phần công thức tính toán dưới cùng -->
+        <div style="margin-top: 45px; display: flex; align-items: center; gap: 20px;">
+
+            <!-- Công thức tổng quát -->
+            <div style="font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 18px; color: #1e293b; white-space: nowrap;">
+                Tính \(W_2 = W_1 \lor (C_2^{[1]} \odot H_2^{[1]})\)
+            </div>
+
+            <!-- Phép nhân -->
+            <div style="display: flex; align-items: center; gap: 14px; margin-left: auto;">
+
+                <div style="font-size: 16px; color: #475569; white-space: nowrap;">\(C_2^{[1]} \odot H_2^{[1]}\) =</div>
+
+                <!-- Cột C2 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                </table>
+
+                <!-- Ký hiệu nhân -->
+                <div style="font-size: 24px; color: #334155;">&odot;</div>
+
+                <!-- Hàng H2 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+                <!-- Dấu bằng -->
+                <div style="font-size: 20px; color: #334155;">=</div>
+
+                <!-- Ma trận kết quả -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border-left: 3px solid #334155; border-right: 3px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>107</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 108: Bước 3: W2 -> W3 -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 • DEMO THUẬT TOÁN WARSHALL</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Bước 3: \(W_2 \rightarrow W_3\)</h1>
+
+        <!-- Nội dung chính -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Các ma trận W2 và W3 -->
+            <div style="flex: 1.6; display: flex; align-items: center; justify-content: space-between;">
+
+                <!-- Ma trận W2 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>2</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif; text-align: center; line-height: 1.3;">
+                        W<sub>2</sub> (k = a,b)<br>không đổi
+                    </div>
+                </div>
+
+                <!-- Mũi tên dài -->
+                <svg width="110" height="16" viewBox="0 0 110 16" style="flex: 0 0 auto;">
+                    <line x1="2" y1="8" x2="96" y2="8" stroke="#b45309" stroke-width="2.5" />
+                    <polygon points="108,8 94,2 94,14" fill="#b45309" />
+                </svg>
+
+                <!-- Ma trận W3 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>3</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; background: #fde047; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; background: #fde047; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif; text-align: center; line-height: 1.3;">
+                        W<sub>3</sub><br>(k = a,b,c)
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Đồ thị và Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+
+                <!-- Đồ thị nhỏ -->
+                <div style="display: flex; justify-content: center; padding-top: 5px;">
+                    <svg width="150" height="150" viewBox="0 0 150 150" style="overflow: visible;">
+                        <!-- Cạnh -->
+                        <g stroke="#b45309" stroke-width="3" fill="none">
+                            <line x1="43" y1="25" x2="100" y2="25" />
+                            <line x1="25" y1="107" x2="25" y2="50" />
+                            <line x1="43" y1="125" x2="100" y2="125" />
+                            <line x1="112" y1="112" x2="45" y2="45" />
+                            <line x1="131" y1="107" x2="131" y2="50" />
+                            <line x1="119" y1="43" x2="119" y2="100" />
+                        </g>
+                        <!-- Đầu mũi tên -->
+                        <g fill="#b45309">
+                            <polygon points="109,25 98,19 98,31" />
+                            <polygon points="25,41 19,52 31,52" />
+                            <polygon points="109,125 98,119 98,131" />
+                            <polygon points="38,38 47.9,40.9 40.9,47.9" />
+                            <polygon points="131,41 125,52 137,52" />
+                            <polygon points="119,109 113,98 125,98" />
+                        </g>
+                        <!-- Đỉnh -->
+                        <g fill="#475569" stroke="#1e293b" stroke-width="1.5">
+                            <circle cx="25" cy="25" r="16" />
+                            <circle cx="125" cy="25" r="16" />
+                            <circle cx="25" cy="125" r="16" />
+                            <circle cx="125" cy="125" r="16" />
+                        </g>
+                        <g font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">
+                            <text x="25" y="30">a</text>
+                            <text x="125" y="30">d</text>
+                            <text x="25" y="130">b</text>
+                            <text x="125" y="130">c</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Hộp giải thích -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; line-height: 1.6; color: #334155;">
+                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 5px;">Giải thích</div>
+                    Ở \(W_3\), cho phép c làm trung gian:<br>
+                    xuất hiện đường đi mới d &rarr; c &rarr; a,<br>
+                    nên ô (d,a) đổi từ 0 thành 1.
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Phần công thức tính toán dưới cùng -->
+        <div style="margin-top: 35px; display: flex; align-items: center; gap: 20px;">
+
+            <!-- Công thức tổng quát -->
+            <div style="font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 18px; color: #1e293b; white-space: nowrap;">
+                Tính \(W_3 = W_2 \lor (C_3^{[2]} \odot H_3^{[2]})\)
+            </div>
+
+            <!-- Phép nhân -->
+            <div style="display: flex; align-items: center; gap: 14px; margin-left: auto;">
+
+                <div style="font-size: 16px; color: #475569; white-space: nowrap;">\(C_3^{[2]} \odot H_3^{[2]}\) =</div>
+
+                <!-- Cột C3 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">0</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                </table>
+
+                <!-- Ký hiệu nhân -->
+                <div style="font-size: 24px; color: #334155;">&odot;</div>
+
+                <!-- Hàng H3 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+                <!-- Dấu bằng -->
+                <div style="font-size: 20px; color: #334155;">=</div>
+
+                <!-- Ma trận kết quả -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border-left: 3px solid #334155; border-right: 3px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr style="background: #fde047;">
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                    </tr>
+                    <tr style="background: #fde047;">
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>108</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 109: Bước 4: W3 -> W4 -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">5.5 • DEMO THUẬT TOÁN WARSHALL</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">Bước 4: \(W_3 \rightarrow W_4\)</h1>
+
+        <!-- Nội dung chính -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Các ma trận W3 và W4 -->
+            <div style="flex: 1.6; display: flex; align-items: center; justify-content: space-between;">
+
+                <!-- Ma trận W3 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>3</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-left: 3px solid #334155;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif; text-align: center; line-height: 1.3;">
+                        \(W_3\)<br>(k = a,b,c)
+                    </div>
+                </div>
+
+                <!-- Mũi tên dài -->
+                <svg width="110" height="16" viewBox="0 0 110 16" style="flex: 0 0 auto;">
+                    <line x1="2" y1="8" x2="96" y2="8" stroke="#b45309" stroke-width="2.5" />
+                    <polygon points="108,8 94,2 94,14" fill="#b45309" />
+                </svg>
+
+                <!-- Ma trận W4 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-size: 20px; font-family:'Cambria Math',serif; color: #475569; margin-right: 12px;">W<sub>4</sub> =</div>
+                        <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700;">
+                            <tr>
+                                <td style="padding: 5px 10px; width: 28px; background: #fde047; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; width: 28px; background: #fde047; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; width: 28px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; background: #fde047; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 5px 10px; color:#1e293b; border-left: 3px solid #334155;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">0</td>
+                                <td style="padding: 5px 10px; color:#1e293b;">1</td>
+                                <td style="padding: 5px 10px; color:#1e293b; border-right: 3px solid #334155;">1</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="font-size: 14px; color: #475569; margin-top: 8px; font-family:'Cambria Math',serif; text-align: center; line-height: 1.3;">
+                        \(W_4 = M_{R^*}\)<br>(ma trận<br>bao đóng bắc cầu)
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Đồ thị và Giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+
+                <!-- Đồ thị nhỏ -->
+                <div style="display: flex; justify-content: center; padding-top: 5px;">
+                    <svg width="150" height="150" viewBox="0 0 150 150" style="overflow: visible;">
+                        <!-- Cạnh -->
+                        <g stroke="#b45309" stroke-width="3" fill="none">
+                            <line x1="43" y1="25" x2="100" y2="25" />
+                            <line x1="25" y1="107" x2="25" y2="50" />
+                            <line x1="43" y1="125" x2="100" y2="125" />
+                            <line x1="112" y1="112" x2="45" y2="45" />
+                            <line x1="131" y1="107" x2="131" y2="50" />
+                            <line x1="119" y1="43" x2="119" y2="100" />
+                        </g>
+                        <!-- Đầu mũi tên -->
+                        <g fill="#b45309">
+                            <polygon points="109,25 98,19 98,31" />
+                            <polygon points="25,41 19,52 31,52" />
+                            <polygon points="109,125 98,119 98,131" />
+                            <polygon points="38,38 47.9,40.9 40.9,47.9" />
+                            <polygon points="131,41 125,52 137,52" />
+                            <polygon points="119,109 113,98 125,98" />
+                        </g>
+                        <!-- Đỉnh -->
+                        <g fill="#475569" stroke="#1e293b" stroke-width="1.5">
+                            <circle cx="25" cy="25" r="16" />
+                            <circle cx="125" cy="25" r="16" />
+                            <circle cx="25" cy="125" r="16" />
+                            <circle cx="125" cy="125" r="16" />
+                        </g>
+                        <g font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">
+                            <text x="25" y="30">a</text>
+                            <text x="125" y="30">d</text>
+                            <text x="25" y="130">b</text>
+                            <text x="125" y="130">c</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Hộp giải thích -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13.5px; line-height: 1.6; color: #334155;">
+                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 5px;">Giải thích</div>
+                    \(W_4 = M_{R^*}\) (ma trận bao đóng bắc cầu)<br>
+                    \(R_{bc} = \{(a, a), (a, c), (a, d), (b, a), (b, c), (b, d), (c, a), (c, c), (c, d), (d, a), (d, c), (d, d)\}\)
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Phần công thức tính toán dưới cùng -->
+        <div style="margin-top: 35px; display: flex; align-items: center; gap: 20px;">
+
+            <!-- Công thức tổng quát -->
+            <div style="font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 18px; color: #1e293b; white-space: nowrap;">
+                Tính \(W_4 = W_3 \lor (C_4^{[3]} \odot H_4^{[3]})\)
+            </div>
+
+            <!-- Phép nhân -->
+            <div style="display: flex; align-items: center; gap: 14px; margin-left: auto;">
+
+                <div style="font-size: 16px; color: #475569; white-space: nowrap;">\(C_4^{[3]} \odot H_4^{[3]}\) =</div>
+
+                <!-- Cột C4 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                    <tr><td style="padding: 7px 12px; color:#1e293b;">1</td></tr>
+                </table>
+
+                <!-- Ký hiệu nhân -->
+                <div style="font-size: 24px; color: #334155;">&odot;</div>
+
+                <!-- Hàng H4 -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border: 2.5px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 14px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+                <!-- Dấu bằng -->
+                <div style="font-size: 20px; color: #334155;">=</div>
+
+                <!-- Ma trận kết quả -->
+                <table style="border-collapse: collapse; text-align: center; font-family:'Courier New',monospace; font-size: 16px; font-weight: 700; border-left: 3px solid #334155; border-right: 3px solid #334155;">
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">0</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                        <td style="padding: 7px 12px; color:#1e293b;">1</td>
+                    </tr>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Chương 5 - Lý thuyết quan hệ</span>
+        <span>109</span>
+    </div>
+</div>
+
+
+
 </body>
 <!-- MATHJAX: đặt trước </body> nếu file chưa có --> 
  <script> 

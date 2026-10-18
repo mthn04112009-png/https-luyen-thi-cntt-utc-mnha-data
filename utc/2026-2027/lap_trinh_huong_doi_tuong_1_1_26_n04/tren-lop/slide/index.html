@@ -1620,6 +1620,728 @@
 
 
 
+
+
+
+
+<!-- SLIDE 21: Thừa kế nhiều mức và sự trùng tên -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG</div>
+        <h1 class="slide-title" style="margin-bottom: 30px;">Thừa kế nhiều mức và sự trùng tên</h1>
+
+        <!-- Nội dung chính -->
+        <div style="font-size: 16px; color: #1e293b; line-height: 1.8; padding-left: 10px;">
+            
+            <!-- Phần 1: Đa kế thừa -->
+            <div style="margin-bottom: 40px;">
+                <div style="font-weight: 700; margin-bottom: 20px;">▪ Đa kế thừa</div>
+                
+                <div style="display: flex; justify-content: center; margin-left: -50px;">
+                    <svg width="400" height="140" viewBox="0 0 400 140" style="overflow: visible;">
+                        <!-- Box B -->
+                        <rect x="80" y="10" width="110" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="135" y="34" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+
+                        <!-- Box C -->
+                        <rect x="210" y="10" width="110" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="265" y="34" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+
+                        <!-- Box D -->
+                        <rect x="145" y="90" width="110" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="200" y="114" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                        <!-- Mũi tên D -> B -->
+                        <line x1="185" y1="90" x2="146" y2="56" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="136,47 152,52 143,62" fill="#334155" />
+                        <!-- Mũi tên D -> C -->
+                        <line x1="215" y1="90" x2="254" y2="56" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="264,47 257,62 248,52" fill="#334155" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Phần 2: Câu hỏi -->
+            <div>
+                <div style="font-weight: 700; margin-bottom: 20px;">▪ Chuyện gì sẽ xảy ra trong trường hợp sau?</div>
+                
+                <div style="display: flex; justify-content: center; margin-left: -50px;">
+                    <svg width="400" height="220" viewBox="0 0 400 220" style="overflow: visible;">
+                        <!-- Box A -->
+                        <rect x="145" y="5" width="110" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="200" y="29" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">A</text>
+
+                        <!-- Box B -->
+                        <rect x="70" y="85" width="115" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="127" y="109" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+
+                        <!-- Box C -->
+                        <rect x="215" y="85" width="115" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="272" y="109" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+
+                        <!-- Box D -->
+                        <rect x="145" y="170" width="115" height="36" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="2,2" />
+                        <text x="202" y="194" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                        <!-- B -> A -->
+                        <line x1="125" y1="85" x2="178" y2="51" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="190,43 182,58 172,48" fill="#334155" />
+                        <!-- C -> A -->
+                        <line x1="275" y1="85" x2="222" y2="51" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="210,43 228,48 218,58" fill="#334155" />
+                        <!-- D -> B -->
+                        <line x1="175" y1="170" x2="134" y2="131" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="124,122 142,126 132,138" fill="#334155" />
+                        <!-- D -> C -->
+                        <line x1="230" y1="170" x2="271" y2="131" stroke="#334155" stroke-width="2.5" />
+                        <polygon points="281,122 272,138 262,126" fill="#334155" />
+                    </svg>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>September 5, 2016 |</span>
+        <span>Lập trình hướng đối tượng</span>
+        <span>21</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 22: Ví dụ (thừa kế nhiều mức) -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+            <h1 class="slide-title" style="margin: 0;">Ví dụ (thừa kế nhiều mức)</h1>
+            
+            <!-- Sơ đồ thừa kế -->
+            <div style="margin-top: -10px; margin-right: 20px;">
+                <svg width="220" height="120" viewBox="0 0 220 120" style="overflow: visible;">
+                    <defs>
+                        <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
+                        </marker>
+                    </defs>
+                    
+                    <!-- Box A -->
+                    <rect x="80" y="5" width="60" height="25" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="110" y="22" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">A</text>
+                    
+                    <!-- Box B -->
+                    <rect x="20" y="55" width="60" height="25" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="50" y="72" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+                    
+                    <!-- Box C -->
+                    <rect x="140" y="55" width="60" height="25" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="170" y="72" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+                    
+                    <!-- Box D -->
+                    <rect x="80" y="100" width="60" height="25" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="110" y="117" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                    <!-- Arrows (From B -> A, C -> A, D -> B, D -> C) -->
+                    <!-- B -> A -->
+                    <line x1="50" y1="55" x2="95" y2="30" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <!-- C -> A -->
+                    <line x1="170" y1="55" x2="125" y2="30" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <!-- D -> B -->
+                    <line x1="95" y1="100" x2="65" y2="80" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <!-- D -> C -->
+                    <line x1="125" y1="100" x2="155" y2="80" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Nội dung chính: 2 cột Code -->
+        <div style="display: flex; gap: 20px; align-items: stretch; margin-top: 10px;">
+            
+            <!-- Cột trái: Khai báo lớp -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">A</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> a;
+};
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">B</span>: <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">A</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> b;
+};
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">C</span>: <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">A</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> c;
+};
+
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">D</span>: <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">B</span>, <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">C</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> d;
+};</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Hàm main -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#be185d;">int</span> <span style="color:#38bdf8;">main</span>()
+{
+    <span style="color:#38bdf8;">D</span> h;
+    h.d= <span style="color:#f59e0b;">4</span>;
+    cout&lt;&lt;h.d&lt;&lt;endl;      <span style="color:#64748b;">// 4</span>
+
+    h.c= <span style="color:#f59e0b;">3</span>;
+    cout&lt;&lt;h.c&lt;&lt;endl;      <span style="color:#64748b;">// 3</span>
+
+    h.b= <span style="color:#f59e0b;">6</span>;
+    cout&lt;&lt;h.b&lt;&lt;endl;      <span style="color:#64748b;">// 6</span>
+
+    h.B::a= <span style="color:#f59e0b;">7</span>;
+    cout&lt;&lt;h.B::a&lt;&lt;endl;   <span style="color:#64748b;">// 7</span>
+    
+    <span style="display: inline-block; border: 2px solid #f43f5e; padding: 2px 8px; margin-top: 5px; border-radius: 4px;">
+        cout&lt;&lt;h.a;          <span style="color:#64748b;">// lỗi!</span>
+    </span>
+}</pre>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>22</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 23: Ví dụ (tiếp) -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Ví dụ (tiếp)</h1>
+
+        <!-- Nội dung chính -->
+        <div style="font-size: 16px; color: #1e293b; line-height: 1.8; padding-left: 10px;">
+            
+            <!-- Lệnh gây lỗi -->
+            <div style="margin-bottom: 20px;">
+                ▪ Lệnh <code style="font-family:'Courier New',monospace; background:#f1f5f9; padding: 2px 6px; border-radius: 4px; color: #be185d;">cout << h.a</code> gây lỗi
+            </div>
+
+            <!-- Thông báo lỗi -->
+            <div style="font-family: 'Courier New', Courier, monospace; font-size: 17px; font-weight: 700; color: #475569; margin-bottom: 10px; padding-left: 20px;">
+                Request for member 'a' is ambiguous
+            </div>
+
+            <!-- Giải thích -->
+            <div style="margin-bottom: 35px;">
+                Trình biên dịch không thể biết được thuộc tính ‘a’ thừa kế thông qua B<br>hay thông qua C
+            </div>
+
+            <!-- Sơ đồ minh họa -->
+            <div style="display: flex; justify-content: center; align-items: center; margin-top: 10px;">
+                <svg width="400" height="280" viewBox="0 0 400 280" style="overflow: visible;">
+                    <defs>
+                        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                            <path d="M0,0 L8,4 L0,8 Z" fill="#64748b" />
+                        </marker>
+                    </defs>
+
+                    <!-- Box A -->
+                    <rect x="160" y="10" width="80" height="60" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="200" y="28" font-size="16" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">A</text>
+                    <rect x="180" y="35" width="40" height="25" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="200" y="53" font-size="14" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+
+                    <!-- Box B -->
+                    <rect x="80" y="110" width="120" height="80" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="140" y="128" font-size="16" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+                    <!-- Inner a (dashed) -->
+                    <rect x="95" y="145" width="45" height="35" fill="#ffffff" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3" />
+                    <text x="117.5" y="168" font-size="14" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+                    <!-- Inner b -->
+                    <rect x="150" y="145" width="35" height="35" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="167.5" y="168" font-size="14" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">b</text>
+
+                    <!-- Box C -->
+                    <rect x="220" y="110" width="120" height="80" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="280" y="128" font-size="16" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+                    <!-- Inner a (dashed) -->
+                    <rect x="235" y="145" width="45" height="35" fill="#ffffff" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3" />
+                    <text x="257.5" y="168" font-size="14" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+                    <!-- Inner c -->
+                    <rect x="290" y="145" width="35" height="35" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="307.5" y="168" font-size="14" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">c</text>
+
+                    <!-- Box D -->
+                    <rect x="160" y="230" width="80" height="50" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="200" y="260" font-size="16" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                    <!-- Arrows -->
+                    <line x1="120" y1="110" x2="170" y2="70" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="280" y1="110" x2="230" y2="70" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="170" y1="230" x2="140" y2="190" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="230" y1="230" x2="260" y2="190" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                </svg>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>23</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 24: Cách xử lý đa kế thừa -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Cách xử lý đa kế thừa</h1>
+
+        <!-- Nội dung chính -->
+        <div style="font-size: 16px; color: #1e293b; line-height: 1.8; padding-left: 10px;">
+            
+            <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 10px;">
+                    <b>Biến lớp A trở thành lớp cơ sở ảo</b>
+                    <ul style="margin-top: 5px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                        <li>Các lớp cơ sở ảo sẽ được kết hợp để tạo một lớp cơ sở duy nhất</li>
+                        <li>Lớp D sẽ chỉ có một lớp cơ sở A duy nhất</li>
+                    </ul>
+                </li>
+                <li style="margin-bottom: 10px;">
+                    <b>Để thực hiện được điều trên:</b>
+                    <ul style="margin-top: 5px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                        <li>Thêm từ khóa <code style="font-family:'Courier New',monospace; color: #be185d; font-weight: bold; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">virtual</code> khi khai báo B và C</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <!-- Sơ đồ minh họa -->
+            <div style="display: flex; justify-content: center; align-items: center; margin-top: 30px;">
+                <svg width="450" height="250" viewBox="0 0 450 250" style="overflow: visible;">
+                    <!-- Box A -->
+                    <rect x="160" y="5" width="130" height="50" fill="none" stroke="#334155" stroke-width="2.5" />
+                    <text x="225" y="28" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">A</text>
+
+                    <!-- Box B -->
+                    <rect x="60" y="100" width="130" height="50" fill="none" stroke="#334155" stroke-width="2.5" />
+                    <text x="125" y="123" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+
+                    <!-- Box C -->
+                    <rect x="260" y="100" width="130" height="50" fill="none" stroke="#334155" stroke-width="2.5" />
+                    <text x="325" y="123" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+
+                    <!-- Box D -->
+                    <rect x="160" y="195" width="130" height="50" fill="none" stroke="#334155" stroke-width="2.5" />
+                    <text x="225" y="218" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                    <!-- B -> A -->
+                    <line x1="150" y1="100" x2="200" y2="66" stroke="#334155" stroke-width="2.5" />
+                    <polygon points="212,58 203,74 192,63" fill="#334155" />
+                    <!-- C -> A -->
+                    <line x1="300" y1="100" x2="250" y2="66" stroke="#334155" stroke-width="2.5" />
+                    <polygon points="238,58 258,63 247,74" fill="#334155" />
+
+                    <!-- D -> B -->
+                    <line x1="210" y1="195" x2="140" y2="162" stroke="#334155" stroke-width="2.5" />
+                    <polygon points="128,156 148,157 140,171" fill="#334155" />
+                    <!-- D -> C -->
+                    <line x1="240" y1="195" x2="310" y2="162" stroke="#334155" stroke-width="2.5" />
+                    <polygon points="322,156 310,171 302,157" fill="#334155" />
+
+                    <!-- Text "virtual" -->
+                    <text x="140" y="78" font-size="14" font-weight="700" fill="#9a3412" text-anchor="middle" font-family="Arial, sans-serif">virtual</text>
+                    <text x="320" y="78" font-size="14" font-weight="700" fill="#9a3412" text-anchor="middle" font-family="Arial, sans-serif">virtual</text>
+                </svg>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>24</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 25: Ví dụ (lớp cơ sở ảo) -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Thanh kẻ xanh trên cùng -->
+        <div style="height: 10px; background: #a3e635; width: 100%; margin-bottom: 20px; border-radius: 4px;"></div>
+
+        <!-- Header & Sơ đồ -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+            <h1 class="slide-title" style="margin: 0;">Ví dụ (lớp cơ sở ảo)</h1>
+            
+            <!-- Sơ đồ thừa kế -->
+            <div style="margin-top: -10px; margin-right: 20px;">
+                <svg width="220" height="150" viewBox="0 0 220 150" style="overflow: visible;">
+                    <defs>
+                        <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
+                        </marker>
+                    </defs>
+                    
+                    <!-- Box A -->
+                    <rect x="80" y="5" width="60" height="35" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="110" y="22" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">A</text>
+                    <rect x="95" y="25" width="30" height="15" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="110" y="36" font-size="11" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+
+                    <!-- Box B -->
+                    <rect x="20" y="65" width="60" height="45" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="50" y="80" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">B</text>
+                    <rect x="28" y="90" width="20" height="15" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="38" y="101" font-size="11" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+                    <rect x="52" y="90" width="20" height="15" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="62" y="101" font-size="11" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">b</text>
+
+                    <!-- Box C -->
+                    <rect x="140" y="65" width="60" height="45" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="170" y="80" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">C</text>
+                    <rect x="148" y="90" width="20" height="15" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="158" y="101" font-size="11" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">a</text>
+                    <rect x="172" y="90" width="20" height="15" fill="none" stroke="#64748b" stroke-width="1" />
+                    <text x="182" y="101" font-size="11" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">c</text>
+
+                    <!-- Box D -->
+                    <rect x="80" y="130" width="60" height="30" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+                    <text x="110" y="149" font-size="14" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">D</text>
+
+                    <!-- Arrows -->
+                    <line x1="50" y1="65" x2="95" y2="40" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="170" y1="65" x2="125" y2="40" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="95" y1="130" x2="60" y2="110" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                    <line x1="125" y1="130" x2="160" y2="110" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Nội dung chính: 2 cột Code -->
+        <div style="display: flex; gap: 20px; align-items: stretch; flex: 1;">
+            
+            <!-- Cột trái: Khai báo lớp -->
+            <div style="flex: 1.1;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 13.5px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">// Đã sửa A thành lớp cơ sở ảo</span>
+<span style="color:#be185d;">#include</span> <span style="color:#38bdf8;">&lt;iostream&gt;</span>
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">A</span> {
+<span style="color:#be185d;">public</span>:
+    <span style="color:#be185d;">int</span> a;
+};
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">B</span>: <span style="color:#be185d;">virtual public</span> <span style="color:#38bdf8;">A</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> b;
+};
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">C</span>: <span style="color:#be185d;">virtual public</span> <span style="color:#38bdf8;">A</span>
+{
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> c;
+};
+<span style="color:#be185d;">class</span> <span style="color:#38bdf8;">D</span>: <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">B</span>, <span style="color:#be185d;">public</span> <span style="color:#38bdf8;">C</span> {
+    <span style="color:#be185d;">public</span>: <span style="color:#be185d;">int</span> d;
+};</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Hàm main -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 16px 20px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 13.5px; line-height: 1.6; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#be185d;">void</span> <span style="color:#38bdf8;">main</span>()
+{
+    <span style="color:#38bdf8;">D</span> h;
+    h.d=<span style="color:#f59e0b;">4</span> ;
+    cout&lt;&lt;h.d&lt;&lt;endl;      <span style="color:#64748b;">// 4</span>
+    h.c=<span style="color:#f59e0b;">5</span>;
+    cout&lt;&lt;h.c&lt;&lt;endl;      <span style="color:#64748b;">// 5</span>
+    h.b=<span style="color:#f59e0b;">6</span> ;
+    cout&lt;&lt;h.b&lt;&lt;endl;      <span style="color:#64748b;">// 6</span>
+    
+    <span style="display: inline-block; border: 2px solid #94a3b8; padding: 8px; border-radius: 8px; margin-top: 8px;">
+    h.B::a= <span style="color:#f59e0b;">7</span>;
+    cout&lt;&lt;h.B::a&lt;&lt;endl; <span style="color:#64748b;">// 7</span>
+    cout&lt;&lt;h.C::a;       <span style="color:#64748b;">// 7</span>
+
+    cout&lt;&lt;h.a;          <span style="color:#64748b;">// 7</span>
+    </span>
+}</pre>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>25</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 26: Khái niệm tương ứng bội -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Thanh kẻ xanh trên cùng -->
+        <div style="height: 10px; background: #a3e635; width: 100%; margin-bottom: 20px; border-radius: 4px;"></div>
+
+        <!-- Header -->
+        <h1 class="slide-title" style="margin-bottom: 25px;">Khái niệm tương ứng bội</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+            
+            <!-- Cột trái: Giải thích -->
+            <div style="flex: 1.3; font-size: 15.5px; color: #1e293b; line-height: 1.8;">
+                <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                    <li style="margin-bottom: 10px;">
+                        <b>Tương ứng bội (Polymorphism)</b>
+                        <ul style="margin-top: 5px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                            <li>Còn gọi là “Tính đa hình”</li>
+                            <li>Là một trong các “trụ cột” của OOP: PIE</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <b>Tác dụng của tương ứng bội?</b>
+                        <ul style="margin-top: 5px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                            <li>Xử lý các đối tượng của các lớp có liên quan theo một cách chung</li>
+                            <li>Chương trình tổng quát và dễ hiểu hơn</li>
+                            <li>Chương trình có khả năng mở rộng hiệu quả hơn</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Cột phải: Chữ POLY MORPH -->
+            <div style="flex: 0.7; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 10px;">
+                <div style="font-size: 38px; font-weight: 800; color: #64748b; letter-spacing: 1px; line-height: 1;">
+                    POLY MORPH
+                </div>
+                <div style="font-size: 18px; color: #94a3b8; display: flex; width: 100%; justify-content: space-around; margin-top: 5px; padding: 0 10px;">
+                    <span style="margin-left: 10px;">many</span>
+                    <span style="margin-right: 10px;">forms</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Hình vẽ minh họa (Bottom) -->
+        <div style="display: flex; justify-content: center; align-items: center; margin-top: 35px;">
+            <svg width="500" height="170" viewBox="0 0 500 170" style="overflow: visible;">
+                <!-- Đỉnh (Top Node) -->
+                <circle cx="250" cy="15" r="11" fill="#1e293b" />
+
+                <!-- Các đường nối -->
+                <g stroke="#334155" stroke-width="2.5" fill="none">
+                    <line x1="240" y1="22" x2="90" y2="97" />
+                    <line x1="250" y1="26" x2="250" y2="86" />
+                    <line x1="260" y1="22" x2="400" y2="86" />
+                </g>
+                <!-- Đầu mũi tên -->
+                <g fill="#334155">
+                    <polygon points="80,104 91,90 97,102" />
+                    <polygon points="250,100 243,85 257,85" />
+                    <polygon points="412,92 395,80 391,94" />
+                </g>
+
+                <!-- Hình chữ nhật (Trái) xanh nhạt -->
+                <rect x="55" y="105" width="110" height="52" fill="#a5d8e0" stroke="#334155" stroke-width="2.5" />
+                <text x="110" y="137" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">draw()</text>
+
+                <!-- Hình tam giác (Giữa) tím nhạt -->
+                <polygon points="250,95 175,160 325,160" fill="#d8b4e2" stroke="#334155" stroke-width="2.5" />
+                <text x="250" y="152" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">draw()</text>
+
+                <!-- Hình ellipse (Phải) vàng -->
+                <ellipse cx="410" cy="125" rx="65" ry="28" fill="#e5e44a" stroke="#334155" stroke-width="2.5" />
+                <text x="410" y="131" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">draw()</text>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>26</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 27: Phương thức tĩnh và động -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">Phương thức tĩnh và động</h1>
+
+        <!-- Nội dung chính -->
+        <div class="highlight-card" style="background: #ffffff; padding: 30px 40px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-top: 10px;">
+            
+            <div style="font-size: 16.5px; color: #1e293b; line-height: 1.8;">
+                <!-- Mục 1: Phương thức tĩnh -->
+                <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                    <li style="margin-bottom: 12px;">
+                        <b>Phương thức tĩnh</b>
+                        <ul style="margin-top: 8px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                            <li style="margin-bottom: 6px;">Compile-time, Early binding</li>
+                            <li>
+                                Lời gọi xuất phát từ một đối tượng (hoặc con trỏ) của lớp nào &rarr; phương thức của lớp đó sẽ được gọi
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <!-- Mục 2: Phương thức động -->
+                <ul style="margin: 20px 0 0 0; padding-left: 20px; list-style-type: disc;">
+                    <li style="margin-bottom: 12px;">
+                        <b>Phương thức động (phương thức ảo)</b>
+                        <ul style="margin-top: 8px; padding-left: 20px; list-style-type: circle; color: #334155;">
+                            <li style="margin-bottom: 6px;">Run-time, Late binding</li>
+                            <li style="margin-bottom: 6px;">Lời gọi tới phương thức ảo từ một con trỏ biết rõ phương thức nào sẽ được gọi</li>
+                            <li>
+                                Điều này phụ thuộc vào đối tượng cụ thể mà con trỏ đang trỏ tới
+                                <ul style="margin-top: 6px; padding-left: 20px; list-style-type: square; color: #475569;">
+                                    <li>Con trỏ đang trỏ tới đối tượng của lớp nào thì phương thức của lớp đó được gọi</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <!-- <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span> -->
+        <span>Lập trình hướng đối tượng</span>
+        <span>27</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 28: Ví dụ (xử lý các lớp theo cách chung) -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Thanh kẻ xanh trên cùng -->
+        <div style="height: 10px; background: #a3e635; width: 100%; margin-bottom: 20px; border-radius: 4px;"></div>
+
+        <!-- Header -->
+        <h1 class="slide-title" style="margin-bottom: 30px;">Ví dụ (xử lý các lớp theo cách chung)</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 10px;">
+            
+            <!-- Cột trái: Code block -->
+            <div style="flex: 1.2;">
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; padding: 20px 24px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 15px; line-height: 1.8; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#38bdf8;">Shape</span>* shapes[<span style="color:#f59e0b;">10</span>];
+<span style="color:#be185d;">for</span> (i = <span style="color:#f59e0b;">0</span>; i &lt; numShapes; i++)
+{
+    shapes[i]-&gt;<span style="color:#38bdf8;">draw</span>();
+}</pre>
+                </div>
+            </div>
+
+            <!-- Cột phải: Sơ đồ minh họa -->
+            <div style="flex: 1.5; display: flex; justify-content: center; align-items: center; padding-top: 10px;">
+                <svg width="100%" height="340" viewBox="0 0 500 340" style="overflow: visible;">
+                    <!-- Khung nền chứa các hình -->
+                    <rect x="60" y="10" width="420" height="230" fill="none" stroke="#334155" stroke-width="2.5" />
+
+                    <!-- Hình chữ nhật -->
+                    <rect x="200" y="60" width="95" height="75" fill="#a5d8e0" stroke="#334155" stroke-width="2.5" />
+                    <text x="130" y="85" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">“draw”</text>
+
+                    <!-- Hình tam giác -->
+                    <polygon points="385,60 340,150 440,150" fill="#d8b4e2" stroke="#334155" stroke-width="2.5" />
+                    <text x="445" y="45" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">“draw”</text>
+
+                    <!-- Hình ellipse -->
+                    <ellipse cx="270" cy="190" rx="55" ry="38" fill="#e5e44a" stroke="#334155" stroke-width="2.5" />
+                    <text x="270" y="200" font-size="17" font-weight="700" fill="#1e293b" text-anchor="middle" font-family="Arial, sans-serif">“draw”</text>
+
+                    <!-- Mảng con trỏ -->
+                    <text x="200" y="295" font-size="18" font-weight="700" fill="#1e293b" font-family="'Courier New', monospace" text-anchor="end">Shape* shapes[10]</text>
+                    <g fill="none" stroke="#334155" stroke-width="2.5">
+                        <line x1="210" y1="265" x2="480" y2="265" />
+                        <line x1="210" y1="305" x2="480" y2="305" />
+                        <rect x="210" y="265" width="35" height="40" />
+                        <rect x="245" y="265" width="35" height="40" />
+                        <rect x="280" y="265" width="35" height="40" />
+                    </g>
+                    <text x="340" y="292" font-size="18" font-weight="700" fill="#334155" font-family="Arial, sans-serif">......</text>
+
+                    <!-- Các đường mũi tên -->
+                    <g stroke="#334155" stroke-width="2.5" fill="none">
+                        <line x1="227" y1="265" x2="227" y2="148" />
+                        <line x1="262" y1="265" x2="268" y2="240" />
+                        <line x1="297" y1="265" x2="370" y2="165" />
+                    </g>
+                    <g fill="#334155">
+                        <polygon points="227,138 220,152 234,152" />
+                        <polygon points="270,230 261,243 275,244" />
+                        <polygon points="378,153 363,162 375,172" />
+                    </g>
+                </svg>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>Lập trình hướng đối tượng</span>
+        <span>28</span>
+    </div>
+</div>
+
+
+
 </body>
 <!-- MATHJAX: đặt trước </body> nếu file chưa có --> 
  <script> 

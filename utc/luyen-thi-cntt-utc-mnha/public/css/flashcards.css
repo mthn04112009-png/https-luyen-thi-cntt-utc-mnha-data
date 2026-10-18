@@ -1,0 +1,208 @@
+/* ============================================================
+ * flashcards.css — Giao diện học Flashcards (/flashcards/study/:id)
+ * Tất cả nằm trong .fc để không ảnh hưởng phần còn lại của site.
+ * Cỡ chữ theo --z (nút A− / A+), giao diện tối ưu cho điện thoại.
+ * ============================================================ */
+.fc {
+    --z: 1;
+    --ink: #1e1b4b;
+    --mut: #6b7280;
+    --line: #e5e7eb;
+    --soft: #f5f3ff;
+    --pri: #4f46e5;
+    --pri-d: #4338ca;
+    --pri2: #7c3aed;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --no: #b91c1c;
+    --no-bg: #fee2e2;
+    --sun: #fbbf24;
+    --sky: #e0e7ff;
+    --shadow: 0 10px 30px -12px rgba(79, 70, 229, .28), 0 2px 6px rgba(15, 23, 42, .05);
+
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+    color: var(--ink);
+    font-size: calc(16px * var(--z));
+    line-height: 1.5;
+}
+.fc *, .fc *::before, .fc *::after { box-sizing: border-box; }
+.fc button, .fc input { font-family: inherit; }
+.fc button:focus-visible, .fc input:focus-visible, .fc a:focus-visible { outline: 3px solid #6366f1; outline-offset: 2px; }
+.fc [hidden] { display: none !important; }
+
+/* ---------- Đầu trang ---------- */
+.fc-top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem 1rem;
+    align-items: center;
+    padding: 1.1rem 1.25rem;
+    border-radius: 1.5rem;
+    color: #fff;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a855f7 100%);
+    box-shadow: var(--shadow);
+}
+.fc-back {
+    grid-column: 1 / -1;
+    display: inline-flex; align-items: center; gap: .4rem;
+    width: fit-content; max-width: 100%;
+    color: rgba(255, 255, 255, .9); font-size: .85em; text-decoration: none;
+    padding: .2rem .65rem; border-radius: 999px; background: rgba(255, 255, 255, .16);
+}
+.fc-back:hover { background: rgba(255, 255, 255, .28); }
+.fc-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-head h1 { margin: 0; font-size: 1.55em; line-height: 1.2; font-weight: 800; letter-spacing: -.01em; }
+.fc-head p { margin: .45rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-size: .9em; }
+.fc-desc { opacity: .9; }
+.fc-badge { display: inline-block; padding: .15rem .65rem; border-radius: 999px; font-size: .82em; font-weight: 700; background: rgba(255, 255, 255, .92); }
+.fc-badge-lang { color: #047857; }
+.fc-badge-theory { color: #b45309; }
+.fc-tools { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
+.fc-stat { padding: .25rem .85rem; border-radius: 999px; background: rgba(255, 255, 255, .22); font-weight: 700; font-size: .88em; white-space: nowrap; }
+.fc-zoom { display: inline-flex; gap: .15rem; padding: .15rem; border-radius: 999px; background: rgba(255, 255, 255, .22); }
+.fc-zoom button { min-width: 2.4em; height: 2.1em; padding: 0 .5em; border: 0; border-radius: 999px; background: #fff; color: var(--pri); font-weight: 800; cursor: pointer; font-size: .9em; }
+.fc-zoom button:hover { background: #eef2ff; }
+.fc-zoom #fcZv { background: none; color: #fff; min-width: 3.2em; }
+
+/* ---------- Bố cục ---------- */
+.fc-grid { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 1.25rem; align-items: start; margin-top: 1.25rem; }
+.fc-pane { width: 100%; max-width: 42rem; margin: 0 auto; }
+
+/* ---------- Danh sách bộ thẻ ---------- */
+.fc-units {
+    position: sticky; top: .75rem; max-height: calc(100vh - 1.5rem); overflow-y: auto;
+    display: flex; flex-direction: column; gap: .35rem; padding: .6rem;
+    background: #fff; border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
+}
+.fc-units-h { padding: .35rem .5rem; font-weight: 800; font-size: .85em; color: var(--mut); letter-spacing: .02em; }
+.fc-unit {
+    display: flex; align-items: center; gap: .6rem; padding: .55rem .6rem;
+    border: 2px solid transparent; border-radius: .9rem; color: var(--ink); text-decoration: none; background: #fff;
+}
+.fc-unit:hover { background: var(--soft); }
+.fc-unit.on { background: var(--sky); border-color: #c7d2fe; }
+.fc-unit b { flex: none; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: .6rem; background: var(--soft); color: var(--pri); font-size: .9em; }
+.fc-unit.on b { background: var(--pri); color: #fff; }
+.fc-unit span { flex: 1; min-width: 0; line-height: 1.25; }
+.fc-unit strong { display: block; font-size: .92em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fc-unit small { color: var(--mut); font-weight: 600; font-size: .78em; }
+
+/* ---------- Thanh chế độ ---------- */
+.fc-modes { display: flex; gap: .25rem; padding: .25rem; background: #fff; border: 1px solid var(--line); border-radius: 1rem; box-shadow: 0 1px 3px rgba(15, 23, 42, .05); }
+.fc-modes button { flex: 1; padding: .6rem .25rem; border: 0; border-radius: .75rem; background: none; color: var(--mut); font-weight: 800; font-size: .92em; cursor: pointer; transition: background .15s, color .15s; }
+.fc-modes button:hover { background: var(--soft); }
+.fc-modes button.on { background: var(--pri); color: #fff; box-shadow: 0 4px 12px -4px rgba(79, 70, 229, .6); }
+
+.fc-filters { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .75rem; }
+.fc-filters button { padding: .35rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--mut); font-weight: 700; font-size: .85em; cursor: pointer; }
+.fc-filters button:hover { border-color: #a5b4fc; color: var(--pri); }
+.fc-filters button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.fc-filters .fc-shuf { margin-left: auto; }
+
+/* ---------- Thẻ ---------- */
+.fc-card {
+    position: relative; margin-top: .75rem; padding: 1.4rem 1.25rem 1.25rem; text-align: center;
+    background: #fff; border: 1px solid var(--line); border-radius: 1.75rem; box-shadow: var(--shadow);
+}
+.fc-pop { animation: fc-pop .22s ease-out; }
+@keyframes fc-pop { from { transform: translateY(6px) scale(.985); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fc-pop { animation: none; } .fc-fill { transition: none !important; } }
+
+.fc-bar { height: .5rem; background: #eef2ff; border-radius: 999px; overflow: hidden; }
+.fc-fill { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6366f1, #a855f7); border-radius: 999px; transition: width .3s; }
+.fc-meta { display: flex; justify-content: space-between; align-items: center; margin: .6rem .15rem 0; color: var(--mut); font-size: .82em; font-weight: 700; }
+.fc-tag { display: inline-block; padding: .15rem .7rem; border-radius: 999px; background: var(--sky); color: #3730a3; font-size: .78em; font-weight: 800; }
+.fc-tag.known { background: #fef3c7; color: #92400e; }
+
+.fc-img { display: block; margin: .9rem auto 0; max-width: 100%; max-height: 15rem; object-fit: contain; border-radius: 1rem; background: #f8fafc; border: 1px solid var(--line); }
+.fc-front { margin: .9rem 0 .15rem; font-size: 2.1em; line-height: 1.2; font-weight: 800; word-break: break-word; white-space: pre-line; }
+.fc-front.long { font-size: 1.45em; line-height: 1.35; }
+.fc-ipa { min-height: 1.6em; color: #e11d48; font: 1.2em "Times New Roman", serif; }
+.fc-back { margin: .6rem 0 .3rem; font-size: 1.3em; line-height: 1.45; font-weight: 700; color: #374151; white-space: pre-line; word-break: break-word; }
+.fc-reveal { margin: .8rem 0 .3rem; padding: .75rem 1.1rem; width: 100%; border: 2px dashed #c7d2fe; border-radius: 1rem; background: var(--soft); color: var(--pri); font-weight: 800; font-size: 1em; cursor: pointer; }
+.fc-reveal:hover { background: #ede9fe; }
+.fc-res { min-height: 1.5em; margin: .35rem 0; font-weight: 800; }
+.fc-res.ok, .fc-fb.ok { color: var(--ok); }
+.fc-res.no, .fc-fb.no { color: var(--no); }
+.fc-cnt { margin: .75rem 0 0; color: var(--mut); font-size: .85em; }
+.fc-empty { padding: 2rem 0; color: var(--mut); font-weight: 700; }
+
+/* ---------- Nút ---------- */
+.fc-row { display: flex; gap: .5rem; margin-top: .55rem; }
+.fc-btn {
+    flex: 1; padding: .8rem .5rem; border: 0; border-radius: .95rem; color: #fff; font-weight: 800; font-size: .98em; cursor: pointer;
+    box-shadow: 0 .22rem 0 rgba(0, 0, 0, .16); transition: transform .08s, box-shadow .08s, filter .15s;
+}
+.fc-btn:hover { filter: brightness(1.06); }
+.fc-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, .16); }
+.fc-btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+.fc-b-pri { background: var(--pri); }
+.fc-b-ok { background: #16a34a; }
+.fc-b-blue { background: #2563eb; }
+.fc-b-vio { background: var(--pri2); }
+.fc-b-gray { background: #94a3b8; }
+.fc-b-ink { background: var(--ink); }
+.fc-b-no { background: #dc2626; }
+.fc-btn.known { background: var(--sun); color: #5a4200; }
+
+/* ---------- Luyện tập / Kiểm tra ---------- */
+.fc-run { text-align: left; }
+.fc-run h3 { margin: .2rem 0 .5rem; text-align: center; font-size: 1.2em; }
+.fc-qi { margin: .7rem 0 .2rem; color: var(--mut); font-weight: 800; font-size: .85em; }
+.fc-qt { margin: .1rem 0 0; color: var(--pri); font-weight: 800; font-size: .88em; }
+.fc-qp { margin: .6rem 0 .9rem; text-align: center; font-size: 1.35em; font-weight: 800; line-height: 1.4; word-break: break-word; white-space: pre-line; }
+.fc-qp small { display: block; margin-top: .3rem; color: var(--mut); font-size: .7em; font-weight: 700; }
+.fc-qp .fc-img { margin-bottom: .75rem; max-height: 12rem; }
+.fc-qp .fc-ipa { font-size: .8em; font-weight: 400; }
+.fc-say { display: inline-flex; margin-left: .35rem; padding: .25rem .6rem; border: 2px solid var(--line); border-radius: .7rem; background: #fff; cursor: pointer; font-size: .8em; }
+.fc-say:hover { border-color: #a5b4fc; }
+
+.fc-opt { display: block; width: 100%; margin-top: .45rem; padding: .75rem .9rem; border: 2px solid var(--line); border-radius: .95rem; background: #fff; color: var(--ink); text-align: left; font-weight: 700; font-size: 1em; cursor: pointer; white-space: pre-line; word-break: break-word; transition: border-color .12s, background .12s; }
+.fc-opt:hover { border-color: #818cf8; background: var(--soft); }
+.fc-opt.ok { background: var(--ok-bg); border-color: #22c55e; }
+.fc-opt.no { background: var(--no-bg); border-color: #ef4444; }
+.fc-opt.sel { background: var(--sky); border-color: #6366f1; }
+.fc-run.done .fc-opt, .fc-run.done .fc-tk { pointer-events: none; }
+
+.fc-az { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; min-height: 3rem; padding: .5rem; border-radius: .95rem; }
+.fc-az.drop { border: 2px dashed #c7d2fe; margin-bottom: .6rem; }
+.fc-tk { padding: .45rem .75rem; border: 2px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-weight: 800; font-size: 1.05em; cursor: pointer; box-shadow: 0 .2rem 0 var(--line); }
+.fc-tk:hover { border-color: #818cf8; }
+.fc-tk:disabled { opacity: .3; box-shadow: none; }
+
+.fc-in { width: 100%; padding: .7rem .8rem; border: 2px solid var(--line); border-radius: .95rem; font-size: 1.05em; background: #fff; color: var(--ink); }
+.fc-in:focus { border-color: #6366f1; outline: none; }
+.fc-fb { min-height: 1.5em; margin: .7rem 0 0; font-weight: 800; text-align: center; }
+.fc-fb small { display: block; margin-top: .25rem; color: var(--mut); font-weight: 600; white-space: pre-line; }
+
+.fc-lvl { display: flex; align-items: center; gap: .65rem; width: 100%; margin-top: .5rem; padding: .75rem; border: 2px solid var(--line); border-radius: 1rem; background: #fff; color: var(--ink); text-align: left; cursor: pointer; font-size: .95em; }
+.fc-lvl:hover { border-color: #818cf8; background: var(--soft); }
+.fc-lvl i { font-style: normal; font-size: 1.7em; }
+.fc-lvl span { flex: 1; min-width: 0; }
+.fc-lvl small { display: block; color: var(--mut); font-weight: 600; }
+.fc-lvl em { font-style: normal; font-weight: 800; color: var(--ok); white-space: nowrap; }
+
+.fc-wr { margin-top: .4rem; padding: .45rem .65rem; border-left: 4px solid #f43f5e; border-radius: .5rem; background: #fff1f2; font-weight: 700; font-size: .9em; white-space: pre-line; word-break: break-word; }
+.fc-timer { font-variant-numeric: tabular-nums; }
+.fc-sum { text-align: center; font-weight: 700; }
+.fc-note { margin: .4rem 0 0; text-align: center; color: var(--mut); font-size: .88em; }
+
+/* ---------- MathJax ---------- */
+.fc mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+
+/* ---------- Màn hình hẹp: danh sách bộ thẻ nằm ngang ---------- */
+@media (max-width: 62rem) {
+    .fc-grid { grid-template-columns: minmax(0, 1fr); }
+    .fc-units { position: static; flex-direction: row; max-height: none; overflow-x: auto; overflow-y: hidden; }
+    .fc-units-h { display: none; }
+    .fc-unit { flex: none; width: 13rem; }
+}
+@media (max-width: 40rem) {
+    .fc { padding: .75rem .5rem 2.5rem; }
+    .fc-top { grid-template-columns: 1fr; padding: 1rem; }
+    .fc-tools { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .fc-front { font-size: 1.8em; }
+    .fc-modes button { font-size: .84em; }
+}

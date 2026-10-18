@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const OTP = require('../models/OTP');
 const { sendOTP } = require('../services/mailService');
+const loginThrottle = require('../services/loginThrottleService');
 
 // ============================================================
 // HẰNG SỐ
@@ -79,6 +80,10 @@ const showLogin = (req, res) => {
     });
 };
 
+const LOGIN_FAIL_MSG = 'Email hoặc mật khẩu không chính xác.';
+const lockMessage = (sec) =>
+    `Bạn đã nhập sai 5/5 lần. Thiết bị này bị tạm khoá, vui lòng thử lại sau ${sec} giây.`;
+
 const login = async (req, res) => {
     try {
         const { email, password, remember } = req.body;
@@ -91,26 +96,45 @@ const login = async (req, res) => {
             });
         }
 
+        // ★ Thiết bị (IP + trình duyệt) đang bị khoá do sai 5/5 → không kiểm tra mật khẩu nữa
+        const device = loginThrottle.identify(req, email);
+        const gate = await loginThrottle.check(device);
+        if (gate.locked) {
+            res.set('Retry-After', String(gate.seconds));
+            return res.status(429).render('auth/login', {
+                title: 'Đăng nhập',
+                error: lockMessage(gate.seconds),
+                lockedSeconds: gate.seconds,
+                email
+            });
+        }
+
         const user = await User.findOne({
             email: normalizeEmail(email)
         }).select('+password');
 
-        if (!user) {
+        const validPassword = user ? await bcrypt.compare(password, user.password) : false;
+
+        if (!user || !validPassword) {
+            const fail = await loginThrottle.recordFailure(device, { userId: user ? user._id : null });
+            if (fail.locked) {
+                res.set('Retry-After', String(fail.seconds));
+                return res.status(429).render('auth/login', {
+                    title: 'Đăng nhập',
+                    error: lockMessage(fail.seconds),
+                    lockedSeconds: fail.seconds,
+                    email
+                });
+            }
             return res.status(401).render('auth/login', {
                 title: 'Đăng nhập',
-                error: 'Email hoặc mật khẩu không chính xác.',
+                error: `${LOGIN_FAIL_MSG} Bạn còn ${fail.remaining} lần thử.`,
                 email
             });
         }
 
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) {
-            return res.status(401).render('auth/login', {
-                title: 'Đăng nhập',
-                error: 'Email hoặc mật khẩu không chính xác.',
-                email
-            });
-        }
+        // Đúng mật khẩu → xoá bộ đếm sai của thiết bị này
+        await loginThrottle.clear(device);
 
         if (user.status === 'rejected' || user.status === 'disabled') {
             return res.status(403).render('auth/login', {

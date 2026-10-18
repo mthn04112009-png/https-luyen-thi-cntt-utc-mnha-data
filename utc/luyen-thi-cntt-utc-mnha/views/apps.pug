@@ -1,0 +1,32 @@
+extends layout
+
+block content
+    div(class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
+        div(class="mb-8")
+            h1(class="text-3xl font-bold text-gray-900") Ứng dụng
+            p(class="mt-1 text-gray-500") Các ứng dụng học tập bạn được cấp quyền sử dụng.
+
+        if !apps || apps.length === 0
+            div(class="bg-white rounded-2xl border border-gray-200 p-10 text-center")
+                div(class="w-16 h-16 mx-auto rounded-full bg-gray-100 flex items-center justify-center mb-4")
+                    i(data-lucide="lock", class="w-8 h-8 text-gray-500")
+                h2(class="text-xl font-semibold text-gray-900") Không có ứng dụng nào được cấp quyền
+                p(class="mt-2 text-gray-500") Hiện tại tài khoản của bạn chưa được cấp quyền dùng ứng dụng nào. Hãy liên hệ giảng viên / quản trị viên nếu bạn cần.
+        else
+            div(class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6")
+                each app in apps
+                    a(
+                        href=app.href,
+                        class="group block bg-white rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                    )
+                        div(class="h-2 bg-gradient-to-r from-indigo-500 to-violet-500")
+                        div(class="p-6")
+                            div(class="flex items-start justify-between gap-4")
+                                div(class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0")
+                                    i(data-lucide=app.icon, class="w-6 h-6 text-indigo-600")
+                                i(data-lucide="arrow-up-right", class="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors")
+                            h2(class="mt-5 text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors")= app.name
+                            p(class="mt-3 text-sm text-gray-500")= app.description
+                            div(class="mt-5 pt-4 border-t border-gray-100 text-sm font-medium text-indigo-600")
+                                | Mở ứng dụng
+                                i(data-lucide="chevron-right", class="w-4 h-4 inline-block ml-1")

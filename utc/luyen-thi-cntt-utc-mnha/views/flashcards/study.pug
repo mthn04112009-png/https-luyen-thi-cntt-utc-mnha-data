@@ -1,0 +1,48 @@
+extends ../layout
+
+block content
+    link(rel="stylesheet", href="/css/flashcards.css")
+
+    div(class="fc", id="fcApp", data-mode=fc.mode)
+        //- Thanh đầu trang
+        div(class="fc-top")
+            a(href=("/flashcards/subjects/" + fc.subject.id), class="fc-back")
+                i(data-lucide="arrow-left", class="w-4 h-4")
+                span= fc.subject.name
+            div(class="fc-head")
+                h1= fc.title
+                p
+                    if fc.mode === 'language'
+                        span(class="fc-badge fc-badge-lang") Học ngoại ngữ · #{fc.languageLabel}
+                    else
+                        span(class="fc-badge fc-badge-theory") Học lý thuyết
+                    if fc.description
+                        span(class="fc-desc")= fc.description
+            div(class="fc-tools")
+                div(id="fcStat", class="fc-stat")
+                div(class="fc-zoom", role="group", aria-label="Cỡ chữ")
+                    button(type="button", id="fcZm", aria-label="Thu nhỏ chữ") A−
+                    button(type="button", id="fcZv", aria-label="Về cỡ mặc định") 100%
+                    button(type="button", id="fcZp", aria-label="Phóng to chữ") A+
+
+        div(class="fc-grid")
+            //- Danh sách bộ thẻ của môn
+            nav(id="fcUnits", class="fc-units", aria-label="Các bộ flashcard của môn")
+
+            div(class="fc-pane")
+                div(id="fcModes", class="fc-modes", role="tablist")
+                    button(type="button", data-m="0", class="on", role="tab") 🃏 Thẻ học
+                    button(type="button", data-m="1", role="tab") ✍️ Luyện tập
+                    button(type="button", data-m="2", role="tab") 📝 Kiểm tra
+
+                div(id="fcFilters", class="fc-filters")
+                    button(type="button", data-f="all", class="on") Tất cả
+                    button(type="button", data-f="todo") Chưa thuộc
+                    button(type="button", data-f="known") Đã thuộc
+                    button(type="button", id="fcShuffle", class="fc-shuf", title="Xáo trộn thứ tự") 🔀 Xáo
+
+                section(id="fcCard", class="fc-card")
+                section(id="fcRun", class="fc-card", hidden)
+
+    script#fcData(type="application/json")!= fcJson
+    script(src="/js/flashcardStudy.js")

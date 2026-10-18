@@ -89,7 +89,8 @@
     //   - etxt(): brk() rồi escape HTML (CSS white-space: pre-line giữ xuống dòng).
     //   - typesetMath(): vẽ công thức cho phần HTML vừa chèn (MathJax tự quét trang lúc tải, nhưng KHÔNG tự quét nội dung JS chèn sau).
     function brk(s) {
-        return String(s == null ? "" : s).replace(/(?<!\\)\\n(?![A-Za-z])/g, "\n");
+        // (không dùng lookbehind để chạy được trên Safari cũ): "\\n" (đã có \ đứng trước) được giữ nguyên
+        return String(s == null ? "" : s).replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
     }
     function etxt(s) { return esc(brk(s)); }
     function typesetMath(root) {

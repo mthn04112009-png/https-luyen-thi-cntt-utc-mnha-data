@@ -308,7 +308,8 @@ router.get("/users", async (req, res) => {
         const actor = req.user;
         const isDef = isDefaultAdmin(actor);
 
-        const scope = await userKeyService.buildUserListFilter(actor);
+        // admin user_key: thấy thêm admin default (chỉ xem, mọi route tác động đều không tìm thấy họ)
+        const scope = await userKeyService.buildUserListFilter(actor, { includeDefaultAdmins: true });
         const scoped = (extra = {}) => ({ $and: [scope, extra] });
 
         const q = (req.query.q || "").trim();
@@ -488,12 +489,30 @@ router.post("/users/:id/update", async (req, res) => {
             });
         }
 
-        // Admin user_key không được nâng ai lên admin
-        if (!isDef && role !== undefined && !["client", "student"].includes(role)) {
-            return res.status(403).json({
-                success: false,
-                message: "Bạn chỉ được đặt vai trò client hoặc student."
-            });
+        if (!isDef && String(targetUser._id) === String(actor._id) && role !== undefined && role !== targetUser.role) {
+            return res.status(403).json({ success: false, message: "Bạn không thể tự đổi vai trò của chính mình." });
+        }
+
+        if (!isDef) {
+            // Không tác động vào admin default
+            if (targetUser.role === "admin" && !targetUser.userKey) {
+                return res.status(403).json({ success: false, message: "Bạn không được tác động vào admin default." });
+            }
+            const isSelf = String(targetUser._id) === String(actor._id);
+            // Admin user_key không nâng ai lên admin; admin cùng tổ chức giữ nguyên vai trò admin
+            const allowedRoles = targetUser.role === "admin" ? ["admin"] : ["client", "student"];
+            if (role !== undefined && !allowedRoles.includes(role)) {
+                return res.status(403).json({
+                    success: false,
+                    message: targetUser.role === "admin"
+                        ? "Không thể đổi vai trò của admin."
+                        : "Bạn chỉ được đặt vai trò client hoặc student."
+                });
+            }
+            // Không tự đổi trạng thái của chính mình (tránh tự khoá tài khoản)
+            if (isSelf && status !== undefined && status !== targetUser.status) {
+                return res.status(403).json({ success: false, message: "Bạn không thể đổi trạng thái tài khoản của chính mình." });
+            }
         }
 
         if (name !== undefined) targetUser.name = String(name).trim();
@@ -591,18 +610,42 @@ router.post("/users/:id/update", async (req, res) => {
 // Cấp / thu hồi quyền sửa layout (chỉ admin default; đích phải là admin thuộc một user_key)
 router.post("/users/:id/layout-permission", requireDefaultAdmin, layoutController.setLayoutPermission);
 
-router.post("/users/:id/delete", requireDefaultAdmin, async (req, res) => {
+// Xoá user:
+//   - admin default : xoá bất kỳ user (kể cả user thuộc user_key), trừ chính mình
+//   - admin user_key: chỉ xoá user/admin thuộc ĐÚNG user_key của mình (không xoá chính mình)
+router.post("/users/:id/delete", async (req, res) => {
     try {
         const User = require("../models/User");
+        const actor = req.user;
+        const isDef = isDefaultAdmin(actor);
 
         if (!isValidId(req.params.id)) {
             return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
         }
-        if (String(req.params.id) === String(req.user._id)) {
+        if (String(req.params.id) === String(actor._id)) {
             return res.status(400).json({ success: false, message: "Không thể tự xoá tài khoản của chính mình." });
         }
 
-        const deleted = await User.findByIdAndDelete(req.params.id);
+        let deleted;
+        if (isDef) {
+            deleted = await User.findByIdAndDelete(req.params.id);
+        } else {
+            const scope = await userKeyService.buildUserListFilter(actor);
+            const target = await User.findOne({ $and: [{ _id: req.params.id }, scope] })
+                .select("role userKey")
+                .lean();
+            if (!target) {
+                return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
+            }
+            if (!target.userKey || String(target.userKey) !== String(actor.userKey)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Bạn chỉ được xoá user thuộc tổ chức của mình."
+                });
+            }
+            // Điều kiện lặp lại trong lệnh xoá để không xoá nhầm nếu user vừa bị đổi tổ chức
+            deleted = await User.findOneAndDelete({ _id: target._id, userKey: actor.userKey });
+        }
 
         if (!deleted) {
             return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });

@@ -224,7 +224,7 @@ async function getContentScope(req) {
  * Admin user_key: client/student cùng userKey + client pending chưa gán tổ chức.
  * Admin default: tất cả.
  */
-function buildUserListFilter(actor) {
+function buildUserListFilter(actor, { includeDefaultAdmins = false } = {}) {
     if (isDefaultAdmin(actor)) return {};
     if (isOrgAdmin(actor)) {
         // Lưu ý: filter này có $or ở TOP-LEVEL → caller phải gộp bằng $and
@@ -232,11 +232,13 @@ function buildUserListFilter(actor) {
         return {
             $or: [
                 // 1) user đã thuộc tổ chức của admin
-                { userKey: actor.userKey, role: { $in: ['client', 'student'] } },
+                { userKey: actor.userKey, role: { $in: ['client', 'student', 'admin'] } },
                 // 2) ★ client MỚI ĐĂNG KÝ, chưa ai duyệt, chưa gán tổ chức (userKey null/thiếu):
                 //    đăng ký không có mã tổ chức nên userKey = null (xem auth.controller verifyOtp);
                 //    admin user_key phải thấy để duyệt → duyệt = nhận về tổ chức của mình.
-                { userKey: null, role: 'client', status: 'pending' }
+                { userKey: null, role: 'client', status: 'pending' },
+                // 3) (chỉ khi includeDefaultAdmins) admin default: HIỂN THỊ để xem, KHÔNG được tác động
+                ...(includeDefaultAdmins ? [{ userKey: null, role: 'admin' }] : [])
             ]
         };
     }

@@ -7695,6 +7695,1626 @@ V[r] = e;
 
 
 
+
+
+
+
+
+<!-- SLIDE 82: THAO TÁC TRÊN MẢNG: CHÈN PHẦN TỬ VÀO MẢNG -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">THAO TÁC TRÊN MẢNG: CHÈN PHẦN TỬ VÀO MẢNG</h1>
+
+        <!-- Subtitle -->
+        <div style="font-size: 19px; font-weight: 700; color: #1e293b; margin-bottom: 30px;">
+            Chèn 99 vào vị trí 1: dồn từ cuối về, rồi mới ghi
+        </div>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start;">
+
+            <!-- Cột trái: Bảng minh họa các bước -->
+            <div style="flex: 1.15;">
+                
+                <!-- Hàng Ban đầu -->
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; position: relative;">
+                    <div style="width: 80px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">Ban đầu</div>
+                    
+                    <!-- Hand-drawn arrows simulation -->
+                    <div style="position: absolute; left: 110px; top: -25px; width: 240px; display: flex; justify-content: space-around;">
+                        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M 10 0 L 10 15 M 5 10 L 10 15 L 15 10" stroke="#64748b" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M 10 0 L 10 15 M 5 10 L 10 15 L 15 10" stroke="#64748b" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M 10 0 L 10 15 M 5 10 L 10 15 L 15 10" stroke="#64748b" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M 10 0 L 10 15 M 5 10 L 10 15 L 15 10" stroke="#64748b" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                    </div>
+
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">40</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff; margin-right: -1px;">&nbsp;</div>
+                    </div>
+                    <div style="font-size: 13.5px; color: #475569; font-family:'Cambria Math',serif;">n = 4, r = 1</div>
+                </div>
+
+                <!-- Hàng k=3 -->
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                    <div style="width: 80px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">k = 3</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">40</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 15px;">40</div>
+                    </div>
+                    <div style="font-size: 13.5px; color: #475569; font-family:'Cambria Math',serif;">V[4] = V[3]</div>
+                </div>
+
+                <!-- Hàng k=2 -->
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                    <div style="width: 80px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">k = 2</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px;">40</div>
+                    </div>
+                    <div style="font-size: 13.5px; color: #475569; font-family:'Cambria Math',serif;">V[3] = V[2]</div>
+                </div>
+
+                <!-- Hàng k=1 -->
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                    <div style="width: 80px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">k = 1</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px;">40</div>
+                    </div>
+                    <div style="font-size: 13.5px; color: #475569; font-family:'Cambria Math',serif;">V[2] = V[1]</div>
+                </div>
+
+                <!-- Hàng Ghi 99 -->
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 80px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">Ghi 99</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">99</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">20</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px; margin-right: -1px;">30</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 15px;">40</div>
+                    </div>
+                    <div style="font-size: 13.5px; color: #475569; font-family:'Cambria Math',serif;">V[1] = 99; n = 5</div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Code block và ghi chú -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 30px;">
+                <!-- Code block -->
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 18px 20px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.7; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#64748b;">// Chèn e vào vị trí r</span>
+<span style="color:#64748b;">// cần: 0 &lt;= r &lt;= n, n &lt; capacity</span>
+<span style="color:#be185d;">for</span> (<span style="color:#38bdf8;">int</span> k = n - 1; k &gt;= r; --k)
+    V[k + 1] = V[k];
+V[r] = e;
+++n;</pre>
+                </div>
+
+                <!-- Ghi chú -->
+                <div class="highlight-card" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                        Số phần tử phải dồn
+                    </div>
+                    <div style="font-family:'Cambria Math',serif; font-size: 18px; color: #1e293b; margin-bottom: 10px;">
+                        \(n - r = 4 - 1 = 3\)
+                    </div>
+                    <div style="font-size: 14.5px; color: #475569;">
+                        Xấu nhất \(r = 0\): dồn cả \(n\).
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>82</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+<!-- SLIDE 83: std::vector – ĐỌC VÀ GHI PHẦN TỬ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">std::vector – ĐỌC VÀ GHI PHẦN TỬ</h1>
+
+        <!-- Subtitle -->
+        <div style="font-size: 19px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+            Thêm cuối khi còn chỗ: ghi vào ô size, rồi tăng size
+        </div>
+
+        <!-- Code snippet -->
+        <div style="margin-bottom: 25px;">
+            <span style="font-family:'Courier New', Courier, monospace; font-size: 16px; color: #1e293b; font-weight: 700; background: #f1f5f9; padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                v.push_back(18);
+            </span>
+        </div>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 30px; align-items: flex-start;">
+
+            <!-- Cột trái: Mảng minh họa -->
+            <div style="flex: 1.4;">
+                
+                <!-- TRƯỚC -->
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 14.5px; font-weight: 700; color: #1e293b; margin-bottom: 10px;">
+                        Trước: size = 4, capacity = 7
+                    </div>
+
+                    <!-- Chỉ số -->
+                    <div style="display: flex; margin-bottom: 2px;">
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">0</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">1</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">2</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">3</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">4</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">5</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">6</div>
+                    </div>
+
+                    <!-- Các ô mảng trước -->
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">12</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">7</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">25</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">9</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff; margin-right: -1px;">&nbsp;</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff; margin-right: -1px;">&nbsp;</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff;">&nbsp;</div>
+                    </div>
+                </div>
+
+                <!-- Mũi tên chỉ xuống -->
+                <div style="display: flex; justify-content: center; margin-left: -250px; margin-bottom: 10px;">
+                    <svg width="24" height="30" viewBox="0 0 24 30">
+                        <line x1="12" y1="0" x2="12" y2="24" stroke="#d97706" stroke-width="3" />
+                        <polygon points="12,30 4,22 20,22" fill="#d97706" />
+                    </svg>
+                </div>
+
+                <!-- SAU -->
+                <div style="margin-top: 5px;">
+                    <div style="font-size: 14.5px; font-weight: 700; color: #1e293b; margin-bottom: 10px;">
+                        Sau: size = 5, capacity = 7
+                    </div>
+
+                    <!-- Chỉ số -->
+                    <div style="display: flex; margin-bottom: 2px;">
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">0</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">1</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">2</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">3</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">4</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">5</div>
+                        <div style="width: 60px; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">6</div>
+                    </div>
+
+                    <!-- Các ô mảng sau -->
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">12</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">7</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">25</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">9</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -1px;">18</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff; margin-right: -1px;">&nbsp;</div>
+                        <div style="width: 60px; height: 45px; line-height: 43px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff;">&nbsp;</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Ghi chú -->
+            <div style="flex: 1;">
+                <div class="highlight-card" style="background: #f1f5f9; padding: 22px 24px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+                        Hai việc
+                    </div>
+
+                    <div style="font-family:'Courier New',monospace; font-size: 15px; color: #1e40af; margin-bottom: 15px;">
+                        A[size] = 18
+                    </div>
+                    
+                    <div style="font-family:'Courier New',monospace; font-size: 15px; color: #1e40af; margin-bottom: 25px;">
+                        size = size + 1
+                    </div>
+
+                    <div style="font-size: 14.5px; color: #475569; line-height: 1.7; margin-bottom: 25px;">
+                        Không phần tử nào phải dời chỗ. Capacity giữ nguyên.
+                    </div>
+
+                    <div style="font-family:'Cambria Math',serif; font-size: 26px; font-weight: 700; color: #be185d;">
+                        O(1)
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>83</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 84: std::vector – ĐỌC VÀ GHI PHẦN TỬ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 15px;">std::vector – ĐỌC VÀ GHI PHẦN TỬ</h1>
+
+        <!-- Subtitle -->
+        <div style="font-size: 19px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+            Thêm cuối khi đã đầy: phải cấp phát lại
+        </div>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: stretch; margin-top: 10px;">
+
+            <!-- Cột trái: Hình minh họa -->
+            <div style="flex: 2;">
+
+                <!-- VÙNG CŨ -->
+                <div>
+                    <div style="font-size: 14.5px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
+                        Vùng cũ: size = capacity = 4
+                    </div>
+
+                    <!-- Chỉ số -->
+                    <div style="display: flex;">
+                        <div style="flex: 4; display: flex;">
+                            <div style="flex: 1; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">0</div>
+                            <div style="flex: 1; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">1</div>
+                            <div style="flex: 1; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">2</div>
+                            <div style="flex: 1; text-align: center; font-size: 14px; font-weight: 700; color: #1e293b;">3</div>
+                        </div>
+                        <div style="flex: 4;"></div>
+                    </div>
+
+                    <!-- Các ô mảng cũ -->
+                    <div style="display: flex; margin-top: 4px; align-items: center;">
+                        <div style="flex: 4; display: flex;">
+                            <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">12</div>
+                            <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">7</div>
+                            <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">25</div>
+                            <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px;">9</div>
+                        </div>
+                        <div style="flex: 4; padding-left: 12px; font-size: 15px; font-weight: 700; color: #9a3412;">đầy!</div>
+                    </div>
+                </div>
+
+                <!-- Hàng mũi tên + nhãn -->
+                <div style="display: flex; height: 90px;">
+                    <div style="flex: 4; display: flex;">
+                        <div style="flex: 1; text-align: center;">
+                            <svg width="14" height="90" viewBox="0 0 14 90"><line x1="7" y1="0" x2="7" y2="76" stroke="#475569" stroke-width="2" /><polygon points="7,90 2,76 12,76" fill="#475569" /></svg>
+                        </div>
+                        <div style="flex: 1; text-align: center;">
+                            <svg width="14" height="90" viewBox="0 0 14 90"><line x1="7" y1="0" x2="7" y2="76" stroke="#475569" stroke-width="2" /><polygon points="7,90 2,76 12,76" fill="#475569" /></svg>
+                        </div>
+                        <div style="flex: 1; text-align: center;">
+                            <svg width="14" height="90" viewBox="0 0 14 90"><line x1="7" y1="0" x2="7" y2="76" stroke="#475569" stroke-width="2" /><polygon points="7,90 2,76 12,76" fill="#475569" /></svg>
+                        </div>
+                        <div style="flex: 1; text-align: center;">
+                            <svg width="14" height="90" viewBox="0 0 14 90"><line x1="7" y1="0" x2="7" y2="76" stroke="#475569" stroke-width="2" /><polygon points="7,90 2,76 12,76" fill="#475569" /></svg>
+                        </div>
+                    </div>
+                    <div style="flex: 4; padding-left: 12px; display: flex; align-items: center; font-size: 14.5px; font-weight: 700; color: #475569;">
+                        chuyển 4 phần tử
+                    </div>
+                </div>
+
+                <!-- VÙNG MỚI -->
+                <div style="display: flex;">
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">12</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">7</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">25</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">9</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; line-height: 46px; text-align: center; border: 2px solid #d97706; background: #fde68a; color: #1e293b; font-weight: 700; font-size: 16px; margin-right: -2px;">18</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; border: 2px solid #94a3b8; background: #e2e8f0; margin-right: -2px;">&nbsp;</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; border: 2px solid #94a3b8; background: #e2e8f0; margin-right: -2px;">&nbsp;</div>
+                    <div style="flex: 1; box-sizing: border-box; height: 48px; border: 2px solid #94a3b8; background: #e2e8f0;">&nbsp;</div>
+                </div>
+
+                <!-- Nhãn vùng mới -->
+                <div style="font-size: 14.5px; font-weight: 700; color: #1e293b; margin-top: 8px;">
+                    Vùng mới: size = 5, capacity = 8
+                </div>
+
+            </div>
+
+            <!-- Cột phải: 4 bước -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 22px; padding-top: 0;">
+
+                <!-- Bước 1 -->
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div style="flex: 0 0 36px; height: 36px; border-radius: 50%; background: #475569; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">1</div>
+                    <div style="font-size: 14.5px; color: #1e293b; line-height: 1.4;">
+                        Cấp phát vùng mới<br>
+                        2 × 4 = 8 ô
+                    </div>
+                </div>
+
+                <!-- Bước 2 -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="flex: 0 0 36px; height: 36px; border-radius: 50%; background: #d97706; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">2</div>
+                    <div style="font-size: 14.5px; color: #1e293b;">
+                        Chuyển 4 phần tử cũ sang
+                    </div>
+                </div>
+
+                <!-- Bước 3 -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="flex: 0 0 36px; height: 36px; border-radius: 50%; background: #475569; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">3</div>
+                    <div style="font-size: 14.5px; color: #1e293b;">
+                        Giải phóng vùng cũ
+                    </div>
+                </div>
+
+                <!-- Bước 4 -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="flex: 0 0 36px; height: 36px; border-radius: 50%; background: #475569; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px;">4</div>
+                    <div style="font-size: 14.5px; color: #1e293b;">
+                        Ghi 18 vào ô 4, size = 5
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Ghi chú -->
+        <div class="highlight-card" style="background: #f1f5f9; padding: 14px 20px; border-radius: 8px; border: 1px solid #cbd5e1; margin-top: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 15px; color: #334155; line-height: 1.7;">
+                Vùng nhớ đổi địa chỉ &rarr; mọi con trỏ, tham chiếu, iterator vào vector cũ đều mất hiệu lực. <b>Chi phí: O(n).</b>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>84</span>
+    </div>
+</div>
+
+
+
+
+
+<!-- SLIDE 85: std::vector – ĐỌC VÀ GHI PHẦN TỬ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">std::vector – ĐỌC VÀ GHI PHẦN TỬ</h1>
+
+        <!-- Subtitle -->
+        <div style="font-size: 19px; font-weight: 700; color: #1e293b; margin-bottom: 25px;">
+            Chèn 10 vào vị trí 2: dịch từ cuối về, rồi mới ghi
+        </div>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start;">
+
+            <!-- Cột trái: Các bước dịch và chèn -->
+            <div style="flex: 1.35;">
+                
+                <!-- Hàng Ban đầu -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                    <div style="width: 70px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">Ban đầu</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">4</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">8</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">23</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px dashed #94a3b8; background: #ffffff; margin-right: -1px;">&nbsp;</div>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; font-family:'Cambria Math',serif;">n = 5, r = 2</div>
+                </div>
+
+                <!-- Hàng i=5 -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                    <div style="width: 70px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">i = 5</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">4</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">8</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">23</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 14px;">23</div>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; font-family:'Cambria Math',serif;">A[5] = A[4]</div>
+                </div>
+
+                <!-- Hàng i=4 -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                    <div style="width: 70px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">i = 4</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">4</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">8</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px;">23</div>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; font-family:'Cambria Math',serif;">A[4] = A[3]</div>
+                </div>
+
+                <!-- Hàng i=3 -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                    <div style="width: 70px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">i = 3</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">4</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">8</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px;">23</div>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; font-family:'Cambria Math',serif;">A[3] = A[2]</div>
+                </div>
+
+                <!-- Hàng Ghi 10 -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 70px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: right;">Ghi 10</div>
+                    <div style="display: flex;">
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">4</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">8</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 2px solid #d97706; background: #fef3c7; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">10</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">15</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px; margin-right: -1px;">16</div>
+                        <div style="width: 50px; height: 38px; line-height: 36px; text-align: center; border: 1.5px solid #1e293b; background: #bae6fd; color: #1e293b; font-weight: 700; font-size: 14px;">23</div>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; font-family:'Cambria Math',serif;">A[2] = 10; n = 6</div>
+                </div>
+
+                <!-- C++ Syntax -->
+                <div style="margin-top: 30px; font-size: 15px; color: #1e293b; font-family:'Courier New',monospace;">
+                    <b>Trong C++:</b> <span style="color: #1e40af;">v.insert(v.begin() + r, x);</span>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Code block + Ghi chú -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 25px;">
+
+                <!-- Code block -->
+                <div class="highlight-card" style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px 20px; font-family: 'Courier New', Courier, monospace; font-size: 12.5px; line-height: 1.75; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#fcd34d;">INSERT(r, x)</span>
+    <span style="color:#64748b;">kiểm tra 0 &lt;= r &lt;= n</span>
+    <span style="color:#64748b;">nếu đầy: mở rộng vùng nhớ</span>
+    <span style="color:#be185d;">for</span> i = n <span style="color:#be185d;">downto</span> r+1:
+        A[i] = A[i-1]
+    A[r] = x
+    n = n + 1</pre>
+                </div>
+
+                <!-- Ghi chú -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 18px 20px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 15.5px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
+                        Số phần tử phải dịch
+                    </div>
+                    <div style="font-family:'Cambria Math',serif; font-size: 17px; color: #1e293b; margin-bottom: 10px;">
+                        \(n - r = 5 - 2 = 3\)
+                    </div>
+                    <div style="font-size: 14px; color: #475569; line-height: 1.6;">
+                        Xấu nhất \(r = 0\): dịch cả \(n\) &rarr; O(n)
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>85</span>
+    </div>
+</div>
+
+
+
+
+<!-- SLIDE 86: Title Slide - Chương 07 -->
+<div class="slide-container" style="height: 750px; padding: 0; overflow: hidden; border-radius: 8px;">
+    <div style="display: flex; flex-direction: column; height: 100%;">
+        
+        <!-- Phần trên: Nền tối, chữ sáng -->
+        <div style="flex: 0 0 55%; background: #7c8aa5; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;">
+            <div style="font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: 1.5px; margin-bottom: 15px;">
+                CHƯƠNG 07:
+            </div>
+            <h1 style="font-size: 44px; font-weight: 900; color: #fef08a; margin: 0 0 20px 0; letter-spacing: 1px; line-height: 1.2; text-transform: uppercase;">
+                DANH SÁCH LIÊN KẾT
+            </h1>
+            <div style="font-size: 22px; font-weight: 700; color: #fef08a; letter-spacing: 1px;">
+                (LINKED LIST)
+            </div>
+        </div>
+
+        <!-- Phần dưới: Nền sáng, chữ tối -->
+        <div style="flex: 1; background: #e2efdf; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;">
+
+            <!-- Logo -->
+            <div style="margin-bottom: 20px;">
+                <img src="../../../../luyen-thi-cntt-utc-mnha/public/images/logo.png"
+                    alt="Logo trường"
+                    style="width: 200px; height: 200px; object-fit: contain;">
+            </div>
+
+            <div style="font-size: 20px; font-weight: 800; color: #be123c; margin-bottom: 5px;">
+                TS. Lê Huy
+            </div>
+            <div style="font-size: 15px; font-weight: 600; color: #be123c; margin-bottom: 15px;">
+                (lehuydip@gmail.com)
+            </div>
+            <div style="font-size: 17px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">
+                Khoa Công nghệ Thông tin
+            </div>
+            <div style="font-size: 17px; font-weight: 700; color: #1e3a8a;">
+                Trường Đại học Giao thông vận tải
+            </div>
+
+            <div style="font-size: 15px; font-weight: 600; color: #1e3a8a; margin-top: 25px;">
+                2026
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 87: VECTOR: CHÈN Ở ĐẦU PHẢI DỒN TẤT CẢ -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 20px;">VECTOR: CHÈN Ở ĐẦU PHẢI DỒN TẤT CẢ</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 30px; align-items: flex-start; margin-top: 15px;">
+            
+            <!-- Cột trái: Hình ảnh minh họa và thông tin -->
+            <div style="flex: 1.1;">
+                <!-- Code snippet -->
+                <div style="font-family: 'Courier New', Courier, monospace; font-size: 16px; color: #1e293b; margin-bottom: 20px; background: #f1f5f9; padding: 6px 12px; border-radius: 6px; display: inline-block;">
+                    v.insert(v.begin(), 8)
+                </div>
+
+                <!-- Mảng trước khi chèn -->
+                <div style="display: flex; margin-bottom: 20px;">
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">7</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">3</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">9</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">1</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">5</div>
+                    
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; margin-right: -1px;"></div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; margin-right: -1px;"></div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b;"></div>
+                </div>
+
+                <!-- Mũi tên chỉ xuống -->
+                <div style="margin-bottom: 20px; margin-left: 80px;">
+                    <svg width="40" height="60" viewBox="0 0 40 60">
+                        <polygon points="12,0 28,0 28,35 40,35 20,60 0,35 12,35" fill="#c2410c" />
+                    </svg>
+                </div>
+
+                <!-- Mảng sau khi chèn -->
+                <div style="display: flex; margin-bottom: 30px;">
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #ef4444; color: #ffffff; font-weight: 700; margin-right: -1px;">8</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">7</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">3</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">9</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">1</div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; background: #94a3b8; color: #ffffff; font-weight: 700; margin-right: -1px;">5</div>
+                    
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b; margin-right: -1px;"></div>
+                    <div style="width: 45px; height: 35px; line-height: 33px; text-align: center; border: 1px solid #1e293b;"></div>
+                </div>
+
+                <!-- Text chú thích -->
+                <div style="font-size: 16px; font-weight: 700; color: #334155; margin-bottom: 15px;">
+                    Cả 5 phần tử cũ phải lùi một ô.
+                </div>
+
+                <!-- Thời gian -->
+                <div style="font-size: 32px; font-weight: 800; color: #475569; margin-bottom: 10px;">
+                    340 - 380 ms
+                </div>
+                <div style="font-size: 15.5px; color: #334155;">
+                    để chèn \(10^5\) số int vào đầu một std::vector
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Ghi chú -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 20px; padding-top: 10px;">
+                
+                <!-- Hộp "Hai cái giá..." -->
+                <div class="highlight-card" style="background: #f1f5f9; padding: 20px 24px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="font-size: 16.5px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                        Hai cái giá của bộ nhớ liền nhau
+                    </div>
+                    
+                    <ul style="margin: 0; padding-left: 20px; font-size: 15px; color: #334155; line-height: 1.7; list-style-type: disc;">
+                        <li style="margin-bottom: 10px;">
+                            Chèn, xóa ở hạng r: dồn \(n - r\) phần tử, \(O(n)\)
+                        </li>
+                        <li>
+                            Mở rộng: chép toàn bộ sang vùng nhớ mới, mọi iterator vô hiệu
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Nguyên nhân -->
+                <div style="font-size: 15.5px; font-weight: 700; color: #9a3412; line-height: 1.7; margin-top: 10px;">
+                    Nguyên nhân: thứ tự của phần tử gắn chặt với vị trí của nó trong bộ nhớ.
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>87</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+<!-- SLIDE 88: NÚT VÀ LIÊN KẾT -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 30px;">NÚT VÀ LIÊN KẾT</h1>
+
+        <!-- Nội dung 1: Vector -->
+        <div style="margin-bottom: 40px;">
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 15px;">
+                Vector: các phần tử nằm liền nhau
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 40px;">
+                <!-- Hình mảng Vector: một thanh liền, không viền giữa các ô -->
+                <div>
+                    <div style="display: flex; background: #3f6b6b; border: 2px solid #1e293b;">
+                        <div style="width: 70px; height: 40px; line-height: 40px; text-align: center; color: #ffffff; font-weight: 700; font-size: 18px;">7</div>
+                        <div style="width: 70px; height: 40px; line-height: 40px; text-align: center; color: #ffffff; font-weight: 700; font-size: 18px;">3</div>
+                        <div style="width: 70px; height: 40px; line-height: 40px; text-align: center; color: #ffffff; font-weight: 700; font-size: 18px;">9</div>
+                        <div style="width: 70px; height: 40px; line-height: 40px; text-align: center; color: #ffffff; font-weight: 700; font-size: 18px;">1</div>
+                    </div>
+                    <!-- Địa chỉ -->
+                    <div style="display: flex; margin-top: 8px;">
+                        <div style="width: 70px; text-align: center; font-size: 17px; font-weight: 700; color: #334155; font-family: Arial, sans-serif;">1000</div>
+                        <div style="width: 70px; text-align: center; font-size: 17px; font-weight: 700; color: #334155; font-family: Arial, sans-serif;">1004</div>
+                        <div style="width: 70px; text-align: center; font-size: 17px; font-weight: 700; color: #334155; font-family: Arial, sans-serif;">1008</div>
+                        <div style="width: 70px; text-align: center; font-size: 17px; font-weight: 700; color: #334155; font-family: Arial, sans-serif;">1012</div>
+                    </div>
+                </div>
+
+                <!-- Chú thích -->
+                <div style="font-size: 18px; font-weight: 600; color: #7e22ce; font-family: 'Cambria Math', serif;">
+                    Thứ tự = vị trí trong bộ nhớ
+                </div>
+            </div>
+        </div>
+
+        <!-- Nội dung 2: Danh sách liên kết -->
+        <div>
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+                Danh sách liên kết: các nút nằm rải rác, nối bằng con trỏ
+            </div>
+
+            <div style="display: flex; align-items: flex-end; gap: 40px;">
+                <!-- Hình minh họa Linked List (SVG) -->
+                <div>
+                    <svg width="460" height="170" viewBox="0 0 460 170" style="overflow: visible;">
+                        <!-- head -->
+                        <text x="20" y="22" font-size="18" font-weight="700" fill="#1e293b" font-family="Arial, sans-serif">head</text>
+                        <!-- Mũi tên head -->
+                        <line x1="36" y1="35" x2="36" y2="84" stroke="#1e293b" stroke-width="4" />
+                        <polygon points="36,100 26,82 46,82" fill="#1e293b" />
+
+                        <!-- Các nút: phần giá trị (xám xanh) + phần con trỏ (trắng) -->
+                        <g stroke="#1e293b" stroke-width="2.5">
+                            <!-- Nút 1 -->
+                            <rect x="10" y="105" width="45" height="45" fill="#3f6b6b" />
+                            <rect x="55" y="105" width="35" height="45" fill="#ffffff" />
+                            <!-- Nút 2 -->
+                            <rect x="125" y="105" width="45" height="45" fill="#3f6b6b" />
+                            <rect x="170" y="105" width="35" height="45" fill="#ffffff" />
+                            <!-- Nút 3 -->
+                            <rect x="240" y="105" width="45" height="45" fill="#3f6b6b" />
+                            <rect x="285" y="105" width="35" height="45" fill="#ffffff" />
+                            <!-- Nút 4 -->
+                            <rect x="355" y="105" width="45" height="45" fill="#3f6b6b" />
+                            <rect x="400" y="105" width="35" height="45" fill="#ffffff" />
+                        </g>
+
+                        <!-- Giá trị -->
+                        <g font-size="20" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">
+                            <text x="32" y="135">7</text>
+                            <text x="147" y="135">3</text>
+                            <text x="262" y="135">9</text>
+                            <text x="377" y="135">1</text>
+                        </g>
+
+                        <!-- Chấm con trỏ -->
+                        <g fill="#1e293b">
+                            <circle cx="72" cy="127" r="4" />
+                            <circle cx="187" cy="127" r="4" />
+                            <circle cx="302" cy="127" r="4" />
+                        </g>
+
+                        <!-- Mũi tên nối -->
+                        <g stroke="#1e293b" stroke-width="2.5" fill="none">
+                            <line x1="72" y1="127" x2="112" y2="127" />
+                            <line x1="187" y1="127" x2="227" y2="127" />
+                            <line x1="302" y1="127" x2="342" y2="127" />
+                        </g>
+                        <g fill="#1e293b">
+                            <polygon points="124,127 110,120 110,134" />
+                            <polygon points="239,127 225,120 225,134" />
+                            <polygon points="354,127 340,120 340,134" />
+                        </g>
+
+                        <!-- Dấu / ở nút cuối -->
+                        <line x1="410" y1="145" x2="425" y2="110" stroke="#1e293b" stroke-width="2.5" />
+
+                        <!-- Địa chỉ -->
+                        <g font-size="17" font-weight="700" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">
+                            <text x="40" y="180">2048</text>
+                            <text x="155" y="180">1040</text>
+                            <text x="270" y="180">3104</text>
+                            <text x="385" y="180">1560</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Chú thích -->
+                <div style="font-size: 18px; font-weight: 600; color: #7e22ce; font-family: 'Cambria Math', serif; margin-bottom: 40px;">
+                    Thứ tự = chuỗi liên kết
+                </div>
+            </div>
+            
+            <!-- Đoạn văn dưới cùng -->
+            <div style="margin-top: 35px; font-size: 16px; font-weight: 600; color: #334155; padding-left: 10px;">
+                Mỗi nút giữ một phần tử và địa chỉ của nút kế tiếp. Dấu / ở nút cuối là nullptr.
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>88</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 89: NÚT -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">NÚT</h1>
+
+        <!-- Phần 1: Theo thứ tự danh sách -->
+        <div style="margin-bottom: 40px;">
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+                Theo thứ tự của danh sách: 7, 3, 9, 1
+            </div>
+
+            <div style="display: flex; align-items: flex-start; justify-content: center; gap: 0;">
+                <!-- Biến head -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">biến</div>
+                    <div style="border: 2.5px solid #1e293b; width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; text-align: center; font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; color: #b45309; background: #ffffff;">
+                        2048
+                    </div>
+                </div>
+
+                <!-- Mũi tên -->
+                <svg width="50" height="20" viewBox="0 0 50 20" style="margin-top: 31px;">
+                    <line x1="4" y1="10" x2="36" y2="10" stroke="#1e293b" stroke-width="2.5" />
+                    <polygon points="48,10 34,3 34,17" fill="#1e293b" />
+                </svg>
+
+                <!-- Nút 1 (2048) -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 2048</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">7</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">1040</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Mũi tên -->
+                <svg width="50" height="20" viewBox="0 0 50 20" style="margin-top: 31px;">
+                    <line x1="4" y1="10" x2="36" y2="10" stroke="#1e293b" stroke-width="2.5" />
+                    <polygon points="48,10 34,3 34,17" fill="#1e293b" />
+                </svg>
+
+                <!-- Nút 2 (1040) -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 1040</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">3</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">3104</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Mũi tên -->
+                <svg width="50" height="20" viewBox="0 0 50 20" style="margin-top: 31px;">
+                    <line x1="4" y1="10" x2="36" y2="10" stroke="#1e293b" stroke-width="2.5" />
+                    <polygon points="48,10 34,3 34,17" fill="#1e293b" />
+                </svg>
+
+                <!-- Nút 3 (3104) -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 3104</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">9</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">1560</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Mũi tên -->
+                <svg width="50" height="20" viewBox="0 0 50 20" style="margin-top: 31px;">
+                    <line x1="4" y1="10" x2="36" y2="10" stroke="#1e293b" stroke-width="2.5" />
+                    <polygon points="48,10 34,3 34,17" fill="#1e293b" />
+                </svg>
+
+                <!-- Nút 4 (1560) -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 1560</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">1</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #1e293b; text-align: center; font-weight: 700; font-size: 17px;">nullptr</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phần 2: Xếp theo địa chỉ bộ nhớ -->
+        <div>
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">
+                Cũng bốn nút đó, xếp theo địa chỉ trong bộ nhớ
+            </div>
+
+            <div style="display: flex; align-items: flex-start; justify-content: center; gap: 40px;">
+                <!-- Nút 1040 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 1040</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">3</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">3104</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Nút 1560 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 1560</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">1</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #1e293b; text-align: center; font-weight: 700; font-size: 17px;">nullptr</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Nút 2048 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 2048</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">7</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">1040</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+
+                <!-- Nút 3104 -->
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">địa chỉ 3104</div>
+                    <div style="display: flex;">
+                        <div style="width: 60px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; background: #3f6b6b; color: #ffffff; text-align: center; font-weight: 700; font-size: 18px;">9</div>
+                        <div style="width: 80px; height: 44px; line-height: 40px; box-sizing: border-box; border: 2.5px solid #1e293b; border-left: none; background: #ffffff; color: #b45309; text-align: center; font-weight: 700; font-size: 18px;">1560</div>
+                    </div>
+                    <div style="display: flex; font-size: 16px; margin-top: 4px; color: #334155; font-weight: 600; width: 140px;">
+                        <div style="width: 60px; text-align: center;">elem</div>
+                        <div style="width: 80px; text-align: center;">next</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>89</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 90: Danh sách liên kết đơn -->
+<div class="slide-container" style="height: 750px; background-color: #7c93a1; display: flex; flex-direction: column; justify-content: space-between; border-radius: 8px;">
+    <div style="display: flex; flex: 1; align-items: center; padding: 0 40px;">
+        
+        <!-- Số 02 -->
+        <div style="font-size: 120px; font-weight: 900; color: #fef08a; line-height: 1; margin-right: 50px; margin-top: -20px;">
+            02
+        </div>
+
+        <!-- Nội dung chữ -->
+        <div style="display: flex; flex-direction: column; color: #ffffff; margin-top: -10px;">
+            
+            <h1 style="font-size: 42px; font-weight: 800; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                DANH SÁCH LIÊN KẾT ĐƠN
+            </h1>
+            
+            <div style="font-size: 22px; font-weight: 600; color: #fef08a; margin-bottom: 25px;">
+                (Singly Liked List)
+            </div>
+            
+            <div style="font-size: 20px; line-height: 1.8; font-weight: 400;">
+                <p style="margin: 0 0 5px 0;">Mỗi nút biết nút đứng sau nó,</p>
+                <p style="margin: 0;">Danh sách giữ hai con trỏ: head và tail</p>
+            </div>
+            
+            <div style="font-size: 15px; margin-top: 40px; color: #f1f5f9;">
+                Khai báo, duyệt, thêm, xóa ở đầu, cuối và sau một nút
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:rgba(255,255,255,0.6); padding: 10px 40px; border-top: 1px solid rgba(255,255,255,0.2);">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>90</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 91: DANH SÁCH LIÊN KẾT ĐƠN -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">DANH SÁCH LIÊN KẾT ĐƠN</h1>
+
+        <!-- Nội dung text -->
+        <div style="font-size: 16.5px; color: #1e293b; line-height: 1.8; padding-left: 10px;">
+            <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 15px;">
+                    Mỗi phần tử của danh sách liên kết đơn, gọi là một node, gồm hai phần: <b>data</b> là dữ liệu, và <b>next pointer</b> là con trỏ trỏ tới node kế tiếp.
+                </li>
+                <li style="margin-bottom: 15px;">
+                    Chữ “đơn” có nghĩa là mỗi node chỉ có một con trỏ, chỉ đi được một chiều, từ trước ra sau.
+                </li>
+                <li>
+                    <b>Next pointer</b> trỏ tới <b style="color: #9a3412;">NULL</b> thì có nghĩa là node đó là node cuối cùng
+                </li>
+            </ul>
+        </div>
+
+        <!-- Hình vẽ minh họa -->
+        <div style="display: flex; justify-content: center; align-items: flex-end; margin-top: 30px;">
+            <svg width="100%" height="230" viewBox="0 0 750 230" style="overflow: visible; max-width: 800px; font-family: Arial, sans-serif;">
+                <!-- Head -->
+                <text x="130" y="30" font-size="18" font-weight="700" fill="#9f1239" text-anchor="middle">Head</text>
+                <line x1="130" y1="45" x2="130" y2="85" stroke="#1e293b" stroke-width="3.5" />
+                <polygon points="130,102 120,84 140,84" fill="#1e293b" />
+
+                <!-- Tail -->
+                <text x="560" y="34" font-size="18" font-weight="700" fill="#9f1239" text-anchor="middle">Tail</text>
+                <line x1="560" y1="50" x2="560" y2="90" stroke="#1e293b" stroke-width="3.5" />
+                <polygon points="560,107 550,89 570,89" fill="#1e293b" />
+
+                <!-- Node 1 -->
+                <rect x="40" y="110" width="200" height="85" fill="#bbf7d0" stroke="#166534" stroke-width="2.5" />
+                <line x1="150" y1="110" x2="150" y2="195" stroke="#166534" stroke-width="2.5" />
+                <text x="95" y="162" font-size="26" font-weight="700" fill="#1e293b" text-anchor="middle">10</text>
+                <circle cx="200" cy="152" r="20" fill="#16a34a" stroke="#166534" stroke-width="1.5" />
+
+                <!-- Node 2 -->
+                <rect x="300" y="110" width="200" height="85" fill="#bbf7d0" stroke="#166534" stroke-width="2.5" />
+                <line x1="410" y1="110" x2="410" y2="195" stroke="#166534" stroke-width="2.5" />
+                <text x="355" y="162" font-size="26" font-weight="700" fill="#1e293b" text-anchor="middle">20</text>
+                <circle cx="460" cy="152" r="20" fill="#16a34a" stroke="#166534" stroke-width="1.5" />
+
+                <!-- Node 3 -->
+                <rect x="560" y="115" width="140" height="85" fill="#bbf7d0" stroke="#166534" stroke-width="2.5" />
+                <line x1="640" y1="115" x2="640" y2="200" stroke="#166534" stroke-width="2.5" />
+                <text x="600" y="167" font-size="26" font-weight="700" fill="#1e293b" text-anchor="middle">30</text>
+                <circle cx="670" cy="157" r="20" fill="#16a34a" stroke="#166534" stroke-width="1.5" />
+
+                <!-- Mũi tên nối -->
+                <g stroke="#1e293b" stroke-width="2.5">
+                    <line x1="200" y1="152" x2="290" y2="152" />
+                    <line x1="460" y1="152" x2="550" y2="152" />
+                </g>
+                <polygon points="300,152 286,145 286,159" fill="#1e293b" />
+                <polygon points="560,152 546,145 546,159" fill="#1e293b" />
+
+                <!-- Nhãn dưới node -->
+                <g font-size="19" font-weight="700" fill="#334155" text-anchor="middle">
+                    <text x="140" y="228">Node</text>
+                    <text x="400" y="228">Node</text>
+                    <text x="630" y="232">Node</text>
+                </g>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>91</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+<!-- SLIDE 92: DUYỆT: ĐI THEO LIÊN KẾT -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">DUYỆT: ĐI THEO LIÊN KẾT</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Hình vẽ minh họa và code for -->
+            <div style="flex: 1.1; display: flex; flex-direction: column; gap: 20px;">
+
+                <!-- Hình minh họa Linked List -->
+                <svg width="100%" height="190" viewBox="0 0 520 190" style="overflow: visible; font-family: Arial, sans-serif;">
+                    <!-- head (nét vẽ tay quanh chữ) -->
+                    <path d="M 20 40 L 55 20 L 190 20 L 190 62 L 62 62 Z" fill="none" stroke="#92400e" stroke-width="2" stroke-linejoin="round" />
+                    <text x="75" y="52" font-size="22" font-weight="700" fill="#1e293b">head</text>
+                    <line x1="85" y1="68" x2="85" y2="120" stroke="#1e293b" stroke-width="3.5" />
+                    <polygon points="85,138 75,118 95,118" fill="#1e293b" />
+
+                    <!-- p -->
+                    <text x="320" y="45" font-size="26" font-weight="700" fill="#9a3412" text-anchor="middle">p</text>
+                    <line x1="320" y1="62" x2="320" y2="112" stroke="#9a3412" stroke-width="3.5" />
+                    <polygon points="320,136 310,114 330,114" fill="#9a3412" />
+
+                    <!-- Nút 1 -->
+                    <rect x="40" y="145" width="55" height="42" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                    <rect x="95" y="145" width="40" height="42" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                    <text x="67" y="175" font-size="22" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
+                    <circle cx="115" cy="166" r="4.5" fill="#1e293b" />
+
+                    <!-- Nút 2 -->
+                    <rect x="170" y="145" width="55" height="42" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                    <rect x="225" y="145" width="40" height="42" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                    <text x="197" y="175" font-size="22" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+                    <circle cx="245" cy="166" r="4.5" fill="#1e293b" />
+
+                    <!-- Nút 3 (p trỏ vào) -->
+                    <rect x="300" y="145" width="55" height="42" fill="#c2410c" stroke="#1e293b" stroke-width="2.5" />
+                    <rect x="355" y="145" width="40" height="42" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                    <text x="327" y="175" font-size="22" font-weight="700" fill="#ffffff" text-anchor="middle">9</text>
+                    <circle cx="375" cy="166" r="4.5" fill="#1e293b" />
+
+                    <!-- Nút 4 -->
+                    <rect x="430" y="145" width="55" height="42" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                    <rect x="485" y="145" width="35" height="42" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                    <text x="457" y="175" font-size="22" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+                    <line x1="495" y1="182" x2="510" y2="150" stroke="#1e293b" stroke-width="2.5" />
+
+                    <!-- Mũi tên nối -->
+                    <g stroke="#1e293b" stroke-width="2.5">
+                        <line x1="115" y1="166" x2="158" y2="166" />
+                        <line x1="245" y1="166" x2="288" y2="166" />
+                        <line x1="375" y1="166" x2="418" y2="166" />
+                    </g>
+                    <g fill="#1e293b">
+                        <polygon points="170,166 156,159 156,173" />
+                        <polygon points="300,166 286,159 286,173" />
+                        <polygon points="430,166 416,159 416,173" />
+                    </g>
+                </svg>
+
+                <!-- Text mô tả -->
+                <div style="font-size: 15.5px; color: #1e293b; line-height: 1.7; font-weight: 500;">
+                    Con trỏ p lần lượt đứng ở từng nút,<br>
+                    cho tới khi p = nullptr.
+                </div>
+
+                <!-- Code block 1 (khoanh nét vẽ tay) -->
+                <div style="background: #475569; border: 3px solid #92400e; border-radius: 14px; padding: 14px 18px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.6; color: #f8fafc;">
+<pre style="margin: 0;">
+<span style="color:#fda4af;">for</span> (<span style="color:#38bdf8;">Node&lt;T&gt;</span>* p = head; p != <span style="color:#f59e0b;">nullptr</span>;
+    p = p-&gt;next)
+    cout &lt;&lt; p-&gt;elem &lt;&lt; <span style="color:#86efac;">' '</span>;</pre>
+                </div>
+
+            </div>
+
+            <!-- Cột phải: Code block node_at và ghi chú -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+
+                <!-- Code block 2 -->
+                <div class="highlight-card" style="background: #475569; border: 1px solid #334155; padding: 20px 24px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.65; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#38bdf8;">Node&lt;T&gt;</span>* node_at(size_t i) {  <span style="color:#64748b;">// nút thứ i</span>
+    <span style="color:#38bdf8;">Node&lt;T&gt;</span>* p = head;
+    <span style="color:#be185d;">while</span> (i &gt; <span style="color:#f59e0b;">0</span> &amp;&amp; p != <span style="color:#f59e0b;">nullptr</span>) {
+        p = p-&gt;next;
+        --i;
+    }
+    <span style="color:#be185d;">return</span> p;
+}</pre>
+                </div>
+
+                <!-- Ghi chú -->
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
+                    <div style="font-size: 16px; font-weight: 700; color: #9a3412; line-height: 1.6;">
+                        Tới nút thứ i phải đi qua i liên kết: O(n).
+                    </div>
+                    <div style="font-size: 15.5px; color: #1e293b; line-height: 1.6; font-weight: 500;">
+                        Không có công thức địa chỉ, nên<br>
+                        không có toán tử [].
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>92</span>
+    </div>
+</div>
+
+
+
+
+
+
+
+<!-- SLIDE 93: PUSH_FRONT: THÊM VÀO ĐẦU -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">PUSH_FRONT: THÊM VÀO ĐẦU</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Hình vẽ minh họa -->
+            <div style="flex: 1.2; display: flex; flex-direction: column; gap: 10px;">
+
+                <!-- TRƯỚC -->
+                <div>
+                    <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">Trước</div>
+                    <svg width="100%" height="170" viewBox="0 0 460 170" style="overflow: visible; font-family: Arial, sans-serif;">
+                        <!-- head -->
+                        <g transform="translate(-20, 0)">
+                            <text x="105" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">head</text>
+                            <line x1="105" y1="45" x2="105" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                            <polygon points="105,118 95,93 115,93" fill="#1e293b" />
+                        </g>
+
+                        <!-- tail -->
+                        <g transform="translate(30, 0)">
+                            <text x="345" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">tail</text>
+                            <line x1="345" y1="45" x2="345" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                            <polygon points="345,118 335,93 355,93" fill="#1e293b" />
+                        </g>
+
+                        <!-- Nút A -->
+                        <rect x="60" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="115" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="87" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+                        <circle cx="134" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút B -->
+                        <rect x="203" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="258" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="230" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">B</text>
+                        <circle cx="277" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút C -->
+                        <rect x="346" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="401" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="373" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">C</text>
+                        <line x1="412" y1="162" x2="428" y2="128" stroke="#1e293b" stroke-width="2.5" />
+
+                        <!-- Mũi tên nối -->
+                        <g stroke="#1e293b" stroke-width="2.5">
+                            <line x1="134" y1="145" x2="192" y2="145" />
+                            <line x1="277" y1="145" x2="335" y2="145" />
+                        </g>
+                        <g fill="#1e293b">
+                            <polygon points="203,145 189,138 189,152" />
+                            <polygon points="346,145 332,138 332,152" />
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- SAU -->
+                <div>
+                    <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">Sau</div>
+                    <svg width="100%" height="170" viewBox="0 0 520 170" style="overflow: visible; font-family: Arial, sans-serif;">
+                        <!-- head -->
+                        <g transform="translate(-15, 0)">
+                            <text x="60" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">head</text>
+                            <line x1="60" y1="45" x2="60" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                            <polygon points="60,118 50,93 70,93" fill="#1e293b" />
+                        </g>
+
+                        <!-- tail -->
+                        <g transform="translate(40, 0)">
+                            <text x="410" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">tail</text>
+                            <line x1="410" y1="45" x2="410" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                            <polygon points="410,118 400,93 420,93" fill="#1e293b" />
+                        </g>
+
+                        <!-- Nút X (mới) -->
+                        <rect x="15" y="122" width="55" height="46" fill="#c2543f" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="70" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="42" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">X</text>
+                        <circle cx="89" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút A -->
+                        <rect x="150" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="205" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="177" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+                        <circle cx="224" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút B -->
+                        <rect x="285" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="340" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="312" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">B</text>
+                        <circle cx="359" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút C -->
+                        <rect x="420" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="475" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="447" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">C</text>
+                        <line x1="486" y1="162" x2="502" y2="128" stroke="#1e293b" stroke-width="2.5" />
+
+                        <!-- Mũi tên nối -->
+                        <g stroke="#1e293b" stroke-width="2.5">
+                            <line x1="89" y1="145" x2="138" y2="145" />
+                            <line x1="224" y1="145" x2="273" y2="145" />
+                            <line x1="359" y1="145" x2="408" y2="145" />
+                        </g>
+                        <g fill="#1e293b">
+                            <polygon points="150,145 136,138 136,152" />
+                            <polygon points="285,145 271,138 271,152" />
+                            <polygon points="420,145 406,138 406,152" />
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Text ghi chú dưới cùng -->
+                <div style="margin-top: 15px; font-size: 16px; font-weight: 700; color: #9a3412; line-height: 1.6;">
+                    Không phần tử nào phải dồn, dù danh sách dài bao nhiêu.
+                </div>
+            </div>
+
+            <!-- Cột phải: Code và giải thích -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+
+                <!-- Code block -->
+                <div class="highlight-card" style="background: #475569; border: 1px solid #334155; padding: 20px 24px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 13.5px; line-height: 1.65; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#38bdf8;">void</span> <span style="color:#fcd34d;">push_front</span>(<span style="color:#be185d;">const</span> T&amp; e) {
+    <span style="color:#38bdf8;">Node&lt;T&gt;</span>* q = <span style="color:#be185d;">new</span> <span style="color:#38bdf8;">Node&lt;T&gt;</span>{e, head};
+<span style="color:#64748b;">// 1</span>
+    head = q;
+<span style="color:#64748b;">// 2</span>
+    <span style="color:#be185d;">if</span> (tail == <span style="color:#f59e0b;">nullptr</span>) tail = q;
+    ++n;
+}</pre>
+                </div>
+
+                <!-- Bullet points -->
+                <div style="font-size: 15px; color: #1e293b; line-height: 1.7;">
+                    <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                        <li style="margin-bottom: 8px;">
+                            <b>Bước 1:</b> nút mới trỏ vào nút đầu cũ
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            <b>Bước 2:</b> head chuyển sang nút mới
+                        </li>
+                        <li>
+                            Danh sách vốn rỗng: tail cũng trỏ vào nút mới
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>93</span>
+    </div>
+</div>
+
+
+
+
+
+
+<!-- SLIDE 94: PUSH_BACK: THÊM VÀO CUỐI -->
+<div class="slide-container" style="height: 750px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+        <!-- Header -->
+        <div class="top-tag">CHƯƠNG 06: MẢNG VÀ VECTOR</div>
+        <h1 class="slide-title" style="margin-bottom: 25px;">PUSH_BACK: THÊM VÀO CUỐI</h1>
+
+        <!-- Nội dung chính: 2 cột -->
+        <div style="display: flex; gap: 25px; align-items: flex-start; margin-top: 10px;">
+
+            <!-- Cột trái: Hình vẽ minh họa -->
+            <div style="flex: 1.2; display: flex; flex-direction: column; gap: 10px;">
+
+                <!-- TRƯỚC -->
+                <div>
+                    <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">Trước</div>
+                    <svg width="100%" height="170" viewBox="0 0 460 170" style="overflow: visible; font-family: Arial, sans-serif;">
+                        <!-- head -->
+                        <text x="87" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">head</text>
+                        <line x1="87" y1="45" x2="87" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                        <polygon points="87,118 77,93 97,93" fill="#1e293b" />
+
+                        <!-- tail -->
+                        <text x="373" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">tail</text>
+                        <line x1="373" y1="45" x2="373" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                        <polygon points="373,118 363,93 383,93" fill="#1e293b" />
+
+                        <!-- Nút A -->
+                        <rect x="60" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="115" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="87" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+                        <circle cx="134" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút B -->
+                        <rect x="203" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="258" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="230" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">B</text>
+                        <circle cx="277" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút C -->
+                        <rect x="346" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="401" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="373" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">C</text>
+                        <line x1="412" y1="162" x2="428" y2="128" stroke="#1e293b" stroke-width="2.5" />
+
+                        <!-- Mũi tên nối -->
+                        <g stroke="#1e293b" stroke-width="2.5">
+                            <line x1="134" y1="145" x2="192" y2="145" />
+                            <line x1="277" y1="145" x2="335" y2="145" />
+                        </g>
+                        <g fill="#1e293b">
+                            <polygon points="203,145 189,138 189,152" />
+                            <polygon points="346,145 332,138 332,152" />
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- SAU -->
+                <div>
+                    <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">Sau</div>
+                    <svg width="100%" height="170" viewBox="0 0 520 170" style="overflow: visible; font-family: Arial, sans-serif;">
+                        <!-- head -->
+                        <text x="87" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">head</text>
+                        <line x1="87" y1="45" x2="87" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                        <polygon points="87,118 77,93 97,93" fill="#1e293b" />
+
+                        <!-- tail (trên nút X mới) -->
+                        <text x="457" y="28" font-size="22" font-weight="700" fill="#1e293b" text-anchor="middle">tail</text>
+                        <line x1="457" y1="45" x2="457" y2="95" stroke="#1e293b" stroke-width="3.5" />
+                        <polygon points="457,118 447,93 467,93" fill="#1e293b" />
+
+                        <!-- Nút A -->
+                        <rect x="60" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="115" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="87" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+                        <circle cx="134" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút B -->
+                        <rect x="193" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="248" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="220" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">B</text>
+                        <circle cx="267" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút C -->
+                        <rect x="326" y="122" width="55" height="46" fill="#3f6b6b" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="381" y="122" width="38" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="353" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">C</text>
+                        <circle cx="400" cy="145" r="4.5" fill="#1e293b" />
+                        <!-- Nút X (mới) -->
+                        <rect x="430" y="122" width="55" height="46" fill="#c2543f" stroke="#1e293b" stroke-width="2.5" />
+                        <rect x="485" y="122" width="35" height="46" fill="#ffffff" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="457" y="153" font-size="24" font-weight="700" fill="#ffffff" text-anchor="middle">X</text>
+                        <line x1="495" y1="162" x2="511" y2="128" stroke="#1e293b" stroke-width="2.5" />
+
+                        <!-- Mũi tên nối -->
+                        <g stroke="#1e293b" stroke-width="2.5">
+                            <line x1="134" y1="145" x2="182" y2="145" />
+                            <line x1="267" y1="145" x2="315" y2="145" />
+                            <line x1="400" y1="145" x2="420" y2="145" />
+                        </g>
+                        <g fill="#1e293b">
+                            <polygon points="193,145 179,138 179,152" />
+                            <polygon points="326,145 312,138 312,152" />
+                            <polygon points="430,145 416,138 416,152" />
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Text ghi chú dưới cùng -->
+                <div style="margin-top: 15px; font-size: 16px; font-weight: 700; color: #9a3412; line-height: 1.6;">
+                    Không có tail thì phải duyệt tới nút cuối: O(n).
+                </div>
+            </div>
+
+            <!-- Cột phải: Code và giải thích -->
+            <div style="flex: 1.1; display: flex; flex-direction: column; gap: 20px;">
+                
+                <!-- Code block -->
+                <div class="highlight-card" style="background: #475569; border: 1px solid #334155; padding: 20px 24px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.65; color: #f8fafc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
+<pre style="margin: 0; white-space: pre-wrap;">
+<span style="color:#38bdf8;">void</span> <span style="color:#fcd34d;">push_back</span>(<span style="color:#be185d;">const</span> T&amp; e) {
+    <span style="color:#38bdf8;">Node&lt;T&gt;</span>* q = <span style="color:#be185d;">new</span> <span style="color:#38bdf8;">Node&lt;T&gt;</span>{e, <span style="color:#f59e0b;">nullptr</span>};
+    <span style="color:#be185d;">if</span> (tail == <span style="color:#f59e0b;">nullptr</span>) head = q; <span style="color:#64748b;">// rỗng</span>
+    <span style="color:#be185d;">else</span>                    tail-&gt;next = q;
+    tail = q;
+    ++n;
+}</pre>
+                </div>
+
+                <!-- Bullet points -->
+                <div style="font-size: 15px; color: #1e293b; line-height: 1.7;">
+                    <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                        <li style="margin-bottom: 8px;">
+                            Nút cuối cũ trỏ sang nút mới
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            tail chuyển sang nút mới
+                        </li>
+                        <li>
+                            Danh sách rỗng: nút mới vừa là đầu vừa là cuối
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="slide-footer" style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 20px;">
+        <span>HMT Lab | Huy D. Le | lehuydip@gmail.com</span>
+        <span>Chương 06: Mảng và Vector</span>
+        <span>94</span>
+    </div>
+</div>
+
+
+
+
+
 </body>
 <!-- MATHJAX: đặt trước </body> nếu file chưa có -->
  <script>
