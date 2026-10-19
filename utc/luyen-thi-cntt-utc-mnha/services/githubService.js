@@ -397,6 +397,81 @@ async function readBinaryFile(path) {
 }
 
 /**
+ * Đọc file NHỊ PHÂN (kể cả > 1MB) từ GitHub → Buffer (null nếu không tồn tại).
+ * Contents API chỉ trả nội dung cho file ≤ 1MB; lớn hơn thì content rỗng → đọc qua Git Blob API (≤ 100MB).
+ * Dùng cho file PDF slide (đã mã hoá) — xem controllers/slide.controller.js.
+ */
+async function readBinaryFileLarge(path) {
+    assertConfigured();
+
+    try {
+        const res = await octokit.repos.getContent({
+            owner, repo, path, ref: branch
+        });
+        if (Array.isArray(res.data)) {
+            throw new Error(`Path không phải file: ${path}`);
+        }
+        if (res.data.content) return Buffer.from(res.data.content, 'base64');
+        if (!res.data.sha) throw new Error(`Không đọc được nội dung file: ${path}`);
+        const blob = await octokit.git.getBlob({ owner, repo, file_sha: res.data.sha });
+        return Buffer.from(blob.data.content, 'base64');
+    } catch (e) {
+        if (e.status === 404) return null;
+        throw e;
+    }
+}
+
+/**
+ * Tạo BLOB tạm trên GitHub (chưa nằm trong commit nào) → trả sha.
+ * Dùng khi file lớn phải gửi từng phần (Vercel ≤ 4.5MB/request): mỗi phần = 1 blob, request cuối gộp lại.
+ * Blob không được commit nào trỏ tới sẽ tự bị GitHub dọn sau một thời gian.
+ */
+async function createBlob(buffer) {
+    assertConfigured();
+    if (!Buffer.isBuffer(buffer)) throw new Error('createBlob: dữ liệu phải là Buffer');
+    return withRetry(async () => {
+        const res = await octokit.git.createBlob({ owner, repo, content: buffer.toString('base64'), encoding: 'base64' });
+        return res.data.sha;
+    }, 'createBlob');
+}
+
+/** Đọc nội dung 1 blob theo sha → Buffer (null nếu không có). */
+async function getBlobBuffer(sha) {
+    assertConfigured();
+    try {
+        const res = await octokit.git.getBlob({ owner, repo, file_sha: sha });
+        return Buffer.from(res.data.content, 'base64');
+    } catch (e) {
+        if (e.status === 404) return null;
+        throw e;
+    }
+}
+
+/**
+ * Ghi file NHỊ PHÂN LỚN (vài chục MB) — như writeBinaryFile nhưng timeout dài hơn (config/github.js mặc định 20s).
+ * Vercel maxDuration = 60s nên giữ ≤ 50s ở đó; localhost cho 120s (đường truyền nhà thường chậm hơn).
+ */
+async function writeBinaryFileBig(path, buffer, commitMessage = 'Update file') {
+    assertConfigured();
+    if (!Buffer.isBuffer(buffer)) throw new Error('writeBinaryFileBig: dữ liệu phải là Buffer');
+    const timeout = process.env.VERCEL ? 50000 : 120000;
+
+    return withRetry(async () => {
+        const sha = await getFileSha(path);
+        const res = await octokit.repos.createOrUpdateFileContents({
+            owner, repo, branch, path,
+            message: commitMessage,
+            content: buffer.toString('base64'),
+            sha: sha || undefined,
+            committer: { name: 'Luyen Thi CNTT Bot', email: 'bot@luyen-thi-cntt.local' },
+            request: { timeout }
+        });
+        invalidateTree();
+        return { path, sha: res.data.content.sha, commitSha: res.data.commit.sha };
+    }, `writeBinaryBig:${path}`);
+}
+
+/**
  * Xoá file trên GitHub.
  */
 async function deleteFile(path, commitMessage = 'Delete file') {
@@ -465,6 +540,10 @@ module.exports = {
     updateJsonFile,
     writeBinaryFile,
     readBinaryFile,
+    readBinaryFileLarge,
+    createBlob,
+    getBlobBuffer,
+    writeBinaryFileBig,
     deleteFile,
     fileExists,
     getFileSha,

@@ -6,6 +6,7 @@
 //
 //   subjects/{subject-slug}/lessons/{file}.json          → Lesson
 //   subjects/{subject-slug}/flashcards/{file}.json       → Flashcard (ứng dụng /flashcards; thẻ nằm trong file, RAM chỉ giữ chỉ mục)
+//   subjects/{subject-slug}/slides/{file}.json           → Slide (ứng dụng /slides; JSON chỉ chứa thông tin, file PDF MÃ HOÁ nằm cạnh: {file}.pdf)
 //   prompts/{file}.json                                  → GradingPrompt
 //   submissions/{subject-slug}/{lesson-slug}/{file}.json → Submission
 //
@@ -180,6 +181,49 @@ const KINDS = {
         })
     },
 
+    slides: {
+        re: /^subjects\/([^/]+)\/slides\/([^/]+)\.json$/,
+        defaults: () => ({
+            description: '', pdfFile: null, pdfSize: 0, originalName: '', order: 0,
+            githubFile: null, githubSha: null, isPublished: true,
+            userKey: null, createdBy: null, updatedBy: null,
+            isDeleted: false, deletedAt: null, deletedBy: null, slug: null
+        }),
+        idKey: 'slideId',
+        fromJson(path, m, json, ctx) {
+            const subject = ctx.subjects.get(m[1]);
+            if (!subject) return { skip: `không có môn học slug "${m[1]}"` };
+            const r = {
+                subjectId: subject._id, userKey: subject.userKey || null,
+                slug: (str(json.slug) || m[2]).toLowerCase(),
+                title: (str(json.title) || m[2]).slice(0, 200),
+                // file PDF phải nằm CÙNG thư mục slides của đúng môn này (không tin đường dẫn lạ trong JSON)
+                pdfFile: (typeof json.pdfFile === 'string' && json.pdfFile.startsWith(`subjects/${m[1]}/slides/`) &&
+                    /^subjects\/[^/]+\/slides\/[^/]+\.pdf$/.test(json.pdfFile)) ? json.pdfFile : null,
+                pdfSize: Number(json.pdfSize) > 0 ? Math.round(Number(json.pdfSize)) : 0,
+                originalName: str(json.originalName).slice(0, 200)
+            };
+            if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
+            if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
+            if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            if (json.isDeleted !== undefined) {
+                r.isDeleted = json.isDeleted === true;
+                r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
+            }
+            for (const k of ['createdBy', 'updatedBy', 'deletedBy']) {
+                const v = toObjectId(json[k]); if (v) r[k] = v;
+            }
+            return { rec: r, createdAt: toDate(json.createdAt), updatedAt: toDate(json.updatedAt) };
+        },
+        toPatch: (r) => ({
+            slideId: hex(r._id), title: r.title, slug: r.slug, description: r.description,
+            pdfFile: r.pdfFile || null, pdfSize: r.pdfSize || 0, originalName: r.originalName || '',
+            order: r.order, isPublished: r.isPublished,
+            createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
+            isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
+        })
+    },
+
     prompts: {
         re: /^prompts\/([^/]+)\.json$/,
         defaults: () => ({
@@ -319,10 +363,10 @@ const S = {
     headSha: null,
     etag: null,
     checkedAt: 0,
-    recs: { lessons: new Map(), flashcards: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
-    paths: { lessons: new Map(), flashcards: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
-    shas: { lessons: new Map(), flashcards: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
-    skipShas: { lessons: new Map(), flashcards: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
+    recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
+    paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
+    shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
+    skipShas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
     lastPatch: new Map(),     // id(hex) → chuỗi patch đã khớp với GitHub
     confirmed: new Set(),     // id(hex) đã thấy trên GitHub (xoá file → gỡ ngay, không chờ)
     localAt: new Map(),       // id(hex) → thời điểm tạo cục bộ (chưa chắc đã có trong cây thư mục)
@@ -466,7 +510,7 @@ async function syncFromTree({ force = false } = {}) {
     const subjects = await loadSubjects();
     const stats = {};
 
-    for (const kind of ['lessons', 'flashcards', 'prompts', 'submissions']) {   // lessons trước submissions
+    for (const kind of ['lessons', 'flashcards', 'slides', 'prompts', 'submissions']) {   // lessons trước submissions
         const K = KINDS[kind];
         const remote = [];
         for (const [path, sha] of tree.files) {

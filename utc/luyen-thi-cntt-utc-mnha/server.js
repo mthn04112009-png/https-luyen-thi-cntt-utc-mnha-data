@@ -492,9 +492,10 @@ app.use("/auth", authRoutes);
 app.use("/subjects", subjectRoutes);
 app.use("/student/subjects", subjectRoutes);
 
-// ★ ỨNG DỤNG: /apps (danh sách ứng dụng được cấp quyền) + /flashcards (Flashcards: dashboard, môn học, học)
+// ★ ỨNG DỤNG: /apps (danh sách ứng dụng được cấp quyền) + /flashcards (Flashcards) + /slides (Slide học tập)
 app.use("/apps", require("./routes/apps"));
 app.use("/flashcards", require("./routes/flashcard"));
+app.use("/slides", require("./routes/slide"));   // ★ Slide học tập: PDF mã hoá lưu GitHub
 app.use("/lessons", lessonRoutes);
 app.use("/submissions", submissionRoutes);
 app.use("/practice", practiceRoutes);
