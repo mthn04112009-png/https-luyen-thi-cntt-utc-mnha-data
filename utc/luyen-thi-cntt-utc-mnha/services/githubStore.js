@@ -447,10 +447,16 @@ async function readMany(paths) {
 }
 
 // ------------------------------------------------------------
-// Ngữ cảnh (môn học nằm ở Mongo; bài học tra từ RAM)
+// Ngữ cảnh (môn học nằm ở GitHub subjects/index.json; bài học tra từ RAM)
 // ------------------------------------------------------------
 async function loadSubjects() {
     const Subject = require('../models/Subject');
+    // Môn học nằm ở GitHub (subjects/index.json): đảm bảo mới trước khi ghép bài học vào môn,
+    // nếu không bài của môn vừa tạo sẽ bị bỏ qua (skipShas) tới khi file đổi.
+    if (typeof Subject.refreshIfOlderThan === 'function') {
+        try { await Subject.refreshIfOlderThan(2000); }
+        catch (e) { console.warn(`[githubStore] Không làm mới được danh sách môn: ${e.message}`); }
+    }
     const rows = await Subject.find({ deletedForever: { $ne: true } }).select('_id slug userKey').lean();
     return new Map(rows.map((s) => [s.slug, s]));
 }
@@ -638,6 +644,9 @@ async function applyPush(payload) {
     gh();
     if (!payload || typeof payload !== 'object') return { ok: false, reason: 'payload rỗng' };
     if (payload.ref && payload.ref !== `refs/heads/${cfg.branch}`) return { ok: true, ignored: `nhánh ${payload.ref}` };
+    // Danh sách môn học (subjects/index.json) — nạp lại trước khi đọc bài học
+    try { await require('./subjectStore').onPush(payload); }
+    catch (e) { console.warn(`[githubStore] subjectStore.onPush lỗi: ${e.message}`); }
     if (!S.loaded) return { ok: true, ignored: 'chưa nạp dữ liệu — lần nạp đầu sẽ thấy mọi thay đổi' };
 
     const commits = Array.isArray(payload.commits) ? payload.commits : [];

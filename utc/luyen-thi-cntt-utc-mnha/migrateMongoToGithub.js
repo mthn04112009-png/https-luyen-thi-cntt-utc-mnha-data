@@ -16,6 +16,9 @@
 //                                                                       + services/aiService.js). Đối chiếu provider đang dùng trong MongoDB (aikeys:
 //                                                                       'gemini' / 'vilao' giữ NGUYÊN). Key API vẫn ở MongoDB, KHÔNG đụng tới.
 //                                                                       Chỉ THÊM nhà cung cấp còn thiếu, không ghi đè phần đã chỉnh ở /admin/ai-keys/Supplier.
+//   node migrateMongoToGithub.js --only=subjects [--run]            → chuyển HẾT môn học (collection `subjects` trong MongoDB) sang 1 file GitHub:
+//                                                                       subjects/index.json (gộp theo _id, không ghi đè bản đã có; giữ NGUYÊN _id/slug/userKey...),
+//                                                                       đọc lại kiểm tra từng môn rồi mới XOÁ đúng các môn đó khỏi MongoDB. Có backup trước khi xoá.
 //   node migrateMongoToGithub.js --orphans               → LIỆT KÊ collection dư thừa trong MongoDB (không xoá)
 //   node migrateMongoToGithub.js --run --drop-orphans=tenA,tenB → BACKUP rồi XOÁ đúng các collection dư thừa nêu tên
 //      (lessons/gradingprompts/submissions chỉ xoá khi MỌI document đã có file trên GitHub; --force-drop để bỏ qua kiểm tra)
@@ -49,7 +52,9 @@ const legacy = (name) => mongoose.connection.collection(name);
 const Submission = { get collection() { return legacy('submissions'); } };
 const Lesson = { get collection() { return legacy('lessons'); } };
 const GradingPrompt = { get collection() { return legacy('gradingprompts'); } };
-const Subject = require('./models/Subject');
+const Subject = { get collection() { return legacy('subjects'); } };   // collection `subjects` CŨ trong Mongo
+const SubjectGh = require('./models/Subject');                          // môn học mới: GitHub (subjects/index.json)
+const subjectStore = require('./services/subjectStore');
 const User = require('./models/User');
 const githubService = require('./services/githubService');
 const auditLogService = require('./services/auditLogService');
@@ -69,7 +74,7 @@ const argVal = (name) => {
     const a = argv.find((x) => x.startsWith(`--${name}=`));
     return a ? a.slice(name.length + 3) : null;
 };
-const ALL_KINDS = ['prompts', 'lessons', 'submissions', 'auditlogs', 'aiproviders'];
+const ALL_KINDS = ['subjects', 'prompts', 'lessons', 'submissions', 'auditlogs', 'aiproviders'];
 const ONLY = (argVal('only') ? argVal('only').split(',') : ALL_KINDS)
     .map((s) => s.trim())
     .filter((s) => ALL_KINDS.includes(s));
@@ -127,10 +132,11 @@ async function getSubject(id) {
     if (!key) return null;
     if (!subjectCache.has(key)) {
         const _id = oid(key);
-        subjectCache.set(
-            key,
-            _id ? await Subject.collection.findOne({ _id }, { projection: { slug: 1, name: 1, code: 1 } }) : null
-        );
+        let found = _id ? await Subject.collection.findOne({ _id }, { projection: { slug: 1, name: 1, code: 1 } }) : null;
+        if (!found && _id) {   // môn đã chuyển sang GitHub (subjects/index.json)
+            try { found = await SubjectGh.findById(_id).select('slug name code').lean(); } catch (_) { found = null; }
+        }
+        subjectCache.set(key, found);
     }
     return subjectCache.get(key);
 }
@@ -572,9 +578,16 @@ const EXTRA_KEEP = ['sessions']; // connect-mongo (server.js) — không phải 
 
 // Collection CŨ của 3 loại dữ liệu đã chuyển sang GitHub. Trước khi xoá phải chắc
 // MỌI document còn file tương ứng trên GitHub (githubFile có trong cây thư mục).
-const LEGACY_GITHUB = ['lessons', 'gradingprompts', 'submissions'];
+const LEGACY_GITHUB = ['subjects', 'lessons', 'gradingprompts', 'submissions'];
 
 async function verifyLegacyOnGithub(name, tree) {
+    if (name === 'subjects') {   // môn học: đối chiếu _id với subjects/index.json
+        const docs = await mongoose.connection.db.collection(name).find({}, { projection: { name: 1 } }).toArray();
+        const file = await githubService.readJsonFile(subjectStore.SUBJECTS_PATH);
+        const ids = new Set(subjectStore.extractRows(file).map((r) => idStr(r && r._id)));
+        const missing = docs.filter((d) => !ids.has(idStr(d._id)));
+        return { total: docs.length, ok: docs.length - missing.length, missing };
+    }
     const docs = await mongoose.connection.db.collection(name)
         .find({}, { projection: { githubFile: 1, title: 1, name: 1, status: 1, syncStatus: 1 } }).toArray();
     const missing = docs.filter((d) => !d.githubFile || !tree.files.has(d.githubFile));
@@ -825,6 +838,65 @@ async function processAiprovidersBatch(missing) {
 }
 
 // ============================================================
+// 0. SUBJECTS  (collection subjects → subjects/index.json)
+//    Chuyển HẾT môn học (cả môn đã xoá mềm / xoá vĩnh viễn) lên MỘT file; giữ nguyên _id.
+//    Ghi GitHub → đọc lại kiểm tra từng môn → mới xoá đúng các môn đã kiểm tra khỏi Mongo.
+// ============================================================
+async function collectSubjects() {
+    return Subject.collection.find({}).toArray();
+}
+
+async function processSubjectsBatch(docs) {
+    const st = stat('subjects');
+    const PATH = subjectStore.SUBJECTS_PATH;
+    const current = await githubService.readJsonFileWithSha(PATH);
+    const rows = subjectStore.extractRows(current && current.data).slice();
+    const idOf = (r) => idStr(r && (r._id && r._id.$oid ? r._id.$oid : r._id));
+    const haveIds = new Set(rows.map(idOf));
+    const haveSlugs = new Map(rows.map((r) => [String(r.slug || ''), idOf(r)]));
+
+    const toDelete = [];   // _id (ObjectId) sẽ xoá khỏi Mongo nếu đọc lại thấy đủ
+    let added = 0;
+    for (const d of docs) {
+        const rec = subjectStore.parseRow(d);
+        if (!rec) { st.skipped.push(`${d._id}: thiếu tên/_id hợp lệ → giữ nguyên trong Mongo`); continue; }
+        const id = idStr(rec._id);
+        if (haveIds.has(id)) { st.alreadyOk++; toDelete.push(d._id); continue; }     // GitHub đã có → không ghi đè
+        if (rec.slug && haveSlugs.has(rec.slug)) {
+            st.skipped.push(`${d._id} (${d.name}): slug "${rec.slug}" đã dùng bởi môn ${haveSlugs.get(rec.slug)} trên GitHub → giữ nguyên trong Mongo`);
+            continue;
+        }
+        rows.push(subjectStore.toRow(rec));
+        haveIds.add(id); haveSlugs.set(rec.slug || '', id);
+        toDelete.push(d._id); added++;
+    }
+
+    console.log(`   ${tag}${current ? 'File đã có trên GitHub' : 'File CHƯA có trên GitHub'}: ${PATH}`);
+    console.log(`   ${tag}Môn trong Mongo: ${docs.length} | sẽ thêm lên GitHub: ${added} | đã có sẵn: ${st.alreadyOk} | bỏ qua: ${st.skipped.length}`);
+    docs.forEach((d) => console.log(`     • ${d.name} [${d.slug}] ${d.deletedForever ? '(xoá vĩnh viễn)' : d.deletedAt ? '(đã xoá mềm)' : ''}`));
+    if (!RUN) return;
+
+    if (added) {
+        const doc = { version: 1, updatedAt: new Date().toISOString(), subjects: rows };
+        const res = await putJson(PATH, doc, current ? current.sha : null, `Chuyển ${added} môn học từ MongoDB sang GitHub`);
+        st.written += added;
+        console.log(`   ✅ Đã ghi ${PATH} (sha ${String(res.sha).slice(0, 7)}), tổng ${rows.length} môn.`);
+    }
+
+    // Đọc lại: chỉ xoá những môn THẬT SỰ có mặt trong file trên GitHub
+    const back = await githubService.readJsonFile(PATH);
+    const backIds = new Set(subjectStore.extractRows(back).map(idOf));
+    const safe = toDelete.filter((id) => backIds.has(idStr(id)));
+    const unsafe = toDelete.length - safe.length;
+    if (unsafe) st.failed.push(`${unsafe} môn không thấy trong file sau khi ghi → KHÔNG xoá khỏi Mongo`);
+    if (safe.length) {
+        const r = await Subject.collection.deleteMany({ _id: { $in: safe } });
+        st.cleared += r.deletedCount || 0;
+        console.log(`   🗑️  Đã xoá ${r.deletedCount} môn khỏi MongoDB (collection subjects).`);
+    }
+}
+
+// ============================================================
 // BACKUP trước khi xoá
 // ============================================================
 function writeBackup(plan) {
@@ -835,6 +907,7 @@ function writeBackup(plan) {
         lessons: (plan.lessons || [])
             .filter((l) => Object.prototype.hasOwnProperty.call(l, 'contentHtml'))
             .map((l) => ({ _id: l._id, title: l.title, githubFile: l.githubFile, contentHtml: l.contentHtml })),
+        subjects: plan.subjects || [],     // nguyên bản ghi môn học sắp xoá khỏi Mongo
         auditlogs: plan.auditlogs || [],   // nguyên bản ghi audit log sắp xoá khỏi Mongo
         submissions: (plan.submissions || []).map((s) => ({
             _id: s._id, githubFile: s.githubFile, syncStatus: s.syncStatus,
@@ -876,14 +949,14 @@ function writeBackup(plan) {
         : '🔎 DRY-RUN: chỉ báo cáo, không ghi GitHub, không sửa MongoDB. Thêm --run để chạy thật.');
     console.log(`Loại dữ liệu: ${ONLY.join(', ')}${LIMIT ? ` | giới hạn ${LIMIT} bản ghi/loại` : ''}\n`);
 
-    const collectors = { prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs, aiproviders: collectAiproviders };
+    const collectors = { subjects: collectSubjects, prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs, aiproviders: collectAiproviders };
     const processors = { prompts: processPrompt, lessons: processLesson, submissions: processSubmission };
 
     // Bước 1: gom danh sách cần xử lý
     const plan = {};
     for (const kind of ONLY) {
         let docs = await collectors[kind]();
-        if (LIMIT && kind !== 'aiproviders') docs = docs.slice(0, LIMIT);
+        if (LIMIT && kind !== 'aiproviders' && kind !== 'subjects') docs = docs.slice(0, LIMIT);
         plan[kind] = docs;
         stat(kind).total = docs.length;
         console.log(`• ${kind}: ${docs.length} bản ghi còn dữ liệu cần xử lý`);
@@ -904,6 +977,10 @@ function writeBackup(plan) {
         }
         if (!plan[kind] || !plan[kind].length) continue;
         console.log(`\n===== ${kind.toUpperCase()} =====`);
+        if (kind === 'subjects') {
+            try { await processSubjectsBatch(plan[kind]); } catch (e) { stat(kind).failed.push(e.message); console.error(`   ❌ subjects: ${e.message}`); }
+            continue;
+        }
         if (kind === 'auditlogs') { await processAuditlogsBatch(plan[kind]); continue; }   // xử lý theo lô
         for (const doc of plan[kind]) {
             try {

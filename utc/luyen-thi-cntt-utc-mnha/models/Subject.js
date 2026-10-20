@@ -1,138 +1,30 @@
-const mongoose = require('mongoose');
+// ============================================================
+// Subject (MÔN HỌC) — KHÔNG còn lưu ở MongoDB. Dữ liệu nằm ở GitHub:
+//   subjects/index.json   (xem services/subjectStore.js)
+// API giữ nguyên như Mongoose (find/findOne/findById/create/updateOne/save/deleteOne/...)
+// nên controller dùng `Subject` y như cũ: thêm môn = Subject.create, xoá = đặt deletedAt /
+// deletedForever rồi save() (hoặc Subject.deleteOne), đọc danh sách = Subject.find.
+// Thêm: Subject.refresh() nạp lại từ GitHub ngay.
+// ============================================================
+const { createModel } = require('../services/githubModel');
+const subjectStore = require('../services/subjectStore');
 
-const subjectSchema = new mongoose.Schema(
-    {
-        name: {
-            type: String,
-            required: true,
-            trim: true,
-            maxlength: 200
-        },
-
-        code: {
-            type: String,
-            trim: true,
-            default: null
-        },
-
-        slug: {
-            type: String,
-            trim: true,
-            lowercase: true,
-            index: true,
-            default: null
-        },
-
-        description: {
-            type: String,
-            default: ''
-        },
-
-        // Thứ tự hiển thị
-        order: {
-            type: Number,
-            default: 0,
-            index: true
-        },
-
-        // GitHub folder name
-        githubFolder: {
-            type: String,
-            default: null
-        },
-
-        // Prompt riêng cho môn (fallback: prompt global)
-        promptId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'GradingPrompt',
-            default: null
-        },
-
-        // ★ Prompt PHÂN TÍCH TRẮC NGHIỆM riêng cho môn (GradingPrompt.kind = 'quiz').
-        //   Tách khỏi promptId (prompt chấm tự luận) để không lẫn nhau.
-        quizPromptId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'GradingPrompt',
-            default: null
-        },
-
-        // Công khai cho sinh viên
-        isPublished: {
-            type: Boolean,
-            default: true,
-            index: true
-        },
-
-        // ============================================
-        // USER_KEY (đa tenant)
-        // null = nội dung của admin default
-        // ============================================
-        userKey: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'UserKey',
-            default: null,
-            index: true
-        },
-
-        // ============================================
-        // AUDIT
-        // ============================================
-        createdBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            default: null,
-            index: true
-        },
-
-        updatedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            default: null
-        },
-
-        // Soft delete
-        deletedAt: {
-            type: Date,
-            default: null,
-            index: true
-        },
-
-        deletedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            default: null
-        },
-
-        deletedForever: {
-            type: Boolean,
-            default: false,
-            index: true
-        }
+module.exports = createModel({
+    name: 'Subject',
+    store: subjectStore.store,
+    defaults: subjectStore.defaults(),
+    fields: subjectStore.FIELDS,
+    refs: {
+        promptId: 'GradingPrompt', quizPromptId: 'GradingPrompt', userKey: 'UserKey',
+        createdBy: 'User', updatedBy: 'User', deletedBy: 'User'
     },
-    {
-        timestamps: true // createdAt + updatedAt tự động
+    virtuals: {
+        createdAtFormatted: (d) => (d.createdAt ? new Date(d.createdAt).toLocaleString('vi-VN') : ''),
+        updatedAtFormatted: (d) => (d.updatedAt ? new Date(d.updatedAt).toLocaleString('vi-VN') : '')
+    },
+    statics: {
+        PATH: subjectStore.SUBJECTS_PATH,
+        refresh: () => subjectStore.reload(),
+        refreshIfOlderThan: (ms) => subjectStore.refreshIfOlderThan(ms)
     }
-);
-
-// Index tổng hợp cho query phổ biến
-subjectSchema.index({ deletedForever: 1, isPublished: 1, order: 1 });
-// (deletedAt đã có index: true ở field, không khai báo lại để tránh cảnh báo duplicate index)
-subjectSchema.index({ userKey: 1, deletedForever: 1, isPublished: 1, order: 1 });
-
-// Virtual để dùng trong view: subject.createdAtFormatted
-subjectSchema.virtual('createdAtFormatted').get(function () {
-    return this.createdAt
-        ? new Date(this.createdAt).toLocaleString('vi-VN')
-        : '';
 });
-
-subjectSchema.virtual('updatedAtFormatted').get(function () {
-    return this.updatedAt
-        ? new Date(this.updatedAt).toLocaleString('vi-VN')
-        : '';
-});
-
-subjectSchema.set('toObject', { virtuals: true });
-subjectSchema.set('toJSON', { virtuals: true });
-
-module.exports = mongoose.model('Subject', subjectSchema);
