@@ -150,14 +150,11 @@ exports.getApps = async (req, res) => {
                 href: '/flashcards',
                 icon: 'layers'
             });
-            // Slide học tập: cùng điều kiện quyền với Flashcards (admin / student đã duyệt)
-            apps.push({
-                id: 'slides',
-                name: 'Slide học tập',
-                description: 'Xem và tải xuống slide (PDF) theo từng môn học. File được mã hoá khi lưu trữ.',
-                href: '/slides',
-                icon: 'presentation'
-            });
+            // Slide bài học + Tài liệu học tập: cùng điều kiện quyền với Flashcards (admin / student đã duyệt)
+            const { APPS } = require('../config/studyFileConfig');
+            for (const a of [APPS.slides, APPS.documents]) {
+                apps.push({ id: a.key, name: a.name, description: a.description, href: a.base, icon: a.icon });
+            }
         }
         return res.render('apps', { title: 'Ứng dụng', user: req.user, apps });
     } catch (e) {

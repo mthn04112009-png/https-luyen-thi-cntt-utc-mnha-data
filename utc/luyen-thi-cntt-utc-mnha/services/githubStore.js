@@ -6,7 +6,8 @@
 //
 //   subjects/{subject-slug}/lessons/{file}.json          → Lesson
 //   subjects/{subject-slug}/flashcards/{file}.json       → Flashcard (ứng dụng /flashcards; thẻ nằm trong file, RAM chỉ giữ chỉ mục)
-//   subjects/{subject-slug}/slides/{file}.json           → Slide (ứng dụng /slides; JSON chỉ chứa thông tin, file PDF MÃ HOÁ nằm cạnh: {file}.pdf)
+//   subjects/{subject-slug}/slides/{file}.json           → Slide bài học (ứng dụng /slides; JSON chỉ chứa thông tin, file PDF/PPT/PPTX MÃ HOÁ nằm cạnh)
+//   subjects/{subject-slug}/documents/{file}.json        → Tài liệu học tập (ứng dụng /documents; cùng cách lưu như slides)
 //   prompts/{file}.json                                  → GradingPrompt
 //   submissions/{subject-slug}/{lesson-slug}/{file}.json → Submission
 //
@@ -89,6 +90,70 @@ const iso = (d) => (d ? new Date(d).toISOString() : null);
 // ------------------------------------------------------------
 // Định nghĩa 3 loại: path → record (fromJson) và record → patch JSON (toPatch)
 // ------------------------------------------------------------
+/**
+ * Loại dữ liệu cho 2 ứng dụng file mã hoá: slides (/slides) và documents (/documents).
+ *   subjects/{môn}/{dir}/{slug}_{unix}.json           thông tin; trường parts = các file-phần đã mã hoá
+ *   subjects/{môn}/{dir}/{slug}_{unix}[-n].{pdf|ppt|pptx}   file mã hoá (chia nhỏ -1, -2, … nếu > 23MB)
+ * Tương thích JSON cũ (bản đầu chỉ có pdfFile/pdfSize): coi như 1 phần.
+ */
+function studyFileKind(dir) {
+    const fileRe = /\.(pdf|ppt|pptx)$/i;
+    const okPath = (p, prefix) => typeof p === 'string' && p.startsWith(prefix) && fileRe.test(p) &&
+        !p.slice(prefix.length).includes('/') && !p.includes('..');
+    return {
+        re: new RegExp(`^subjects\\/([^/]+)\\/${dir}\\/([^/]+)\\.json$`),
+        defaults: () => ({
+            description: '', parts: [], fileExt: 'pdf', fileSize: 0, originalName: '', order: 0,
+            githubFile: null, githubSha: null, isPublished: true,
+            userKey: null, createdBy: null, updatedBy: null,
+            isDeleted: false, deletedAt: null, deletedBy: null, slug: null
+        }),
+        idKey: dir === 'slides' ? 'slideId' : 'documentId',
+        fromJson(path, m, json, ctx) {
+            const subject = ctx.subjects.get(m[1]);
+            if (!subject) return { skip: `không có môn học slug "${m[1]}"` };
+            const prefix = `subjects/${m[1]}/${dir}/`;   // file phải nằm CÙNG thư mục của đúng môn này (không tin đường dẫn lạ trong JSON)
+            let parts = [];
+            if (Array.isArray(json.parts)) {
+                parts = json.parts.filter((x) => x && okPath(x.path, prefix))
+                    .map((x) => ({ path: x.path, enc: Math.max(0, Math.round(Number(x.enc) || 0)), plain: Math.max(0, Math.round(Number(x.plain) || 0)) }));
+            } else if (okPath(json.pdfFile, prefix)) {
+                parts = [{ path: json.pdfFile, enc: 0, plain: Math.max(0, Math.round(Number(json.pdfSize) || 0)) }];
+            }
+            const extFromPath = parts.length ? (parts[0].path.match(fileRe) || [])[0] : '';
+            const ext = String(json.fileExt || (extFromPath || '.pdf').slice(1)).toLowerCase();
+            const r = {
+                subjectId: subject._id, userKey: subject.userKey || null,
+                slug: (str(json.slug) || m[2]).toLowerCase(),
+                title: (str(json.title) || m[2]).slice(0, 200),
+                parts,
+                fileExt: ['pdf', 'ppt', 'pptx'].includes(ext) ? ext : 'pdf',
+                fileSize: Math.max(0, Math.round(Number(json.fileSize !== undefined ? json.fileSize : json.pdfSize) || 0)),
+                originalName: str(json.originalName).slice(0, 200)
+            };
+            if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
+            if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
+            if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            if (json.isDeleted !== undefined) {
+                r.isDeleted = json.isDeleted === true;
+                r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
+            }
+            for (const k of ['createdBy', 'updatedBy', 'deletedBy']) {
+                const v = toObjectId(json[k]); if (v) r[k] = v;
+            }
+            return { rec: r, createdAt: toDate(json.createdAt), updatedAt: toDate(json.updatedAt) };
+        },
+        toPatch: (r) => ({
+            [dir === 'slides' ? 'slideId' : 'documentId']: hex(r._id),
+            title: r.title, slug: r.slug, description: r.description,
+            parts: r.parts || [], fileExt: r.fileExt || 'pdf', fileSize: r.fileSize || 0, originalName: r.originalName || '',
+            order: r.order, isPublished: r.isPublished,
+            createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
+            isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
+        })
+    };
+}
+
 const KINDS = {
     lessons: {
         re: /^subjects\/([^/]+)\/lessons\/([^/]+)\.json$/,
@@ -181,48 +246,8 @@ const KINDS = {
         })
     },
 
-    slides: {
-        re: /^subjects\/([^/]+)\/slides\/([^/]+)\.json$/,
-        defaults: () => ({
-            description: '', pdfFile: null, pdfSize: 0, originalName: '', order: 0,
-            githubFile: null, githubSha: null, isPublished: true,
-            userKey: null, createdBy: null, updatedBy: null,
-            isDeleted: false, deletedAt: null, deletedBy: null, slug: null
-        }),
-        idKey: 'slideId',
-        fromJson(path, m, json, ctx) {
-            const subject = ctx.subjects.get(m[1]);
-            if (!subject) return { skip: `không có môn học slug "${m[1]}"` };
-            const r = {
-                subjectId: subject._id, userKey: subject.userKey || null,
-                slug: (str(json.slug) || m[2]).toLowerCase(),
-                title: (str(json.title) || m[2]).slice(0, 200),
-                // file PDF phải nằm CÙNG thư mục slides của đúng môn này (không tin đường dẫn lạ trong JSON)
-                pdfFile: (typeof json.pdfFile === 'string' && json.pdfFile.startsWith(`subjects/${m[1]}/slides/`) &&
-                    /^subjects\/[^/]+\/slides\/[^/]+\.pdf$/.test(json.pdfFile)) ? json.pdfFile : null,
-                pdfSize: Number(json.pdfSize) > 0 ? Math.round(Number(json.pdfSize)) : 0,
-                originalName: str(json.originalName).slice(0, 200)
-            };
-            if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
-            if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
-            if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
-            if (json.isDeleted !== undefined) {
-                r.isDeleted = json.isDeleted === true;
-                r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
-            }
-            for (const k of ['createdBy', 'updatedBy', 'deletedBy']) {
-                const v = toObjectId(json[k]); if (v) r[k] = v;
-            }
-            return { rec: r, createdAt: toDate(json.createdAt), updatedAt: toDate(json.updatedAt) };
-        },
-        toPatch: (r) => ({
-            slideId: hex(r._id), title: r.title, slug: r.slug, description: r.description,
-            pdfFile: r.pdfFile || null, pdfSize: r.pdfSize || 0, originalName: r.originalName || '',
-            order: r.order, isPublished: r.isPublished,
-            createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
-            isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
-        })
-    },
+    slides: studyFileKind('slides'),         // Slide bài học  (PDF / PPT / PPTX mã hoá)
+    documents: studyFileKind('documents'),   // Tài liệu học tập (PDF mã hoá)
 
     prompts: {
         re: /^prompts\/([^/]+)\.json$/,
@@ -363,10 +388,10 @@ const S = {
     headSha: null,
     etag: null,
     checkedAt: 0,
-    recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
-    paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
-    shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
-    skipShas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
+    recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
+    paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
+    shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
+    skipShas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
     lastPatch: new Map(),     // id(hex) → chuỗi patch đã khớp với GitHub
     confirmed: new Set(),     // id(hex) đã thấy trên GitHub (xoá file → gỡ ngay, không chờ)
     localAt: new Map(),       // id(hex) → thời điểm tạo cục bộ (chưa chắc đã có trong cây thư mục)
@@ -510,7 +535,7 @@ async function syncFromTree({ force = false } = {}) {
     const subjects = await loadSubjects();
     const stats = {};
 
-    for (const kind of ['lessons', 'flashcards', 'slides', 'prompts', 'submissions']) {   // lessons trước submissions
+    for (const kind of ['lessons', 'flashcards', 'slides', 'documents', 'prompts', 'submissions']) {   // lessons trước submissions
         const K = KINDS[kind];
         const remote = [];
         for (const [path, sha] of tree.files) {

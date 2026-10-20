@@ -1,0 +1,31 @@
+extends ../layout
+
+block content
+    link(rel="stylesheet", href="/css/studyfiles.css")
+
+    div(class="sl", id="slApp")
+        div(class="sl-top")
+            a(href=(app.base + "/subjects/" + sl.subject.id), class="sl-back")
+                i(data-lucide="arrow-left", class="w-4 h-4")
+                span= sl.subject.name
+            div(class="sl-head")
+                h1= sl.title
+                if sl.description
+                    p= sl.description
+            div(class="sl-tools")
+                a(id="slDownload", href=sl.downloadUrl, class="sl-btn sl-btn-pri", download=sl.fileName)
+                    i(data-lucide="download", class="w-4 h-4")
+                    span Tải xuống
+                    small #{sl.ext.toUpperCase()}#{sl.size ? ' · ' + mb(sl.size) + ' MB' : ''}
+
+        div(class="sl-grid")
+            nav(class="sl-units", aria-label="Danh sách cùng môn")
+                h2 Cùng môn học
+                each s in sl.siblings
+                    a(href=(app.base + "/study/" + s.id), class=(s.id === sl.id ? "on" : ""))= s.title
+
+            div(class="sl-pane", id="slPane")
+                div(class="sl-loading", id="slLoading") Đang tải và giải mã…
+
+    script#slData(type="application/json")!= slJson
+    script(src="/js/studyFileViewer.js")

@@ -1,0 +1,58 @@
+extends ../layout
+
+block content
+    div(class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
+        a(href=(app.base + "/dashboard"), class="text-sm text-indigo-600 hover:underline inline-flex items-center gap-1")
+            i(data-lucide="arrow-left", class="w-4 h-4")
+            | Dashboard #{app.name}
+        div(class="mt-3 mb-6")
+            h1(class="text-3xl font-bold text-gray-900")= editing ? ('Sửa ' + app.noun) : ('Up ' + app.noun)
+            p(class="mt-1 text-gray-500")
+                | Định dạng: #{app.accept.replace(/,/g, ', ')} (tối đa #{maxMb}MB). File được mã hoá AES-256 trước khi lưu lên GitHub; chỉ khi xem / tải xuống qua web mới được giải mã. File lớn hơn #{partMb}MB được chia nhỏ (-1, -2, …) để lưu và tự nối lại khi xem.
+
+        div(id="slMsg", class="hidden mb-4 p-4 rounded-xl text-sm")
+
+        div(class="bg-white rounded-2xl border border-gray-200 p-6 space-y-5")
+            div(class="grid grid-cols-1 md:grid-cols-2 gap-5")
+                div
+                    label(for="slSubject", class="block text-sm font-medium text-gray-700 mb-1") Môn học *
+                    select(id="slSubject", class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white", disabled=editing)
+                        option(value="") — Chọn môn học —
+                        each s in subjects
+                            option(value=String(s._id))= s.name + (s.code ? ' (' + s.code + ')' : '')
+                    if editing
+                        p(class="text-xs text-gray-500 mt-1") Không đổi được môn học đã up.
+                div
+                    label(for="slTitle", class="block text-sm font-medium text-gray-700 mb-1") Tiêu đề *
+                    input(id="slTitle", type="text", maxlength="200", placeholder="VD: Chương 1 – Giới thiệu", class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500")
+            div
+                label(for="slDesc", class="block text-sm font-medium text-gray-700 mb-1") Mô tả (tuỳ chọn)
+                input(id="slDesc", type="text", maxlength="1000", class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500")
+
+            div
+                label(class="block text-sm font-medium text-gray-700 mb-1")
+                    | File
+                    if !editing
+                        |  *
+                if editing
+                    p(id="slCurrent", class="text-sm text-gray-600 mb-2")
+                div(class="rounded-xl border-2 border-dashed border-gray-300 p-5 text-center hover:border-indigo-400 transition-colors")
+                    input(type="file", id="slFile", accept=app.accept, class="block w-full text-sm text-gray-600 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100")
+                    p(id="slFileInfo", class="mt-2 text-xs text-gray-500")
+                    if editing
+                        p(class="mt-1 text-xs text-gray-500") Để trống nếu chỉ muốn sửa tiêu đề / mô tả — file cũ được giữ nguyên.
+                div(id="slProgress", class="hidden mt-3")
+                    div(class="h-2 rounded-full bg-gray-100 overflow-hidden")
+                        div(id="slBar", class="h-2 bg-indigo-600 transition-all", style="width:0%")
+                    p(id="slProgressText", class="mt-1 text-xs text-gray-600")
+
+            label(class="inline-flex items-center gap-2 text-sm text-gray-700")
+                input(id="slPub", type="checkbox", class="rounded border-gray-300")
+                | Công khai cho sinh viên
+
+        div(class="mt-6 flex flex-wrap items-center gap-3")
+            button(type="button", id="slSave", class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-60")= editing ? 'Lưu thay đổi' : ('Up ' + app.noun)
+            a(href=(app.base + "/dashboard"), class="px-5 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg font-medium hover:bg-gray-50") Huỷ
+
+    script#slState(type="application/json")!= slStateJson
+    script(src="/js/studyFileForm.js")

@@ -12,6 +12,9 @@
 //   "SLD2"(4) | khung 0 | khung 1 | …
 //   khung = index(4,BE) | total(4,BE) | ctLen(4,BE) | salt(16) | iv(12) | authTag(16) | ciphertext
 //   AAD = "SLD2" | index | total  → đảo thứ tự / bỏ bớt / ghép khung của file khác đều bị GCM phát hiện.
+//
+// File lớn được CHIA thành nhiều file-phần (mỗi phần ≤ 23MB, xem config/studyFileConfig.js): mỗi file-phần có "SLD2" + một dãy
+// khung LIÊN TIẾP; index/total của khung tính trên TOÀN BỘ file gốc → nối các phần theo thứ tự là ra lại dãy khung đầy đủ.
 // Master key phải GIỐNG NHAU ở localhost và Vercel.
 // ============================================================
 const crypto = require('crypto');
@@ -124,4 +127,58 @@ function decryptFile(blob) {
     return Buffer.concat(parts);
 }
 
-module.exports = { encryptFrame, decryptFrame, joinFrames, decryptFile, isConfigured, MAGIC };
+/**
+ * Giải mã 1 file-phần: "SLD2" + các khung liên tiếp bắt đầu từ khung startIndex.
+ *   total (tuỳ chọn): số khung của TOÀN file — nếu cho, mọi khung phải khớp.
+ * Trả { plain, count, total }. Khung sai thứ tự / sai khoá / bị sửa → ném lỗi.
+ */
+function decryptPart(blob, startIndex = 0, total = null) {
+    const master = needKey();
+    if (!Buffer.isBuffer(blob) || blob.length < MAGIC.length + FRAME_HEAD || !blob.subarray(0, MAGIC.length).equals(MAGIC)) {
+        throw new Error('File trên GitHub không đúng định dạng mã hoá.');
+    }
+    const parts = [];
+    // startIndex = null: khi ĐỌC lại file đã lưu — lấy theo khung đầu của phần (GCM đã gắn index vào AAD nên vẫn chống sửa/đảo khung)
+    let off = MAGIC.length, expect = startIndex, seenTotal = total;
+    while (off < blob.length) {
+        const f = parseFrame(blob, off);
+        if (expect === null) expect = f.index;
+        if (f.index !== expect) throw new Error('Thứ tự khung mã hoá không đúng.');
+        if (seenTotal === null) seenTotal = f.total;
+        if (f.total !== seenTotal) throw new Error('Số khung mã hoá không đồng nhất.');
+        parts.push(decryptParsed(master, f));
+        expect++;
+        off = f.end;
+    }
+    const first = startIndex === null ? (parts.length ? expect - parts.length : 0) : startIndex;
+    return { plain: Buffer.concat(parts), count: expect === null ? 0 : expect - first, total: seenTotal };
+}
+
+/** Nối nhiều file-phần (theo thứ tự) rồi giải mã liền mạch → file gốc. */
+function decryptParts(blobs) {
+    let expect = 0, total = null;
+    const out = [];
+    for (const b of blobs) {
+        const r = decryptPart(b, expect, total);
+        total = r.total; expect += r.count;
+        out.push(r.plain);
+    }
+    if (total === null || expect !== total) throw new Error('File mã hoá thiếu khung (thiếu file-phần?).');
+    return Buffer.concat(out);
+}
+
+/** Chữ ký HMAC cho thông tin 1 file-phần mà server vừa ghi — để request tạo slide không thể khai man đường dẫn/kích thước. */
+function metaSig(fields) {
+    const master = needKey();
+    const key = Buffer.from(crypto.hkdfSync('sha256', master, Buffer.alloc(0), 'luyen-thi-cntt:study-part-sig:v1', 32));
+    return crypto.createHmac('sha256', key).update(fields.map(String).join('|')).digest('hex');
+}
+function verifyMetaSig(fields, sig) {
+    if (typeof sig !== 'string' || !/^[0-9a-f]{64}$/.test(sig)) return false;
+    return crypto.timingSafeEqual(Buffer.from(metaSig(fields), 'hex'), Buffer.from(sig, 'hex'));
+}
+
+module.exports = {
+    encryptFrame, decryptFrame, joinFrames, decryptFile, decryptPart, decryptParts, metaSig, verifyMetaSig, isConfigured, MAGIC, FRAME_HEAD
+};
+

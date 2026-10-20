@@ -1,11 +1,9 @@
 // ============================================================
-// Slide — một SLIDE HỌC TẬP (ứng dụng /slides). KHÔNG lưu ở MongoDB.
+// Slide — SLIDE BÀI HỌC (ứng dụng /slides). KHÔNG lưu ở MongoDB.
 // Dữ liệu nằm ở GitHub:
-//   subjects/{subject-slug}/slides/{slug}_{unix}.json   (thông tin)
-//   subjects/{subject-slug}/slides/{slug}_{unix}.pdf    (PDF đã mã hoá — không nạp vào RAM)
-// RAM chỉ giữ CHỈ MỤC (tiêu đề, kích thước, đường dẫn PDF…) — xem services/githubStore.js (KINDS.slides).
-// API giữ nguyên như Mongoose (find/findOne/findById/create/exists/deleteOne/save…).
-//   userKey / createdBy : phân quyền theo tổ chức giống Subject/Flashcard (userKeyService.getContentScope)
+//   subjects/{subject-slug}/slides/{slug}_{unix}.json         (thông tin)
+//   subjects/{subject-slug}/slides/{slug}_{unix}[-n].{pdf|ppt|pptx}   (file đã mã hoá, chia nhỏ ≤ 23MB/phần nếu lớn)
+// RAM chỉ giữ CHỈ MỤC — xem services/githubStore.js (KINDS.slides). API giữ nguyên như Mongoose.
 // ============================================================
 const { createModel } = require('../services/githubModel');
 const githubStore = require('../services/githubStore');
@@ -14,10 +12,8 @@ module.exports = createModel({
     name: 'Slide',
     store: githubStore.makeStore('slides'),
     defaults: githubStore.KINDS.slides.defaults(),
-    fields: ['subjectId', 'title', 'slug', 'description', 'pdfFile', 'pdfSize', 'originalName', 'order', 'githubFile',
+    fields: ['subjectId', 'title', 'slug', 'description', 'parts', 'fileExt', 'fileSize', 'originalName', 'order', 'githubFile',
         'githubSha', 'isPublished', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
         'createdAt', 'updatedAt'],
-    refs: {
-        subjectId: 'Subject', userKey: 'UserKey', createdBy: 'User', updatedBy: 'User', deletedBy: 'User'
-    }
+    refs: { subjectId: 'Subject', userKey: 'UserKey', createdBy: 'User', updatedBy: 'User', deletedBy: 'User' }
 });

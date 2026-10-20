@@ -1,0 +1,70 @@
+/* ============================================================
+ * studyfiles.css — Giao diện xem Slide bài học / Tài liệu học tập  (/slides/study/:id, /documents/study/:id)
+ * Mọi thứ nằm trong .sl (và .pp-*) để không ảnh hưởng phần còn lại của site.
+ * ============================================================ */
+.sl { max-width: 84rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; color: #1e1b4b; }
+.sl *, .sl *::before, .sl *::after { box-sizing: border-box; }
+.sl [hidden] { display: none !important; }
+.sl button, .sl input { font-family: inherit; }
+.sl button:focus-visible, .sl input:focus-visible, .sl a:focus-visible { outline: 3px solid #6366f1; outline-offset: 2px; }
+
+.sl-top { display: grid; grid-template-columns: 1fr auto; gap: .75rem 1rem; align-items: center; margin-bottom: 1rem; }
+.sl-back { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .25rem; font-size: .875rem; color: #4f46e5; text-decoration: none; }
+.sl-back:hover { text-decoration: underline; }
+.sl-head h1 { margin: 0; font-size: 1.6rem; line-height: 1.25; font-weight: 800; }
+.sl-head p { margin: .25rem 0 0; color: #6b7280; font-size: .9rem; }
+.sl-tools { display: flex; gap: .5rem; align-items: center; }
+.sl-btn { display: inline-flex; align-items: center; gap: .4rem; padding: .6rem 1rem; border-radius: .6rem; font-size: .875rem; font-weight: 600; text-decoration: none; cursor: pointer; border: 0; }
+.sl-btn small { font-weight: 500; opacity: .85; }
+.sl-btn-pri { background: #4f46e5; color: #fff; }
+.sl-btn-pri:hover { background: #4338ca; }
+
+.sl-grid { display: grid; grid-template-columns: 15rem 1fr; gap: 1rem; align-items: start; }
+.sl-units { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; padding: .75rem; max-height: 80vh; overflow: auto; }
+.sl-units h2 { margin: 0 0 .5rem; padding: 0 .5rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+.sl-units a { display: block; padding: .5rem .6rem; border-radius: .5rem; font-size: .875rem; color: #374151; text-decoration: none; }
+.sl-units a:hover { background: #f5f3ff; }
+.sl-units a.on { background: #e0e7ff; color: #3730a3; font-weight: 600; }
+
+.sl-pane { position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; overflow: hidden; display: flex; flex-direction: column; min-width: 0; min-height: 22rem; }
+.sl-pane:fullscreen { background: #0f172a; border: 0; border-radius: 0; }
+.sl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: .6rem .75rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+.sl-bar button { min-width: 2.4rem; height: 2.4rem; padding: 0 .6rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; cursor: pointer; font-size: .95rem; color: #1f2937; }
+.sl-bar button:hover { background: #eef2ff; border-color: #a5b4fc; }
+.sl-bar button.on { background: #e0e7ff; border-color: #6366f1; }
+.sl-page { display: inline-flex; align-items: center; gap: .25rem; font-size: .9rem; color: #374151; }
+.sl-page input { width: 4rem; height: 2.4rem; text-align: center; border: 1px solid #d1d5db; border-radius: .5rem; }
+.sl-sep { width: 1px; height: 1.6rem; background: #d1d5db; margin: 0 .25rem; }
+.sl-stat { font-size: .8rem; color: #6b7280; margin-left: .25rem; }
+
+.sl-stage { position: relative; height: calc(100vh - 17rem); min-height: 22rem; overflow: auto; background: #e5e7eb; display: flex; padding: 8px; -webkit-overflow-scrolling: touch; }
+.sl-pane:fullscreen .sl-stage { height: calc(100vh - 3.6rem); background: #0f172a; }
+.sl-stage canvas { margin: auto; background: #fff; box-shadow: 0 6px 24px rgba(15, 23, 42, .25); flex: none; }
+.sl-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1rem; color: #4b5563; font-size: .95rem; z-index: 3; background: rgba(255, 255, 255, .85); }
+.sl-loading.err { color: #b91c1c; }
+.sl-frame { width: 100%; height: 100%; min-height: 22rem; border: 0; background: #fff; }
+.sl-note { margin: 0; padding: .6rem .9rem; font-size: .8rem; color: #6b7280; }
+.sl-unsupported { margin: auto; max-width: 30rem; text-align: center; padding: 2rem 1rem; color: #374151; }
+.sl-unsupported h2 { margin: 0 0 .5rem; font-size: 1.1rem; font-weight: 700; }
+.sl-unsupported p { margin: .4rem 0; font-size: .9rem; color: #6b7280; }
+
+/* Tài liệu: cuộn dọc liên tục, mỗi trang đúng khổ ngang/dọc của nó */
+.sl-scroll { display: block; padding: 0; touch-action: pan-x pan-y; }
+.sl-pages { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; transform-origin: 0 0; }
+.sl-pagebox { position: relative; flex: none; background: #fff; box-shadow: 0 4px 18px rgba(15, 23, 42, .22); }
+.sl-pagebox canvas { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; box-shadow: none; }
+.sl-pagebox .sl-pn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: .8rem; color: #9ca3af; pointer-events: none; }
+
+/* Trình chiếu PPTX */
+.pp-stage { background: #0b1020; cursor: pointer; padding: 0; overflow: hidden; }
+.pp-container { position: relative; width: 100%; }
+.pp-sh { will-change: transform, opacity; }
+.pp-slide * { box-sizing: border-box; }
+.pp-slide img { user-select: none; -webkit-user-drag: none; }
+
+@media (max-width: 900px) {
+    .sl-grid { grid-template-columns: 1fr; }
+    .sl-units { max-height: 12rem; order: 2; }
+    .sl-top { grid-template-columns: 1fr; }
+    .sl-stage { height: calc(100vh - 15rem); }
+}
