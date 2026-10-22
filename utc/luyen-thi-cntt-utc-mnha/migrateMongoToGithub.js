@@ -950,7 +950,7 @@ async function processSessionsBatch(docs) {
         st.alreadyOk = already;
 
         // Dọn session hết hạn có sẵn trong file (giống store)
-        for (const [k, v] of Object.entries(sessions)) if (GithubSessionStore.isExpired(v)) delete sessions[k];
+        for (const [k, v] of Object.entries(sessions)) if (GithubSessionStore.isPrunable(v)) delete sessions[k];
 
         console.log(`   ${tag}${current ? 'File đã có trên GitHub' : 'File CHƯA có trên GitHub'}: ${PATH} | sẽ thêm: ${added} | đã có sẵn: ${already} | bỏ qua: ${st.skipped.length}`);
         if (!RUN || !added) return;

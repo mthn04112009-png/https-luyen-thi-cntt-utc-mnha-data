@@ -75,6 +75,18 @@ const isExpired = (entry, now = Date.now()) => {
     return !Number.isFinite(t) || t <= now;
 };
 
+/**
+ * Có nên dọn bản ghi này khỏi file khi ghi không? Chỉ dọn bản ghi ĐÚNG ĐỊNH DẠNG của store này đã hết hạn
+ * (hoặc định dạng `exp` dạng số của dự án repository-mnha dùng chung file) — bản ghi lạ thì GIỮ NGUYÊN,
+ * để 2 dự án dùng chung cookies/index.json cũng không xoá nhầm session của nhau.
+ */
+const isPrunable = (entry, now = Date.now()) => {
+    if (!entry || typeof entry !== 'object') return true;
+    if (entry.e !== undefined) return isExpired(entry, now);
+    if (typeof entry.exp === 'number') return entry.exp <= now;
+    return false;
+};
+
 /** Giải mã 1 bản ghi → object session, hoặc null nếu hết hạn/hỏng. */
 function readEntry(key, entry) {
     if (!entry || isExpired(entry)) return null;
@@ -198,7 +210,7 @@ class GithubSessionStore extends session.Store {
             const sessions = { ...extractSessions(cur && cur.data) };
 
             const now = Date.now();
-            for (const [k, v] of Object.entries(sessions)) if (isExpired(v, now)) delete sessions[k];
+            for (const [k, v] of Object.entries(sessions)) if (isPrunable(v, now)) delete sessions[k];
             for (const k of batch.dels) delete sessions[k];
             for (const [k, v] of batch.sets) sessions[k] = v;
 
@@ -232,3 +244,4 @@ module.exports.buildEntry = buildEntry;
 module.exports.readEntry = readEntry;
 module.exports.extractSessions = extractSessions;
 module.exports.isExpired = isExpired;
+module.exports.isPrunable = isPrunable;
