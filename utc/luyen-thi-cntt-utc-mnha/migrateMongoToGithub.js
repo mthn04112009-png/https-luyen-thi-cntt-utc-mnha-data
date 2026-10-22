@@ -19,6 +19,11 @@
 //   node migrateMongoToGithub.js --only=subjects [--run]            → chuyển HẾT môn học (collection `subjects` trong MongoDB) sang 1 file GitHub:
 //                                                                       subjects/index.json (gộp theo _id, không ghi đè bản đã có; giữ NGUYÊN _id/slug/userKey...),
 //                                                                       đọc lại kiểm tra từng môn rồi mới XOÁ đúng các môn đó khỏi MongoDB. Có backup trước khi xoá.
+//   node migrateMongoToGithub.js --only=sessions [--run]            → chuyển HẾT session (collection `sessions` của connect-mongo) sang 1 file GitHub:
+//                                                                       cookies/index.json. Mã cookie (session id) + dữ liệu session được MÃ HOÁ 2 CHIỀU
+//                                                                       (AES-256-GCM, services/cookieCryptoService.js; khoá = ENCRYPTION_MASTER_KEY). Giữ nguyên sid ⇒ người
+//                                                                       dùng KHÔNG bị đăng xuất. Chỉ THÊM session còn thiếu (không ghi đè), bỏ qua session đã hết hạn,
+//                                                                       đọc lại + giải mã kiểm tra từng cái. KHÔNG xoá gì ở MongoDB — muốn xoá dùng scripts/clear-mongo-sessions.js
 //   node migrateMongoToGithub.js --orphans               → LIỆT KÊ collection dư thừa trong MongoDB (không xoá)
 //   node migrateMongoToGithub.js --run --drop-orphans=tenA,tenB → BACKUP rồi XOÁ đúng các collection dư thừa nêu tên
 //      (lessons/gradingprompts/submissions chỉ xoá khi MỌI document đã có file trên GitHub; --force-drop để bỏ qua kiểm tra)
@@ -58,6 +63,7 @@ const subjectStore = require('./services/subjectStore');
 const User = require('./models/User');
 const githubService = require('./services/githubService');
 const auditLogService = require('./services/auditLogService');
+const GithubSessionStore = require('./services/githubSessionStore');   // session lưu ở cookies/index.json
 
 // Nạp TẤT CẢ model để biết collection nào là "của dự án" (dùng cho --orphans)
 const path = require('path');
@@ -74,7 +80,7 @@ const argVal = (name) => {
     const a = argv.find((x) => x.startsWith(`--${name}=`));
     return a ? a.slice(name.length + 3) : null;
 };
-const ALL_KINDS = ['subjects', 'prompts', 'lessons', 'submissions', 'auditlogs', 'aiproviders'];
+const ALL_KINDS = ['subjects', 'prompts', 'lessons', 'submissions', 'auditlogs', 'aiproviders', 'sessions'];
 const ONLY = (argVal('only') ? argVal('only').split(',') : ALL_KINDS)
     .map((s) => s.trim())
     .filter((s) => ALL_KINDS.includes(s));
@@ -574,7 +580,7 @@ async function processSubmission(s) {
 //    --run --drop-orphans=a,b     → backup rồi xoá ĐÚNG các collection nêu tên
 //    (không bao giờ tự xoá thứ không được nêu tên)
 // ============================================================
-const EXTRA_KEEP = ['sessions']; // connect-mongo (server.js) — không phải model nhưng đang dùng
+const EXTRA_KEEP = ['sessions']; // session đã chuyển sang GitHub (cookies/index.json) — xoá bằng scripts/clear-mongo-sessions.js (có kiểm tra), nên KHÔNG liệt kê là "dư thừa" ở đây
 
 // Collection CŨ của 3 loại dữ liệu đã chuyển sang GitHub. Trước khi xoá phải chắc
 // MỌI document còn file tương ứng trên GitHub (githubFile có trong cây thư mục).
@@ -897,6 +903,91 @@ async function processSubjectsBatch(docs) {
 }
 
 // ============================================================
+// 6. SESSIONS  (collection sessions của connect-mongo → cookies/index.json)
+//    - _id của document = session id thật (giá trị trong cookie sau khi bỏ chữ ký) → GIỮ NGUYÊN,
+//      nên cookie đang có trên trình duyệt vẫn dùng được, người dùng không bị đăng xuất.
+//    - Mã cookie (sid) và dữ liệu session đều được mã hoá 2 chiều (cookieCryptoService).
+//    - Chỉ chuyển session CHƯA hết hạn; chỉ THÊM cái còn thiếu, không ghi đè bản đã có trên GitHub.
+//    - KHÔNG xoá gì ở MongoDB (xoá bằng scripts/clear-mongo-sessions.js sau khi đã chuyển xong).
+// ============================================================
+async function collectSessions() {
+    return legacy('sessions').find({
+        $or: [{ expires: { $gt: new Date() } }, { expires: { $exists: false } }, { expires: null }]
+    }).toArray();
+}
+
+function sessionObject(d) {
+    // connect-mongo: `session` là chuỗi JSON (stringify:true, mặc định) hoặc object (stringify:false)
+    let sess = d.session;
+    if (typeof sess === 'string') sess = JSON.parse(sess);
+    if (!sess || typeof sess !== 'object' || Array.isArray(sess)) throw new Error('session không phải object');
+    return JSON.parse(JSON.stringify(sess));   // Date/ObjectId → JSON thuần
+}
+
+async function processSessionsBatch(docs) {
+    const st = stat('sessions');
+    const PATH = GithubSessionStore.COOKIES_PATH;
+    const cryptoSvc = require('./services/cookieCryptoService');
+    const total = await legacy('sessions').countDocuments({});
+    console.log(`   ${tag}Mongo có ${total} session, còn hạn: ${docs.length} (session đã hết hạn không chuyển)`);
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        const current = await githubService.readJsonFileWithSha(PATH);
+        const sessions = { ...GithubSessionStore.extractSessions(current && current.data) };
+        const mine = new Map();   // key mã hoá → object session gốc (để đọc lại so sánh)
+        let added = 0; let already = 0;
+        st.skipped.length = 0;
+
+        for (const d of docs) {
+            const sid = typeof d._id === 'string' ? d._id : null;
+            if (!sid) { st.skipped.push(`${d._id}: _id không phải chuỗi session id`); continue; }
+            let sess;
+            try { sess = sessionObject(d); } catch (e) { st.skipped.push(`${sid.slice(0, 6)}…: ${e.message}`); continue; }
+            const { key, entry } = GithubSessionStore.buildEntry(sid, sess, { expires: d.expires });
+            if (sessions[key] && !GithubSessionStore.isExpired(sessions[key])) { already++; continue; }   // đã có trên GitHub → không ghi đè
+            sessions[key] = entry; mine.set(key, sess); added++;
+        }
+        st.alreadyOk = already;
+
+        // Dọn session hết hạn có sẵn trong file (giống store)
+        for (const [k, v] of Object.entries(sessions)) if (GithubSessionStore.isExpired(v)) delete sessions[k];
+
+        console.log(`   ${tag}${current ? 'File đã có trên GitHub' : 'File CHƯA có trên GitHub'}: ${PATH} | sẽ thêm: ${added} | đã có sẵn: ${already} | bỏ qua: ${st.skipped.length}`);
+        if (!RUN || !added) return;
+
+        const doc = { version: 1, updatedAt: new Date().toISOString(), total: Object.keys(sessions).length, sessions };
+        try {
+            const res = await putJson(PATH, doc, current ? current.sha : null, `[sessions] Chuyển ${added} session từ MongoDB (mã hoá)`);
+            st.written += added;
+            console.log(`   ✅ Đã ghi ${PATH} (sha ${String(res.sha).slice(0, 7)}), tổng ${doc.total} session.`);
+        } catch (e) {
+            if (e.code === 'SHA_CONFLICT' && attempt < 3) {
+                console.warn('   ⚠️  File vừa bị thay đổi (server đang ghi session) → đọc lại và thử lần nữa…');
+                st.written = 0;
+                continue;
+            }
+            throw e;
+        }
+
+        // Đọc lại từ GitHub, GIẢI MÃ và so sánh từng session vừa chuyển
+        const back = GithubSessionStore.extractSessions(await githubService.readJsonFile(PATH));
+        let ok = 0;
+        for (const [key, sess] of mine) {
+            try {
+                const entry = back[key];
+                const sidBack = cryptoSvc.decryptSid(key);
+                const dataBack = entry && JSON.parse(cryptoSvc.decryptData(entry.d, key));
+                if (entry && sidBack && JSON.stringify(dataBack) === JSON.stringify(sess)) ok++;
+                else st.failed.push(`session ${String(sidBack || '?').slice(0, 6)}…: đọc lại từ GitHub không khớp`);
+            } catch (e) { st.failed.push(`đọc lại/giải mã thất bại: ${e.message}`); }
+        }
+        console.log(`   🔐 Đọc lại + giải mã kiểm tra: ${ok}/${mine.size} session khớp.`);
+        console.log('   ℹ️  MongoDB KHÔNG bị thay đổi. Sau khi deploy code mới, chạy lại lệnh này 1 lần (chỉ thêm session mới phát sinh) rồi dùng scripts/clear-mongo-sessions.js để xoá.');
+        return;
+    }
+}
+
+// ============================================================
 // BACKUP trước khi xoá
 // ============================================================
 function writeBackup(plan) {
@@ -949,7 +1040,7 @@ function writeBackup(plan) {
         : '🔎 DRY-RUN: chỉ báo cáo, không ghi GitHub, không sửa MongoDB. Thêm --run để chạy thật.');
     console.log(`Loại dữ liệu: ${ONLY.join(', ')}${LIMIT ? ` | giới hạn ${LIMIT} bản ghi/loại` : ''}\n`);
 
-    const collectors = { subjects: collectSubjects, prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs, aiproviders: collectAiproviders };
+    const collectors = { subjects: collectSubjects, prompts: collectPrompts, lessons: collectLessons, submissions: collectSubmissions, auditlogs: collectAuditlogs, aiproviders: collectAiproviders, sessions: collectSessions };
     const processors = { prompts: processPrompt, lessons: processLesson, submissions: processSubmission };
 
     // Bước 1: gom danh sách cần xử lý
@@ -965,7 +1056,7 @@ function writeBackup(plan) {
 
     // Bước 2: backup (chỉ khi chạy thật)
     // (aiproviders không xoá gì ở MongoDB nên không cần backup)
-    if (RUN && !NO_BACKUP && ONLY.some((k) => k !== 'aiproviders' && plan[k] && plan[k].length)) writeBackup(plan);
+    if (RUN && !NO_BACKUP && ONLY.some((k) => k !== 'aiproviders' && k !== 'sessions' && plan[k] && plan[k].length)) writeBackup(plan);
     else if (RUN && NO_BACKUP) console.log('⏭️  --no-backup: không tạo file backup.');
 
     // Bước 3: xử lý tuần tự (prompts → lessons → submissions)
@@ -977,6 +1068,10 @@ function writeBackup(plan) {
         }
         if (!plan[kind] || !plan[kind].length) continue;
         console.log(`\n===== ${kind.toUpperCase()} =====`);
+        if (kind === 'sessions') {
+            try { await processSessionsBatch(plan[kind]); } catch (e) { stat(kind).failed.push(e.message); console.error(`   ❌ sessions: ${e.message}`); }
+            continue;
+        }
         if (kind === 'subjects') {
             try { await processSubjectsBatch(plan[kind]); } catch (e) { stat(kind).failed.push(e.message); console.error(`   ❌ subjects: ${e.message}`); }
             continue;

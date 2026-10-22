@@ -7,8 +7,7 @@ const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
 const session = require("express-session");
-const connectMongo = require("connect-mongo");
-const MongoStore = connectMongo.default || connectMongo;
+const GithubSessionStore = require("./services/githubSessionStore");
 const cors = require("cors");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
@@ -206,24 +205,14 @@ app.use("/webhooks/github", require("./routes/githubWebhook"));
 // SESSION
 // ============================================================
 
-// ★ FIX: trước đây MongoStore.create({ mongoUrl }) chạy ngay lúc load module
-//   → mở thêm 1 kết nối MongoDB riêng (và crash nếu MONGODB_URI chưa có).
-//   Giờ session chỉ được tạo SAU khi mongoose đã kết nối, và dùng lại
-//   chính client của mongoose → chỉ 1 kết nối, và tự thử lại nếu lần đầu lỗi.
+// ★ Session KHÔNG còn nằm ở MongoDB (collection `sessions`): lưu trên GitHub, file cookies/index.json.
+//   Mã cookie (session id) và dữ liệu session đều được mã hoá AES-256-GCM 2 chiều
+//   (services/cookieCryptoService.js) — chỉ đọc/ghi qua services/githubSessionStore.js.
+//   Store giữ cache RAM nên phải là 1 instance duy nhất cho cả tiến trình.
+const sessionStore = new GithubSessionStore();
 let sessionMiddleware = null;
 
 function buildSessionMiddleware() {
-    const storeOptions = {
-        collectionName: "sessions",
-        autoRemove: "native",
-    };
-
-    if (typeof mongoose.connection.getClient === "function") {
-        storeOptions.client = mongoose.connection.getClient();
-    } else {
-        storeOptions.mongoUrl = MONGODB_URI;
-    }
-
     return session({
         secret: process.env.SESSION_SECRET || "change-this-session-secret",
         resave: false,
@@ -232,7 +221,7 @@ function buildSessionMiddleware() {
         // ★ proxy: true — tin X-Forwarded-Proto để set cookie secure đúng trên Vercel
         proxy: true,
 
-        store: MongoStore.create(storeOptions),
+        store: sessionStore,
 
         cookie: {
             httpOnly: true,
