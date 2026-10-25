@@ -1,0 +1,93 @@
+extends ../layout
+
+block content
+    include _week
+    div(class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
+        div(class="flex flex-wrap items-start justify-between gap-4")
+            div
+                h1(class="text-2xl font-bold text-gray-900") Web dữ liệu — #{nodeName}
+                p(class="mt-1 text-sm text-gray-600")
+                    | Địa chỉ: 
+                    a(href=nodeUrl, target="_blank", rel="noopener noreferrer", class="text-indigo-600 hover:underline break-all")= nodeUrl
+                p(class="text-xs text-gray-500 font-mono break-all") id: #{nodeId}
+            div(class="flex flex-wrap gap-2")
+                a(href="/connect/key", class="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50") Xem khoá kết nối
+                form(method="post", action="/connect/register")
+                    button(type="submit", class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700") Đăng ký / làm mới
+                form(method="post", action="/connect/rotate-key", onsubmit="return confirm('Tạo khoá kết nối MỚI? Khoá cũ ở web chính sẽ không còn dùng được.')")
+                    button(type="submit", class="px-4 py-2 rounded-lg bg-white border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50") Đổi khoá kết nối
+
+        div(class="mt-3 rounded-xl border border-sky-200 bg-sky-50 text-sky-900 text-xs px-3 py-2")
+            | Đây là web dữ liệu: chỉ admin mặc định (role=admin, userKey=null) được đăng nhập. Khoá kết nối được mã hoá 2 chiều và lưu trong <code>#{registryPath}</code> của repo GitHub chính. Quản lý tất cả web ở trang <code>/connect</code> của web chính.
+
+        if setupKey
+            div(class="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4")
+                h2(class="text-sm font-semibold text-emerald-900") Khoá kết nối mới — chỉ hiện MỘT LẦN
+                p(class="mt-1 text-xs text-emerald-800") Hãy sao chép và lưu ngay. Nếu web chính chưa tự nhận web này, dán khoá vào ô "Khoá kết nối" ở trang /connect của web chính. Khoá không gửi cho người dùng thường.
+                div(class="mt-2 flex flex-wrap gap-2")
+                    input(id="setupKey", readonly, value=setupKey, class="flex-1 min-w-[260px] rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-mono")
+                    button(type="button", data-copy="setupKey", class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700") Sao chép khoá
+
+        if error
+            div(class="mt-4 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm px-4 py-3")= error
+        if setup && setup.error
+            div(class="mt-4 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm px-4 py-3")= setup.error
+
+        section(class="mt-6 grid gap-3 sm:grid-cols-2")
+            div(class="bg-white rounded-2xl border border-gray-200 p-4")
+                h2(class="text-sm font-semibold text-gray-900") Trạng thái đăng ký
+                if node
+                    p(class="mt-2 text-sm text-gray-700") Đã có trong sổ đăng ký.
+                    p(class="mt-1 text-xs text-gray-500 font-mono") khoá: #{node.keyHint ? '••••' + node.keyHint : 'chưa có'}
+                    if node.health
+                        p(class="mt-1 text-xs " + (node.health.ok ? 'text-emerald-700' : 'text-red-600'))
+                            | #{node.health.ok ? 'Hoạt động' : 'Lỗi'} #{node.health.ms != null ? '· ' + node.health.ms + ' ms' : ''}
+                        if node.health.error
+                            p(class="text-xs text-red-600 break-all")= node.health.error
+                else
+                    p(class="mt-2 text-sm text-amber-700") Chưa có trong sổ đăng ký (hoặc chưa đọc được). Bấm "Đăng ký / làm mới".
+                p(class="mt-2 text-[11px] text-gray-500") Khi đăng nhập bằng admin mặc định lần đầu, web tự đăng ký.
+
+            div(class="bg-white rounded-2xl border border-gray-200 p-4")
+                h2(class="text-sm font-semibold text-gray-900") Lưu lượng đo được
+                - var u = use || {}
+                - var today = u.today || { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                - var month = u.month || { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                div(class="mt-2 text-sm text-gray-900") Fast Data Transfer (trình duyệt ⇄ web)
+                div(class="text-xs text-gray-600") Hôm nay #{fmt(today.in + today.out)} · 30 ngày #{fmt(month.in + month.out)}
+                div(class="mt-2 text-sm text-gray-900") Fast Origin Transfer (web ⇄ GitHub)
+                div(class="text-xs text-gray-600") Hôm nay #{fmt(today.originIn + today.originOut)} · 30 ngày #{fmt(month.originIn + month.originOut)}
+                div(class="mt-1 text-[11px] text-gray-500") #{today.req} request hôm nay · file: <code>#{usagePath}</code>
+
+        if hist
+            section(id="tuan", class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
+                h2(class="text-lg font-semibold text-gray-900") Lịch sử lưu lượng theo tuần
+                p(class="mt-1 text-xs text-gray-500") Mỗi tuần hiện đủ 7 ngày (thứ Hai → Chủ nhật). Ngày tính theo UTC (0h UTC = 7h sáng giờ Việt Nam). Lưu vĩnh viễn, mỗi tuần một file: <code>#{hist.file}</code>.
+                div(class="mt-3")
+                    +weekNav(hist)
+                div(class="mt-3")
+                    +weekTable(hist)
+
+        section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
+            h2(class="text-lg font-semibold text-gray-900") .env của web này
+            p(class="mt-1 text-sm text-gray-600") Giữ GIỐNG HỆT các biến bí mật với web chính; chỉ khác DATA_NODE / NODE_ID / NODE_URL / NODE_NAME. Đổi .env phải redeploy.
+            details(class="mt-2")
+                summary(class="cursor-pointer text-xs text-indigo-700 hover:underline") Xem .env mẫu
+                pre(id="env-node", class="mt-2 p-3 rounded-xl bg-gray-900 text-gray-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre")= template
+                button(type="button", data-copy="env-node", class="mt-2 px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-medium hover:bg-gray-200") Sao chép .env
+
+        script.
+            (function () {
+                document.querySelectorAll('[data-copy]').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        var el = document.getElementById(b.getAttribute('data-copy'));
+                        if (!el || !navigator.clipboard) return;
+                        var text = el.value != null && el.tagName === 'INPUT' ? el.value : el.textContent;
+                        navigator.clipboard.writeText(text).then(function () {
+                            var old = b.textContent;
+                            b.textContent = 'Đã sao chép';
+                            setTimeout(function () { b.textContent = old; }, 1500);
+                        });
+                    });
+                });
+            })();

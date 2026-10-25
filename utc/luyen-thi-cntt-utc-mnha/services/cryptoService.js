@@ -1,25 +1,37 @@
 const crypto = require('crypto');
 
-const MASTER_KEY_HEX = process.env.ENCRYPTION_MASTER_KEY;
-
-if (!MASTER_KEY_HEX || MASTER_KEY_HEX.length !== 64) {
-    console.warn(
-        '[cryptoService] ENCRYPTION_MASTER_KEY không hợp lệ (cần 64 ký tự hex = 32 byte).'
-    );
+/**
+ * Đọc khoá lúc dùng (không đọc lúc require) → dotenv nạp trễ / biến môi trường Vercel đều hoạt động.
+ * Phải đúng 64 ký tự hex (= 32 byte). Giá trị mẫu trong .env (vd "khoa-hex-64-ky-tu...") hoặc 64 ký tự
+ * không phải hex trước đây gây lỗi khó hiểu "Invalid key length" — nay báo rõ nguyên nhân.
+ */
+let _warned = false;
+function masterKey() {
+    const hex = process.env.ENCRYPTION_MASTER_KEY;
+    if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) {
+        if (!_warned) {
+            _warned = true;
+            console.warn('[cryptoService] ENCRYPTION_MASTER_KEY không hợp lệ (cần 64 ký tự hex = 32 byte, tạo bằng: openssl rand -hex 32).');
+        }
+        return null;
+    }
+    return Buffer.from(hex, 'hex');
 }
 
-const MASTER_KEY = MASTER_KEY_HEX
-    ? Buffer.from(MASTER_KEY_HEX, 'hex')
-    : null;
+function needKey() {
+    const k = masterKey();
+    if (!k) {
+        throw new Error('ENCRYPTION_MASTER_KEY chưa cấu hình hoặc không hợp lệ (cần đúng 64 ký tự hex = 32 byte).');
+    }
+    return k;
+}
 
 /**
  * Mã hoá plaintext bằng AES-256-GCM.
  * Trả về { iv, content, authTag } (hex strings) — đúng schema AIKey.encryptedKey.
  */
 function encrypt(plainText) {
-    if (!MASTER_KEY) {
-        throw new Error('ENCRYPTION_MASTER_KEY chưa cấu hình.');
-    }
+    const MASTER_KEY = needKey();
 
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', MASTER_KEY, iv);
@@ -43,9 +55,7 @@ function encrypt(plainText) {
  * Chỉ gọi trong RAM, không log.
  */
 function decrypt({ iv, content, authTag }) {
-    if (!MASTER_KEY) {
-        throw new Error('ENCRYPTION_MASTER_KEY chưa cấu hình.');
-    }
+    const MASTER_KEY = needKey();
 
     if (!iv || !content || !authTag) {
         throw new Error('Dữ liệu mã hoá thiếu trường.');

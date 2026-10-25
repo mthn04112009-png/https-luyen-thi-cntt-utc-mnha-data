@@ -21,6 +21,14 @@ const {
 const MAX_RETRY = 3;
 const BASE_DELAY = 500;
 
+/**
+ * Đếm bytes web ⇄ GitHub cho trang /connect (Fast Origin Transfer).
+ * Bọc try/catch để tính năng đo lưu lượng không bao giờ làm hỏng thao tác GitHub.
+ */
+function noteOrigin(spec) {
+    try { require('./connect/usage').noteOrigin(spec); } catch (_) { /* chưa bật connect */ }
+}
+
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
@@ -162,8 +170,9 @@ async function writeJsonFile(path, data, commitMessage = 'Update JSON') {
 
     return withRetry(async () => {
         const sha = await getFileSha(path);
+        const text = JSON.stringify(data, null, 2);
         const content = Buffer
-            .from(JSON.stringify(data, null, 2), 'utf8')
+            .from(text, 'utf8')
             .toString('base64');
 
         const res = await octokit.repos.createOrUpdateFileContents({
@@ -181,6 +190,7 @@ async function writeJsonFile(path, data, commitMessage = 'Update JSON') {
         });
 
         invalidateTree();
+        noteOrigin({ out: Buffer.byteLength(text) });
         return {
             path,
             sha: res.data.content.sha,
@@ -205,6 +215,7 @@ async function readJsonFile(path) {
             throw new Error(`Path không phải file: ${path}`);
         }
         const content = await decodeContent(res.data, path);
+        noteOrigin({ in: Buffer.byteLength(content) });
         return JSON.parse(content);
     } catch (e) {
         if (e.status === 404) return null;
@@ -228,7 +239,9 @@ async function readJsonFileWithSha(path) {
         if (Array.isArray(res.data)) {
             throw new Error(`Path không phải file: ${path}`);
         }
-        const data = JSON.parse(await decodeContent(res.data, path));
+        const text = await decodeContent(res.data, path);
+        noteOrigin({ in: Buffer.byteLength(text) });
+        const data = JSON.parse(text);
         return { data, sha: res.data.sha };
     } catch (e) {
         if (e.status === 404) return null;
@@ -253,13 +266,14 @@ async function writeJsonFileIfSha(path, data, expectedSha, commitMessage = 'Upda
     }
 
     try {
+        const text = JSON.stringify(data, null, 2);
         const res = await octokit.repos.createOrUpdateFileContents({
             owner,
             repo,
             branch,
             path,
             message: commitMessage,
-            content: Buffer.from(JSON.stringify(data, null, 2), 'utf8').toString('base64'),
+            content: Buffer.from(text, 'utf8').toString('base64'),
             sha: currentSha || undefined,
             committer: {
                 name: 'Luyen Thi CNTT Bot',
@@ -267,6 +281,7 @@ async function writeJsonFileIfSha(path, data, expectedSha, commitMessage = 'Upda
             }
         });
         invalidateTree();
+        noteOrigin({ out: Buffer.byteLength(text) });
         return {
             path,
             sha: res.data.content.sha,
@@ -310,6 +325,7 @@ async function updateJsonFile(path, updater, commitMessage = 'Update JSON') {
 
         const current = JSON.parse(await decodeContent(res.data, path));
         const next = await updater(current);
+        const text = JSON.stringify(next, null, 2);
 
         const put = await octokit.repos.createOrUpdateFileContents({
             owner,
@@ -317,7 +333,7 @@ async function updateJsonFile(path, updater, commitMessage = 'Update JSON') {
             branch,
             path,
             message: commitMessage,
-            content: Buffer.from(JSON.stringify(next, null, 2), 'utf8').toString('base64'),
+            content: Buffer.from(text, 'utf8').toString('base64'),
             sha: res.data.sha,
             committer: {
                 name: 'Luyen Thi CNTT Bot',
@@ -326,6 +342,7 @@ async function updateJsonFile(path, updater, commitMessage = 'Update JSON') {
         });
 
         invalidateTree();
+        noteOrigin({ out: Buffer.byteLength(text) });
         return {
             path,
             sha: put.data.content.sha,
@@ -364,6 +381,7 @@ async function writeBinaryFile(path, buffer, commitMessage = 'Update file') {
         });
 
         invalidateTree();
+        noteOrigin({ out: buffer.length });
         return {
             path,
             sha: res.data.content.sha,
@@ -389,7 +407,9 @@ async function readBinaryFile(path) {
         if (!res.data.content) {
             throw new Error(`File quá lớn để đọc qua Contents API: ${path}`);
         }
-        return Buffer.from(res.data.content, 'base64');
+        const buf = Buffer.from(res.data.content, 'base64');
+        noteOrigin({ in: buf.length });
+        return buf;
     } catch (e) {
         if (e.status === 404) return null;
         throw e;
@@ -411,10 +431,16 @@ async function readBinaryFileLarge(path) {
         if (Array.isArray(res.data)) {
             throw new Error(`Path không phải file: ${path}`);
         }
-        if (res.data.content) return Buffer.from(res.data.content, 'base64');
+        if (res.data.content) {
+            const buf = Buffer.from(res.data.content, 'base64');
+            noteOrigin({ in: buf.length });
+            return buf;
+        }
         if (!res.data.sha) throw new Error(`Không đọc được nội dung file: ${path}`);
         const blob = await octokit.git.getBlob({ owner, repo, file_sha: res.data.sha });
-        return Buffer.from(blob.data.content, 'base64');
+        const buf = Buffer.from(blob.data.content, 'base64');
+        noteOrigin({ in: buf.length });
+        return buf;
     } catch (e) {
         if (e.status === 404) return null;
         throw e;
@@ -431,6 +457,7 @@ async function createBlob(buffer) {
     if (!Buffer.isBuffer(buffer)) throw new Error('createBlob: dữ liệu phải là Buffer');
     return withRetry(async () => {
         const res = await octokit.git.createBlob({ owner, repo, content: buffer.toString('base64'), encoding: 'base64' });
+        noteOrigin({ out: buffer.length });
         return res.data.sha;
     }, 'createBlob');
 }
@@ -440,7 +467,9 @@ async function getBlobBuffer(sha) {
     assertConfigured();
     try {
         const res = await octokit.git.getBlob({ owner, repo, file_sha: sha });
-        return Buffer.from(res.data.content, 'base64');
+        const buf = Buffer.from(res.data.content, 'base64');
+        noteOrigin({ in: buf.length });
+        return buf;
     } catch (e) {
         if (e.status === 404) return null;
         throw e;
@@ -467,6 +496,7 @@ async function writeBinaryFileBig(path, buffer, commitMessage = 'Update file') {
             request: { timeout }
         });
         invalidateTree();
+        noteOrigin({ out: buffer.length });
         return { path, sha: res.data.content.sha, commitSha: res.data.commit.sha };
     }, `writeBinaryBig:${path}`);
 }

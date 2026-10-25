@@ -182,10 +182,16 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// ★ Đếm lưu lượng trình duyệt ⇄ web (xấp xỉ) cho trang /connect — xem services/connect/usage.js
+app.use(require("./services/connect/usage").middleware());
+
 // ★ FIX: đợi MongoDB sẵn sàng trước khi vào route — quan trọng cho lần
 //   "cold start" đầu tiên trên serverless, khi request có thể đến trước
 //   khi connectDB() ở trên kịp kết nối xong.
 app.use(async (req, res, next) => {
+    // /api/node/health là endpoint công khai để web chính dò "web dữ liệu còn sống";
+    // không phụ thuộc MongoDB (web dữ liệu có thể đang khởi động / Mongo tạm lỗi).
+    if (req.path === "/api/node/health") return next();
     try {
         await connectDB();
         next();
@@ -213,6 +219,11 @@ const sessionStore = new GithubSessionStore();
 let sessionMiddleware = null;
 
 function buildSessionMiddleware() {
+    // startServer() không chạy trên Vercel (chỉ `require("../server")`) nên phải kiểm tra ở đây:
+    // production mà thiếu SESSION_SECRET thì cookie sẽ được ký bằng chuỗi mặc định CÔNG KHAI.
+    if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+        throw new Error("SESSION_SECRET bắt buộc phải được cấu hình ở production.");
+    }
     return session({
         secret: process.env.SESSION_SECRET || "change-this-session-secret",
         resave: false,
@@ -306,6 +317,9 @@ app.use(async (req, res, next) => {
                     name: fresh.name,
                     role: fresh.role,
                     status: fresh.status,
+                    // ★ Giữ userKey: web dữ liệu (DATA_NODE=on) dùng để phân biệt admin mặc định
+                    //   (userKey=null) với admin tổ chức (userKey != null).
+                    userKey: fresh.userKey ? String(fresh.userKey) : null,
                 };
             } else {
                 req.session.destroy(() => {});
@@ -344,6 +358,36 @@ app.use((req, res, next) => {
 // ★ Layout theo user_key: res.locals.brand + isDefaultAdmin/isOrgAdmin/canEditLayout.
 //   PHẢI đứng sau middleware nạp user ở trên (cần req.freshUser).
 app.use(attachLayout);
+
+// ★ WEB KẾT NỐI — cùng codebase, khác .env:
+//   • Web chính (DATA_NODE=off): quản lý danh sách web dữ liệu ở /connect.
+//   • Web dữ liệu (DATA_NODE=on): tự đăng ký, chỉ admin mặc định được đăng nhập.
+const connectVercel = require("./connect/vercel");
+const DATA_NODE = connectVercel.isDataNode();
+app.use((req, res, next) => {
+    res.locals.dataNode = DATA_NODE;
+    res.locals.nodeName = DATA_NODE ? connectVercel.nodeName() : null;
+    next();
+});
+if (DATA_NODE) {
+    // Web dữ liệu: tài khoản KHÔNG phải admin mặc định không được dùng (kể cả session cũ).
+    app.use((req, res, next) => {
+        const sessionUser = req.user;
+        if (!sessionUser) return next();
+        // Ưu tiên bản user đọc mới từ DB (attachLayout dùng req.freshUser);
+        // session cũ có thể chưa có userKey → buộc đăng nhập lại thay vì đoán.
+        const u = req.freshUser ||
+            (Object.prototype.hasOwnProperty.call(sessionUser, "userKey") ? sessionUser : null);
+        if (u && connectVercel.isDefaultUser(u)) return next();
+
+        if (req.session) delete req.session.user;
+        req.user = null;
+        res.locals.user = null;
+        if (req.path.startsWith("/auth/")) return next();
+        if (req.session) return req.session.save(() => res.redirect("/auth/login"));
+        return res.redirect("/auth/login");
+    });
+}
 
 // ★ GitHub lỗi (sập/bảo trì) → mọi trang báo thống nhất "GitHub đang gặp vấn đề, vui lòng quay lại sau"
 app.use(require("./middleware/githubDownGuard"));
@@ -477,6 +521,23 @@ try {
 // Giữ "/ai" để tương thích với code cũ, thêm "/api/ai" cho frontend mới.
 // ============================================================
 
+// ★ Web dữ liệu: chỉ cho ĐĂNG NHẬP / ĐĂNG XUẤT; tắt đăng ký, OTP, quên/đặt lại mật khẩu.
+//   (Chặn ở tầng route, không chỉ ẩn link trong view.)
+if (DATA_NODE) {
+    app.use("/auth", (req, res, next) => {
+        if (/^\/(login|logout)\/?$/.test(req.path)) return next();
+        return res.status(403).render("error", {
+            title: "Web dữ liệu",
+            message:
+                "Đây là web dữ liệu: chỉ quản trị viên mặc định (role=admin, userKey=null) được đăng nhập. " +
+                "Không đăng ký tài khoản / đặt lại mật khẩu ở web này.",
+            user: req.user,
+            statusCode: 403,
+            stack: null,
+        });
+    });
+}
+
 app.use("/auth", authRoutes);
 app.use("/subjects", subjectRoutes);
 app.use("/student/subjects", subjectRoutes);
@@ -510,6 +571,16 @@ if (quizRoutes) {
 }
 
 app.use("/admin", adminRoutes);
+
+// ★ WEB KẾT NỐI
+//   Web dữ liệu (DATA_NODE=on): /api/node/health|ping|status + /connect của chính web đó.
+//   Web chính: /connect quản lý danh sách web dữ liệu.
+if (DATA_NODE) {
+    app.use(connectVercel.createRouter());
+    console.log("🔗 Chế độ WEB DỮ LIỆU: " + connectVercel.nodeName() + " (" + connectVercel.nodeId() + ")");
+} else {
+    app.use("/connect", require("./routes/connect"));
+}
 
 // POST nhầm vào trang đích của từng vai trò (vd: form không có action, redirect 307/308).
 // Đặt SAU các router nên không đè lên route POST thật; chỉ bắt khi không route nào khớp.

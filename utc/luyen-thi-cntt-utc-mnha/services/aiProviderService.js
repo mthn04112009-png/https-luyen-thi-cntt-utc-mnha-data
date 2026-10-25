@@ -318,7 +318,8 @@ async function ensureFresh({ force = false } = {}) {
 
 function middleware(req, res, next) {
     const p = req.path || '';
-    if (p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/images') || p.startsWith('/webhooks') || p === '/favicon.ico') return next();
+    // /api/node/* được web chính dò trực tiếp: không kéo theo GitHub/AI để health luôn nhanh.
+    if (p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/images') || p.startsWith('/webhooks') || p.startsWith('/api/node') || p === '/favicon.ico') return next();
     ensureFresh().then(() => next(), () => next());
 }
 

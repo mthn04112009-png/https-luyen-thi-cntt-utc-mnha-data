@@ -1,0 +1,59 @@
+//- Mixin dùng chung cho xem lưu lượng THEO TUẦN (thứ Hai → Chủ nhật, ngày theo UTC).
+//-   info = kết quả usage.history()/historyAll() cho 1 web: { offset, week, file, from, to, days[7], total, prevTotal, hasPrev, hasNext }
+
+mixin weekNav(info)
+    div(class="flex flex-wrap items-center gap-2")
+        if info.hasPrev
+            a(href="/connect?w=" + (info.offset - 1) + "#tuan", class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-medium hover:bg-gray-50") ← Tuần trước
+        else
+            span(class="px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-400") ← Tuần trước
+        span(class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-800 text-xs font-semibold")
+            = 'Tuần ' + info.week + (info.offset === 0 ? ' (tuần này)' : (info.offset === -1 ? ' (tuần trước)' : '')) + ': ' + info.from + ' → ' + info.to
+        if info.hasNext
+            a(href="/connect?w=" + (info.offset + 1) + "#tuan", class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-medium hover:bg-gray-50") Tuần sau →
+        else
+            span(class="px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-400") Tuần sau →
+        if info.offset !== 0
+            a(href="/connect#tuan", class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700") Về tuần này
+
+mixin weekTable(info)
+    div(class="overflow-x-auto")
+        table(class="min-w-full text-xs")
+            thead
+                tr(class="text-left text-gray-500 border-b border-gray-200")
+                    th(class="py-1.5 pr-3 font-medium") Ngày
+                    th(class="py-1.5 pr-3 font-medium text-right") Tải lên (vào)
+                    th(class="py-1.5 pr-3 font-medium text-right") Tải xuống (ra)
+                    th(class="py-1.5 pr-3 font-medium text-right") Ghi GitHub
+                    th(class="py-1.5 pr-3 font-medium text-right") Đọc GitHub
+                    th(class="py-1.5 font-medium text-right") Request
+            tbody
+                each r in info.days
+                    tr(class="border-b border-gray-100" + (r.today ? ' bg-indigo-50' : '') + (r.future ? ' text-gray-300' : ''))
+                        td(class="py-1.5 pr-3 whitespace-nowrap")
+                            span(class="font-mono") #{r.date} 
+                            span(class=(r.future ? 'text-gray-300' : 'text-gray-500')) #{r.name}
+                            if r.today
+                                span(class="ml-1 rounded-full bg-indigo-600 text-white px-1.5 py-0.5 text-[10px]") hôm nay
+                        if r.future
+                            td(class="py-1.5 pr-3 text-right", colspan="5") chưa tới
+                        else
+                            td(class="py-1.5 pr-3 text-right") #{fmt(r.in)}
+                            td(class="py-1.5 pr-3 text-right") #{fmt(r.out)}
+                            td(class="py-1.5 pr-3 text-right") #{fmt(r.originOut)}
+                            td(class="py-1.5 pr-3 text-right") #{fmt(r.originIn)}
+                            td(class="py-1.5 text-right") #{r.req}
+                tr(class="font-semibold bg-gray-50")
+                    td(class="py-1.5 pr-3") Tổng tuần
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.total.in)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.total.out)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.total.originOut)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.total.originIn)}
+                    td(class="py-1.5 text-right") #{info.total.req}
+                tr(class="text-gray-500")
+                    td(class="py-1.5 pr-3") Tuần liền trước
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.prevTotal.in)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.prevTotal.out)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.prevTotal.originOut)}
+                    td(class="py-1.5 pr-3 text-right") #{fmt(info.prevTotal.originIn)}
+                    td(class="py-1.5 text-right") #{info.prevTotal.req}

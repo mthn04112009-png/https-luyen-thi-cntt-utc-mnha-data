@@ -1,0 +1,207 @@
+extends ../layout
+
+block content
+    include _week
+    - var okCls = 'border-emerald-300 bg-emerald-50 text-emerald-900'
+    - var errCls = 'border-red-300 bg-red-50 text-red-900'
+    - var infoCls = 'border-sky-300 bg-sky-50 text-sky-900'
+    div(class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8", id="connectPage")
+        div(class="flex flex-wrap items-start justify-between gap-4")
+            div
+                h1(class="text-2xl font-bold text-gray-900") Web kết nối
+                p(class="mt-1 text-sm text-gray-600")
+                    | Các web dữ liệu (Vercel khác) chạy cùng mã nguồn, dùng chung GitHub + MongoDB với web chính.
+                    | Trang này kiểm tra <b>lần lượt cũ → mới</b>, đo lưu lượng và quản lý khoá kết nối của từng web.
+            form(method="post", action="/connect/check")
+                button(type="submit", class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 inline-flex items-center gap-2")
+                    i(data-lucide="refresh-cw", class="w-4 h-4")
+                    | Kiểm tra tất cả (cũ → mới)
+        if flash
+            div(class="mt-4 rounded-xl border px-4 py-3 text-sm " + (flash.type === 'error' ? errCls : flash.type === 'success' ? okCls : infoCls))= flash.message
+        p(class="mt-4 text-xs text-gray-500")
+            | Sổ đăng ký: <code>#{registryPath}</code> · Lưu lượng đo được: <code>#{usagePath}</code> · Chỉ admin mặc định (role=admin, userKey=null) dùng được trang này.
+
+        //- thêm web
+        section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
+            h2(class="text-lg font-semibold text-gray-900") Thêm web dữ liệu
+            p(class="mt-1 text-sm text-gray-600")
+                | Dán địa chỉ gốc của web dữ liệu (ví dụ <code>https://luyen-thi-cntt-data-1.vercel.app</code>).
+                | Nếu web đã đăng nhập bằng admin mặc định, nó đã tự có trong danh sách — không cần thêm lại.
+            form(method="post", action="/connect/add", class="mt-4 grid gap-3 sm:grid-cols-2")
+                label(class="text-sm") Địa chỉ web (URL)
+                    input(type="url", name="url", required, placeholder="https://luyen-thi-cntt-data-1.vercel.app", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                label(class="text-sm") Tên hiển thị
+                    input(type="text", name="name", placeholder="Web dữ liệu 1", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                label(class="text-sm sm:col-span-2") Khoá kết nối (dán từ trang /connect của web dữ liệu — có thể để trống nếu web tự đăng ký)
+                    input(type="text", name="key", autocomplete="off", placeholder="64 ký tự — chỉ hiện 1 lần ở web dữ liệu", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono")
+                label(class="text-sm sm:col-span-2") Ghi chú
+                    input(type="text", name="note", placeholder="Ví dụ: web dự phòng, web chia tải…", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                div(class="sm:col-span-2")
+                    button(type="submit", class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700") Thêm / cập nhật web
+
+        //- tổng TUẦN đang xem theo từng web (đổi tuần bằng ?w=0, -1, -2 …)
+        if nodes.length && weekInfo
+            section(id="tuan", class="mt-8 bg-white rounded-2xl border border-gray-200 p-5")
+                h2(class="text-lg font-semibold text-gray-900") Lưu lượng theo tuần của từng web
+                p(class="mt-1 text-xs text-gray-500") Mỗi tuần đủ 7 ngày (thứ Hai → Chủ nhật), ngày theo UTC: 0h UTC = 7h sáng giờ Việt Nam. "Tải lên" = dữ liệu trình duyệt gửi vào web; "Ghi GitHub" = web ghi lên GitHub. Mỗi tuần lưu một file riêng <code>#{weekInfo.file}</code> (không xoá). Mở thẻ từng web bên dưới để xem từng ngày.
+                div(class="mt-3")
+                    +weekNav(weekInfo)
+                div(class="mt-3 overflow-x-auto")
+                    table(class="min-w-full text-xs")
+                        thead
+                            tr(class="text-left text-gray-500 border-b border-gray-200")
+                                th(class="py-1.5 pr-3 font-medium") Web
+                                th(class="py-1.5 pr-3 font-medium text-right") Tải lên
+                                th(class="py-1.5 pr-3 font-medium text-right") Tải xuống
+                                th(class="py-1.5 pr-3 font-medium text-right") Ghi GitHub
+                                th(class="py-1.5 pr-3 font-medium text-right") Đọc GitHub
+                                th(class="py-1.5 pr-3 font-medium text-right") Request
+                                th(class="py-1.5 font-medium text-right") Tuần liền trước (vào+ra)
+                        tbody
+                            each n in nodes
+                                - var w = n.hist ? n.hist.total : { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                                - var pw = n.hist ? n.hist.prevTotal : { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                                tr(class="border-b border-gray-100")
+                                    td(class="py-1.5 pr-3 font-medium text-gray-900") #{n.name}
+                                    td(class="py-1.5 pr-3 text-right") #{fmt(w.in)}
+                                    td(class="py-1.5 pr-3 text-right") #{fmt(w.out)}
+                                    td(class="py-1.5 pr-3 text-right") #{fmt(w.originOut)}
+                                    td(class="py-1.5 pr-3 text-right") #{fmt(w.originIn)}
+                                    td(class="py-1.5 pr-3 text-right") #{w.req}
+                                    td(class="py-1.5 text-right text-gray-500") #{fmt(pw.in + pw.out)}
+                            tr(class="font-semibold bg-gray-50")
+                                td(class="py-1.5 pr-3") Tất cả
+                                td(class="py-1.5 pr-3 text-right") #{fmt(weekTotal.in)}
+                                td(class="py-1.5 pr-3 text-right") #{fmt(weekTotal.out)}
+                                td(class="py-1.5 pr-3 text-right") #{fmt(weekTotal.originOut)}
+                                td(class="py-1.5 pr-3 text-right") #{fmt(weekTotal.originIn)}
+                                td(class="py-1.5 pr-3 text-right") #{weekTotal.req}
+                                td
+
+        //- danh sách web
+        section(class="mt-8")
+            div(class="flex flex-wrap items-end justify-between gap-2")
+                h2(class="text-lg font-semibold text-gray-900") Danh sách web (thứ tự kiểm tra: cũ → mới)
+                span(class="text-xs text-gray-500") #{nodes.length} web
+            if !nodes.length
+                div(class="mt-3 bg-white rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500")
+                    | Chưa có web kết nối nào. Hãy triển khai web dữ liệu (cùng codebase, <code>DATA_NODE=on</code>), đăng nhập bằng admin mặc định rồi thêm URL ở trên.
+            each n in nodes
+                - var u = n.usage || {}
+                - var today = u.today || { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                - var month = u.month || { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 }
+                - var v = n.vercel || {}
+                - var h = n.health || {}
+                - var fdt = v.fastDataTransferGb == null ? '' : v.fastDataTransferGb
+                - var fot = v.fastOriginTransferGb == null ? '' : v.fastOriginTransferGb
+                article(class="mt-4 bg-white rounded-2xl border border-gray-200 p-5")
+                    div(class="flex flex-wrap items-start justify-between gap-3")
+                        div(class="min-w-0")
+                            h3(class="text-base font-semibold text-gray-900 break-all")
+                                = n.name
+                                if !n.enabled
+                                    span(class="ml-2 align-middle text-xs rounded-full bg-gray-100 text-gray-600 px-2 py-0.5") đang tắt
+                            a(href=n.url, target="_blank", rel="noopener noreferrer", class="text-xs text-indigo-600 hover:underline break-all")= n.url
+                            div(class="mt-1 text-xs text-gray-500 font-mono break-all") id: #{n.id}
+                        div(class="flex flex-wrap items-center gap-2")
+                            if h.ok
+                                span(class="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 text-xs px-2.5 py-1")
+                                    span(class="w-2 h-2 rounded-full bg-emerald-500")
+                                    | Hoạt động #{h.ms != null ? '· ' + h.ms + ' ms' : ''}
+                            else
+                                span(class="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 text-xs px-2.5 py-1")
+                                    span(class="w-2 h-2 rounded-full bg-red-500")
+                                    | #{h.error ? 'Lỗi' : 'Chưa kiểm tra'}
+                            if n.keyHint
+                                span(class="rounded-full bg-gray-100 text-gray-600 text-xs px-2.5 py-1 font-mono") khoá ••••#{n.keyHint}
+                            else
+                                span(class="rounded-full bg-amber-50 text-amber-700 text-xs px-2.5 py-1") chưa có khoá
+                    if h.error
+                        div(class="mt-2 text-xs text-red-600 break-all")= h.error
+                    if n.note
+                        p(class="mt-2 text-xs text-gray-500")= n.note
+
+                    div(class="mt-4 grid gap-3 sm:grid-cols-2")
+                        div(class="rounded-xl border border-gray-200 p-3")
+                            div(class="text-xs font-medium text-gray-700") Fast Data Transfer (trình duyệt ⇄ web)
+                            div(class="mt-1 text-sm text-gray-900") Hôm nay: <b>#{fmt(today.in + today.out)}</b>
+                            div(class="text-xs text-gray-500") 30 ngày: #{fmt(month.in + month.out)} · #{today.req} request hôm nay
+                        div(class="rounded-xl border border-gray-200 p-3")
+                            div(class="text-xs font-medium text-gray-700") Fast Origin Transfer (web ⇄ GitHub)
+                            div(class="mt-1 text-sm text-gray-900") Hôm nay: <b>#{fmt(today.originIn + today.originOut)}</b>
+                            div(class="text-xs text-gray-500") 30 ngày: #{fmt(month.originIn + month.originOut)}
+                            if u.updatedAt
+                                div(class="mt-1 text-[11px] text-gray-400") cập nhật: #{u.updatedAt}
+                    if n.hist
+                        details(class="mt-3")
+                            summary(class="cursor-pointer text-xs text-indigo-700 hover:underline") Từng ngày trong tuần #{n.hist.from} → #{n.hist.to} · #{fmt(n.hist.total.in)} tải lên · #{fmt(n.hist.total.out)} tải xuống · #{n.hist.total.req} request
+                            div(class="mt-2")
+                                +weekTable(n.hist)
+                    p(class="mt-2 text-[11px] text-gray-500") Đây là số đo thực tế của ứng dụng (xấp xỉ). Số chính thức của Vercel nhập ở ô bên dưới.
+
+                    form(method="post", action="/connect/node/" + n.id + "/vercel", class="mt-3 grid gap-2 sm:grid-cols-4")
+                        label(class="text-xs text-gray-600") Fast Data Transfer (GB)
+                            input(type="number", name="fastDataTransferGb", min="0", step="0.001", value=fdt, class="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm")
+                        label(class="text-xs text-gray-600") Fast Origin Transfer (GB)
+                            input(type="number", name="fastOriginTransferGb", min="0", step="0.001", value=fot, class="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm")
+                        label(class="text-xs text-gray-600 sm:col-span-2") Ghi chú / kỳ số liệu
+                            input(type="text", name="note", value=v.note || '', placeholder="Ví dụ: Vercel tháng 10/2026", class="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm")
+                        div(class="sm:col-span-4")
+                            button(type="submit", class="px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-medium hover:bg-slate-900") Lưu số liệu Vercel
+
+                    div(class="mt-4 flex flex-wrap items-center gap-2")
+                        details(class="inline-block")
+                            summary(class="cursor-pointer px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-medium hover:bg-gray-50") Đổi tên / ghi chú
+                            form(method="post", action="/connect/node/" + n.id + "/rename", class="mt-2 flex flex-wrap gap-2")
+                                input(type="text", name="name", value=n.name, class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm")
+                                input(type="text", name="note", value=n.note || '', placeholder="Ghi chú", class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm")
+                                button(type="submit", class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs") Lưu
+                        form(method="post", action="/connect/node/" + n.id + "/toggle")
+                            input(type="hidden", name="enabled", value=n.enabled ? '0' : '1')
+                            button(type="submit", class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-medium hover:bg-gray-50")= n.enabled ? 'Tắt web' : 'Bật web'
+                        form(method="post", action="/connect/node/" + n.id + "/remove", onsubmit="return confirm('Xoá web này khỏi danh sách kết nối? Dữ liệu trên GitHub của web không bị xoá.')")
+                            button(type="submit", class="px-3 py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-medium hover:bg-red-50") Xoá khỏi danh sách
+
+                    if !n.keyHint
+                        form(method="post", action="/connect/node/" + n.id + "/key", class="mt-3 flex flex-wrap gap-2")
+                            input(type="text", name="key", required, autocomplete="off", placeholder="Dán khoá kết nối (≥ 32 ký tự) từ web dữ liệu", class="flex-1 min-w-[240px] rounded-lg border border-gray-300 px-2 py-1.5 text-sm font-mono")
+                            button(type="submit", class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700") Lưu khoá
+
+                    details(class="mt-3")
+                        summary(class="cursor-pointer text-xs text-indigo-700 hover:underline") .env mẫu cho web này (giống hệt web chính, chỉ khác DATA_NODE / NODE_ID / NODE_URL / NODE_NAME)
+                        p(class="mt-1 text-[11px] text-gray-500") Các biến bí mật phải GIỐNG HỆT web chính. Chỉ đổi: #{diffKeys.join(', ')}.
+                        pre(id="env-" + n.id, class="mt-2 p-3 rounded-xl bg-gray-900 text-gray-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre")= n.env
+                        button(type="button", data-copy-env="env-" + n.id, class="mt-2 px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-medium hover:bg-gray-200") Sao chép .env
+
+        //- env web chính
+        section(class="mt-8 bg-white rounded-2xl border border-gray-200 p-5")
+            h2(class="text-lg font-semibold text-gray-900") .env mẫu cho web chính
+            p(class="mt-1 text-sm text-gray-600") Web chính để <code>DATA_NODE=off</code>. Các biến bí mật dùng chung với mọi web dữ liệu.
+            details(class="mt-2")
+                summary(class="cursor-pointer text-xs text-indigo-700 hover:underline") Xem .env mẫu
+                pre(id="env-main", class="mt-2 p-3 rounded-xl bg-gray-900 text-gray-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre")= mainEnv
+                button(type="button", data-copy-env="env-main", class="mt-2 px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-medium hover:bg-gray-200") Sao chép .env
+
+        section(class="mt-8 bg-sky-50 border border-sky-200 rounded-2xl p-5 text-sm text-sky-900")
+            h2(class="font-semibold") Cách thêm một web dữ liệu
+            ol(class="mt-2 list-decimal pl-5 space-y-1")
+                li Tạo Vercel project mới từ CÙNG repo/codebase này.
+                li Dán .env mẫu ở trên; giữ GIỐNG HỆT các biến bí mật, chỉ đổi <code>DATA_NODE=on</code>, <code>NODE_ID</code>, <code>NODE_URL</code>, <code>NODE_NAME</code>.
+                li Mở <code>https://&lt;web-dữ-liệu&gt;/auth/login</code> bằng tài khoản admin mặc định (role=admin, userKey=null). Web tự tạo khoá kết nối, mã hoá rồi ghi vào <code>#{registryPath}</code>.
+                li Khoá gốc chỉ hiện MỘT LẦN ở trang <code>/connect</code> của web dữ liệu. Nếu web chưa tự đăng ký được, dán khoá đó vào ô "Khoá kết nối" ở trên.
+                li Bấm "Kiểm tra tất cả" để xác nhận web hoạt động. Web dữ liệu không cho student/client/admin tổ chức đăng nhập.
+
+        script.
+            (function () {
+                document.querySelectorAll('[data-copy-env]').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        var el = document.getElementById(b.getAttribute('data-copy-env'));
+                        if (!el || !navigator.clipboard) return;
+                        navigator.clipboard.writeText(el.textContent).then(function () {
+                            var old = b.textContent;
+                            b.textContent = 'Đã sao chép';
+                            setTimeout(function () { b.textContent = old; }, 1500);
+                        });
+                    });
+                });
+            })();

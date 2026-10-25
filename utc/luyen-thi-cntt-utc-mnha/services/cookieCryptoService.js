@@ -12,7 +12,7 @@
 //    gắn AAD = token sid → không thể cắt dán dữ liệu của session này sang session khác.
 //      token = "d1." + base64url( IV | authTag | ciphertext )
 //
-// Khoá gốc: ENCRYPTION_MASTER_KEY (64 hex — đã có sẵn cho API key AI). Nếu thiếu mới dùng SESSION_SECRET.
+// Khoá gốc: ENCRYPTION_MASTER_KEY (64 hex — đã có sẵn cho API key AI). Nếu thiếu/sai thì dùng SESSION_ENC_KEY (≥ 32 ký tự), rồi mới SESSION_SECRET.
 // Từ khoá gốc suy ra 3 khoá con độc lập bằng HKDF-SHA256 (sid / iv-sid / data).
 // Đổi khoá gốc ⇒ session cũ không giải mã được ⇒ coi như hết phiên (người dùng đăng nhập lại), KHÔNG lỗi hệ thống.
 // ============================================================
@@ -30,7 +30,12 @@ function rootKey() {
     const hex = process.env.ENCRYPTION_MASTER_KEY;
     if (hex && /^[0-9a-fA-F]{64}$/.test(hex)) return Buffer.from(hex, 'hex');
 
-    // Giống server.js: production bắt buộc phải có secret thật
+    // Dự phòng 1: SESSION_ENC_KEY (≥ 32 ký tự) — biến mã hoá session của repository-mnha / mẫu .env của dự án này.
+    //   Chỉ dùng khi ENCRYPTION_MASTER_KEY thiếu/sai nên KHÔNG làm đổi khoá của web đang chạy đúng.
+    const encKey = process.env.SESSION_ENC_KEY;
+    if (encKey && String(encKey).length >= 32) return Buffer.from(String(encKey), 'utf8');
+
+    // Dự phòng 2 — giống server.js: production bắt buộc phải có secret thật
     const secret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'change-this-session-secret');
     if (!secret) {
         throw new Error('Thiếu ENCRYPTION_MASTER_KEY (64 hex) hoặc SESSION_SECRET để mã hoá cookie/session.');

@@ -41,6 +41,15 @@ html(lang="vi")
                         p(class="text-sm text-gray-500 mt-2")
                             | Đăng nhập để tiếp tục sử dụng hệ thống.
 
+                    if dataNode
+                        .mb-5.flex.items-start.gap-3.p-4.bg-sky-50.border.border-sky-200.rounded-xl
+                            i(
+                                data-lucide="shield-check"
+                                class="w-5 h-5 text-sky-500 flex-shrink-0"
+                            )
+                            p(class="text-sm text-sky-800")
+                                | Web dữ liệu: chỉ quản trị viên mặc định (role=admin, userKey=null) được đăng nhập. Không đăng ký / đặt lại mật khẩu ở web này.
+
                     //- ★ Nhập đúng mã OTP
                     if otpVerified
                         .mb-5.flex.items-start.gap-3.p-4.bg-green-50.border.border-green-200.rounded-xl
@@ -135,11 +144,12 @@ html(lang="vi")
                                 )
                                     | Mật khẩu
 
-                                a(
-                                    href="/auth/forgot"
-                                    class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
-                                )
-                                    | Quên mật khẩu?
+                                if !dataNode
+                                    a(
+                                        href="/auth/forgot"
+                                        class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                                    )
+                                        | Quên mật khẩu?
 
                             .relative
                                 i(
@@ -193,14 +203,15 @@ html(lang="vi")
                             | Đăng nhập
 
                     //- Register
-                    .mt-6.pt-6.border-t.border-gray-100.text-center
-                        p(class="text-sm text-gray-500")
-                            | Chưa có tài khoản?
-                            a(
-                                href="/auth/register"
-                                class="ml-1 font-semibold text-indigo-600 hover:text-indigo-700"
-                            )
-                                | Đăng ký ngay
+                    if !dataNode
+                        .mt-6.pt-6.border-t.border-gray-100.text-center
+                            p(class="text-sm text-gray-500")
+                                | Chưa có tài khoản?
+                                a(
+                                    href="/auth/register"
+                                    class="ml-1 font-semibold text-indigo-600 hover:text-indigo-700"
+                                )
+                                    | Đăng ký ngay
 
                 p(class="text-center text-xs text-gray-400 mt-6")
                     | © #{new Date().getFullYear()} AI Grading của MNHA

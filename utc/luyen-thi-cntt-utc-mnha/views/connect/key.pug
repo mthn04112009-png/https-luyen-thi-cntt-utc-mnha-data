@@ -1,0 +1,49 @@
+extends ../layout
+
+block content
+    div(class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
+        a(href="/connect", class="text-xs text-indigo-600 hover:underline") ← Trang web dữ liệu
+        h1(class="mt-2 text-2xl font-bold text-gray-900") Khoá kết nối — #{nodeName}
+        p(class="mt-1 text-xs text-gray-500 font-mono break-all") #{nodeUrl} · id: #{nodeId}
+
+        if error
+            div(class="mt-4 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm px-4 py-3")= error
+
+        div(class="mt-4 bg-white rounded-2xl border border-gray-200 p-4")
+            h2(class="text-sm font-semibold text-gray-900") Khoá của web này
+            if !node || !node.keyHint
+                p(class="mt-2 text-sm text-gray-700") Chưa có khoá. Vào trang web dữ liệu và bấm "Đăng ký / làm mới" để tạo.
+            else
+                p(class="mt-2 text-xs text-gray-600 font-mono") •••••••• (64 ký tự, kết thúc bằng #{node.keyHint})
+                if revealed
+                    div(class="mt-3 flex flex-wrap gap-2")
+                        input(id="theKey", readonly, value=revealed, class="flex-1 min-w-[260px] rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-mono")
+                        button(type="button", data-copy="theKey", class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700") Sao chép khoá
+                    p(class="mt-2 text-xs text-gray-500") Khoá chỉ hiện ở trang này sau khi nhập mật khẩu, không lưu ở trình duyệt. Web chính tự đọc khoá từ v-s/index.json nên thường không cần dán tay.
+                else
+                    form(method="post", action="/connect/key/reveal", class="mt-3 flex flex-wrap gap-2", autocomplete="off")
+                        input(type="password", name="password", required, placeholder="Nhập lại mật khẩu admin để xem khoá", class="flex-1 min-w-[240px] rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                        button(type="submit", class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700") Hiện khoá
+
+        if selfCheck
+            div(class="mt-4 bg-white rounded-2xl border border-gray-200 p-4")
+                h2(class="text-sm font-semibold text-gray-900") Tự kiểm tra khoá
+                if selfCheck.decrypt
+                    p(class="mt-2 text-sm text-emerald-700") ✔ Giải mã được khoá trong #{registryPath}
+                    p(class=("mt-1 text-sm " + (selfCheck.signature ? "text-emerald-700" : "text-red-600")))
+                        | #{selfCheck.signature ? "✔ Chữ ký thử bằng khoá này được xác minh; chữ ký sai khoá bị từ chối." : "✘ Kiểm tra chữ ký bằng khoá này không đạt."}
+                else
+                    p(class="mt-2 text-sm text-red-600") ✘ Không giải mã được khoá: #{selfCheck.error}
+                    p(class="mt-1 text-xs text-gray-500") Thường do CONNECT_ENC_KEY / SESSION_ENC_KEY / ENCRYPTION_MASTER_KEY ở web này khác web chính. Hãy đặt giống hệt rồi Redeploy.
+
+        div(class="mt-4 rounded-xl border border-sky-200 bg-sky-50 text-sky-900 text-xs px-3 py-2")
+            | Web chính dùng khoá này để ký yêu cầu kiểm tra trạng thái / số liệu của web. Khoá sai → web chính báo "sai khoá kết nối" và bỏ qua web đó.
+
+        script.
+            document.querySelectorAll('[data-copy]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var el = document.getElementById(b.getAttribute('data-copy'));
+                    el.select(); try { navigator.clipboard.writeText(el.value); } catch (_) { document.execCommand('copy'); }
+                    b.textContent = 'Đã chép';
+                });
+            });

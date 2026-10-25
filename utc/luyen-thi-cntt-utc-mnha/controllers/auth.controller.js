@@ -15,6 +15,7 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const isDataNode = () => String(process.env.DATA_NODE || '').toLowerCase() === 'on';
 
 // ============================================================
 // HELPERS
@@ -147,7 +148,25 @@ const login = async (req, res) => {
             });
         }
 
+        // ★ Web dữ liệu: CHỈ admin mặc định (role=admin, userKey=null). Admin tổ chức / student / client bị từ chối.
+        if (isDataNode() && !(user.role === 'admin' && !user.userKey)) {
+            return res.status(403).render('auth/login', {
+                title: 'Đăng nhập',
+                error: 'Web dữ liệu chỉ cho phép quản trị viên mặc định đăng nhập (role=admin, userKey=null).',
+                email
+            });
+        }
+
         req.session.user = buildSessionUser(user);
+
+        // ★ Web dữ liệu: lần đăng nhập đầu của admin mặc định → tự tạo khoá kết nối + ghi v-s/index.json.
+        if (isDataNode() && user.role === 'admin' && !user.userKey) {
+            try {
+                await require('../connect/vercel').onAdminLogin(req, user);
+            } catch (e) {
+                console.warn('[login] không đăng ký web dữ liệu:', e.message);
+            }
+        }
 
         if (remember) {
             req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
