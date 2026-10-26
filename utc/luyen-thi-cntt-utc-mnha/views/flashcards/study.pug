@@ -1,6 +1,8 @@
 extends ../layout
+include ../partials/served-by
 
 block content
+    +servedByBadge('Tải xuống')
     link(rel="stylesheet", href="/css/flashcards.css")
 
     div(class="fc", id="fcApp", data-mode=fc.mode)

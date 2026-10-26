@@ -1,4 +1,5 @@
 extends ../layout
+include ../partials/served-by
 include quiz-ai-panel
 
 //- ================================================================
@@ -15,6 +16,7 @@ include quiz-ai-panel
 //- ================================================================
 
 block content
+    +servedByBadge('Tải xuống')
     - var qz = quiz || {}
     - var qparts = qz.parts || {}
     - var PART_TITLES = { mcq: 'Trắc nghiệm nhiều đáp án', tf: 'Đúng / Sai', fill: 'Điền số liệu / đáp án' }

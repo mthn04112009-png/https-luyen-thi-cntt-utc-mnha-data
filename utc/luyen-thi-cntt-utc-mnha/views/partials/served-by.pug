@@ -1,0 +1,12 @@
+//- views/partials/served-by.pug — hiện cho MỌI người biết trang này đang tải dữ liệu / tải lên qua "web kết nối" nào.
+//- Dùng:  include ../partials/served-by   rồi đầu `block content` gọi  +servedByBadge('Tải lên')
+//- res.locals.servedBy do services/connect/usage.js (middleware) gắn cho mọi request.
+mixin servedByBadge(action)
+    - var sb_ = (typeof servedBy !== 'undefined' && servedBy) || null
+    if sb_
+        div(class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4")
+            div(class="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs px-3 py-1.5", title=(sb_.url || sb_.id))
+                i(data-lucide="server", class="w-3.5 h-3.5")
+                span #{action || 'Dữ liệu'} qua web kết nối:
+                b= sb_.name
+                span(class="font-mono text-indigo-500") (#{sb_.id}#{sb_.isMain ? ' · web chính' : ' · web dữ liệu'})

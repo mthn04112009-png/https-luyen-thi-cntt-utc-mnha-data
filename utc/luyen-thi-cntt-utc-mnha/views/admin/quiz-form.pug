@@ -1,4 +1,5 @@
 extends ../layout
+include ../partials/served-by
 
 //- ================================================================
 //-  Admin: TẠO / SỬA BÀI TRẮC NGHIỆM
@@ -9,6 +10,7 @@ extends ../layout
 //- ================================================================
 
 block content
+    +servedByBadge('Tải lên')
     - var isEdit = (typeof mode !== 'undefined' && mode === 'edit')
     - var q0 = (quiz && quiz.quiz) ? quiz.quiz : {}
     - var cfgq = (typeof quizConfig !== 'undefined' && quizConfig) ? quizConfig : {}

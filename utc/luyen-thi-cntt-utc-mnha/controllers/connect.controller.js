@@ -41,14 +41,23 @@ exports.index = wrap(async (req, res) => {
     // Ghi bộ đếm đang giữ (nếu có) rồi mới đọc số liệu.
     await usage.flush().catch(() => { /* đã log */ });
     const list = await registry.list();
-    const useMap = await usage.snapshotAll(list.map((n) => n.id)).catch(() => ({}));
+    // ★ Web chính cũng là một "web" được đo: số liệu lưu dưới id của chính nó (mặc định "main").
+    //   Trước đây chỉ liệt kê web dữ liệu trong sổ đăng ký nên lưu lượng của web chính (nơi admin up slide) không hiện ở đâu cả.
+    const me = usage.selfInfo();
+    const mainNode = {
+        id: me.id, name: me.name || 'Web chính', url: mainUrl(), enabled: true, isMain: true,
+        createdAt: null, keyHint: null, createdBy: null, health: { ok: true, ms: null }, vercel: null, note: 'Web đang mở trang này — nơi admin up slide / tài liệu / flashcard / bài.'
+    };
+    const all = [mainNode, ...list.filter((n) => n.id !== mainNode.id)];
+    const ids = all.map((n) => n.id);
+    const useMap = await usage.snapshotAll(ids).catch(() => ({}));
     const weekOffset = usage.clampWeek(req.query && req.query.w);
-    const histMap = await usage.historyAll(list.map((n) => n.id), { week: weekOffset }).catch(() => ({}));
-    const viewNodes = list.map((n) => ({
-        ...registry.publicNode(n),
+    const histMap = await usage.historyAll(ids, { week: weekOffset }).catch(() => ({}));
+    const viewNodes = all.map((n) => ({
+        ...(n.isMain ? n : registry.publicNode(n)),
         usage: useMap[n.id] || null,
         hist: histMap[n.id] || null,
-        env: nodeEnv(n)
+        env: n.isMain ? null : nodeEnv(n)
     }));
     // Tổng của TUẦN đang xem, cộng tất cả web.
     const weekTotal = viewNodes.reduce((a, n) => {

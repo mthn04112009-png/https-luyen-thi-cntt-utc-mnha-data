@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+// ★ Đếm MỌI dữ liệu đi/đến web này (GitHub, Cloudinary, AI…) cho trang /connect — phải cài TRƯỚC khi require thư viện khác.
+require("./services/connect/outbound").install();
+
 // TIMEZONE: Việt Nam (GMT+7)
 process.env.TZ = "Asia/Ho_Chi_Minh";
 
@@ -163,6 +166,11 @@ app.set("views", path.join(__dirname, "views"));
 // MIDDLEWARE
 // ============================================================
 
+// ★ Đếm lưu lượng trình duyệt ⇄ web cho trang /connect (xem services/connect/usage.js).
+//   Đặt ĐẦU TIÊN để mọi thứ qua server (cả file tĩnh, lỗi 4xx/5xx, upload) đều được tính,
+//   và gắn res.locals.servedBy = web nào đang phục vụ (hiện cho mọi người dùng ở layout).
+app.use(require("./services/connect/usage").middleware());
+
 app.use(cors());
 app.use(morgan("dev"));
 app.use(cookieParser());
@@ -182,8 +190,6 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ★ Đếm lưu lượng trình duyệt ⇄ web (xấp xỉ) cho trang /connect — xem services/connect/usage.js
-app.use(require("./services/connect/usage").middleware());
 
 // ★ FIX: đợi MongoDB sẵn sàng trước khi vào route — quan trọng cho lần
 //   "cold start" đầu tiên trên serverless, khi request có thể đến trước

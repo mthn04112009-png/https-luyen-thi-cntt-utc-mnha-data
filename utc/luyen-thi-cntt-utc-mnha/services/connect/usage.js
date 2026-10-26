@@ -48,12 +48,27 @@ function nodeId() {
     return 'main';
 }
 
+const isDataNodeEnv = () => String(process.env.DATA_NODE || '').toLowerCase() === 'on';
+
+/** Thông tin web ĐANG PHỤC VỤ request này (web chính hoặc web dữ liệu) — hiện cho mọi người dùng thấy. */
+function selfInfo() {
+    const dataNode = isDataNodeEnv();
+    return {
+        id: nodeId(),
+        name: String(process.env.NODE_NAME || (dataNode ? (process.env.NODE_ID || nodeId()) : 'Web chính')),
+        url: String(process.env.NODE_URL || process.env.MAIN_URL || '').replace(/\/+$/, ''),
+        isMain: !dataNode,
+        dataNode
+    };
+}
+
 const KEYS = ['in', 'out', 'originIn', 'originOut', 'req'];
 const pending = { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 };
 let timer = null;
 let flushing = null;
 let inFlush = false;   // đang tự ghi chính file lưu lượng → byte origin của lần ghi này KHÔNG được hẹn flush tiếp (tránh vòng lặp commit vô tận)
 let lastError = null;
+let lastFlushAt = 0;   // lần cuối ghi thành công (theo instance)
 
 const day = () => new Date().toISOString().slice(0, 10);
 
@@ -112,6 +127,7 @@ async function flush({ force = false } = {}) {
                 await gh.writeJsonFileIfSha(file, d, cur ? cur.sha : null, 'connect: lưu lượng tuần ' + no + ' · ' + id);
                 for (const k of KEYS) pending[k] -= snapshot[k];
                 lastError = null;
+                lastFlushAt = Date.now();
                 _weekCache.delete(no);
                 return { ok: true, id, week: no, file, day: today, row };
             } catch (e) {
@@ -232,21 +248,73 @@ async function historyAll(ids, { week = 0 } = {}) {
 }
 async function history(id, opts) { return (await historyAll([id], opts))[id]; }
 
-/** Middleware đếm request/response (gắn ở web chính và web dữ liệu). */
+// ---------------------------------------------------------------- GHI TRÊN SERVERLESS
+// Vercel đóng băng/huỷ instance ngay khi response xong → setTimeout 45s KHÔNG BAO GIỜ chạy và bộ đếm trong RAM
+// mất sạch. Vì vậy trên Vercel phải ghi NGAY trong vòng đời request: ưu tiên waitUntil (chạy nền nhưng
+// Vercel đợi xong mới đóng băng); không có waitUntil thì đợi flush xong rồi mới kết thúc response.
+const ON_VERCEL = () => !!process.env.VERCEL;
+const FLUSH_EVERY_MS = Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) > 0 ? Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) : 10 * 1000;
+const FLUSH_BYTES = Number(process.env.CONNECT_USAGE_FLUSH_BYTES) > 0 ? Number(process.env.CONNECT_USAGE_FLUSH_BYTES) : 4 * 1024 * 1024;
+
+function pendingBytes() { return pending.in + pending.out + pending.originIn + pending.originOut; }
+function shouldFlushNow() {
+    if (!hasPending() || flushing) return false;
+    return pendingBytes() >= FLUSH_BYTES || Date.now() - lastFlushAt >= FLUSH_EVERY_MS;
+}
+/** Giao việc nền cho Vercel (không cần cài @vercel/functions). Trả true nếu đã giao được. */
+function keepAlive(promise) {
+    try {
+        const ctx = globalThis[Symbol.for('@vercel/request-context')];
+        const wu = ctx && typeof ctx.get === 'function' ? (ctx.get() || {}).waitUntil : null;
+        if (typeof wu === 'function') { wu(promise); return true; }
+    } catch (_) { /* bỏ qua */ }
+    return false;
+}
+
+/** Middleware đếm request/response (gắn ở web chính và web dữ liệu) + gắn "web đang phục vụ" cho mọi trang. */
 function middleware() {
     return function usageCounter(req, res, next) {
-        let wrote = 0;
-        const inBytes = Number(req.headers && req.headers['content-length']) || 0;
+        const me = selfInfo();
+        try { res.setHeader('X-Served-By', me.id); } catch (_) { /* header đã gửi */ }
+        res.locals.servedBy = me;
+
+        const sock = req.socket;
+        const r0 = sock ? Number(sock.bytesRead) || 0 : 0;
+        const w0 = sock ? Number(sock.bytesWritten) || 0 : 0;
+        const declared = Number(req.headers && req.headers['content-length']) || 0;
+        let wrote = 0, counted = false;
+        const add_ = (chunk) => { if (chunk && typeof chunk !== 'function') wrote += typeof chunk === 'string' ? Buffer.byteLength(chunk) : (chunk.length || 0); };
+
+        // Đếm đúng 1 lần/request, kể cả khi trình duyệt ngắt giữa chừng (sự kiện close).
+        const settle = () => {
+            if (counted) return;
+            counted = true;
+            let inB = declared, outB = wrote;
+            try {
+                if (sock) {
+                    inB = Math.max(inB, (Number(sock.bytesRead) || 0) - r0);      // body chunked không có content-length
+                    outB = Math.max(outB, (Number(sock.bytesWritten) || 0) - w0); // gồm cả header phản hồi
+                }
+            } catch (_) { /* bỏ qua */ }
+            note({ in: inB, out: outB, req: 1 });
+        };
+
         const w = res.write, e = res.end;
-        res.write = function (chunk, ...rest) {
-            if (chunk) wrote += typeof chunk === 'string' ? Buffer.byteLength(chunk) : (chunk.length || 0);
-            return w.call(this, chunk, ...rest);
-        };
+        res.write = function (chunk, ...rest) { add_(chunk); return w.call(this, chunk, ...rest); };
         res.end = function (chunk, ...rest) {
-            if (chunk && typeof chunk !== 'function') wrote += typeof chunk === 'string' ? Buffer.byteLength(chunk) : (chunk.length || 0);
-            return e.call(this, chunk, ...rest);
+            add_(chunk);
+            const self = this, args = [chunk, ...rest];
+            settle();
+            if (ON_VERCEL() && shouldFlushNow()) {
+                const p = flush().catch(() => { /* đã log */ });
+                if (!keepAlive(p)) {            // không có waitUntil → đợi ghi xong mới trả response
+                    p.then(() => e.apply(self, args));
+                    return this;
+                }
+            }
+            return e.apply(this, args);
         };
-        res.on('finish', () => { note({ in: inBytes, out: wrote, req: 1 }); schedule(); });
+        res.once('close', () => { settle(); if (!ON_VERCEL()) schedule(); });
         next();
     };
 }
@@ -263,5 +331,5 @@ const bytesToGb = (n) => Math.round((Number(n) || 0) / (1024 ** 3) * 100) / 100;
 
 module.exports = {
     note, noteOrigin, schedule, flush, snapshot, snapshotAll, history, historyAll, buildWeek, clampWeek,
-    middleware, formatBytes, bytesToGb, nodeId, FILE, DIR, weekPath, weekNo, hasPending
+    middleware, formatBytes, bytesToGb, nodeId, selfInfo, FILE, DIR, weekPath, weekNo, hasPending
 };

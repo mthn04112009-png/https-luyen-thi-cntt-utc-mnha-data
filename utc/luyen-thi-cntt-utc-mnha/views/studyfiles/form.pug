@@ -1,6 +1,8 @@
 extends ../layout
+include ../partials/served-by
 
 block content
+    +servedByBadge('Tải lên')
     div(class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
         a(href=(app.base + "/dashboard"), class="text-sm text-indigo-600 hover:underline inline-flex items-center gap-1")
             i(data-lucide="arrow-left", class="w-4 h-4")

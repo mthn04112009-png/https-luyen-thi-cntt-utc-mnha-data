@@ -36,10 +36,11 @@
     }
     function hideMsg() { els.msg.className = 'hidden'; }
 
+    function servedTag() { var n = document.body && document.body.getAttribute('data-served-by'); return n ? '  · qua web kết nối: ' + n : ''; }
     function setProgress(pct, text) {
         els.prog.classList.remove('hidden');
         els.bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-        els.progText.textContent = text || '';
+        els.progText.textContent = (text || '') + (text ? servedTag() : '');
     }
 
     if (!S.encryptionReady) {

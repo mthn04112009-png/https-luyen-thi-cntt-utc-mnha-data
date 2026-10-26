@@ -26,7 +26,11 @@ const BASE_DELAY = 500;
  * Bọc try/catch để tính năng đo lưu lượng không bao giờ làm hỏng thao tác GitHub.
  */
 function noteOrigin(spec) {
-    try { require('./connect/usage').noteOrigin(spec); } catch (_) { /* chưa bật connect */ }
+    // Khi outbound tracker đã đếm MỌI request http/https (gồm cả GitHub) thì không đếm lần nữa ở đây (tránh gấp đôi).
+    try {
+        if (require('./connect/outbound').isActive()) return;
+        require('./connect/usage').noteOrigin(spec);
+    } catch (_) { /* chưa bật connect */ }
 }
 
 function sleep(ms) {

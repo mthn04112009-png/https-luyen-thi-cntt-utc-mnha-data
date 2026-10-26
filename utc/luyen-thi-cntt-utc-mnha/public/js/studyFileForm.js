@@ -63,10 +63,11 @@
         els.msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     function hideMsg() { els.msg.className = 'hidden'; }
+    function servedTag() { var n = document.body && document.body.getAttribute('data-served-by'); return n ? '  · qua web kết nối: ' + n : ''; }
     function setProgress(pct, text) {
         els.prog.classList.remove('hidden');
         els.bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-        els.progText.textContent = text || '';
+        els.progText.textContent = (text || '') + (text ? servedTag() : '');
     }
 
     if (!S.encryptionReady) showMsg('err', 'Máy chủ chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa thể mã hoá và lưu file.');

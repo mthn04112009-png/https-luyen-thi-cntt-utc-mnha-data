@@ -1,6 +1,8 @@
 extends ../layout
+include ../partials/served-by
 
 block content
+    +servedByBadge('Tải xuống')
     style.
         .lesson-page {
             max-width: 1400px;
