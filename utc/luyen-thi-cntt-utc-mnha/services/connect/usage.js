@@ -38,6 +38,12 @@ const weekPath = (n) => `${DIR()}/week-${n}/index.json`;
 /** File của tuần hiện tại (hiện ở trang /connect). */
 const FILE = () => weekPath(weekNo(Date.now()));
 
+/** Host Vercel của web này (nếu đang chạy trên Vercel), không có "https://". */
+function vercelHost() {
+    const raw = process.env.NODE_URL || process.env.MAIN_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || '';
+    return String(raw).replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+}
+
 function nodeId() {
     if (process.env.NODE_ID) return String(process.env.NODE_ID);
     if (process.env.NODE_URL) {
@@ -45,19 +51,32 @@ function nodeId() {
             try { return registry.idForUrl(String(process.env.NODE_URL).replace(/\/+$/, '')); } catch (__) { /* ignore */ }
         }
     }
-    return 'main';
+    // Trên Vercel: MỌI web đều là "web kết nối", id theo địa chỉ web. Chỉ localhost mới là "localhost".
+    if (process.env.VERCEL) {
+        const h = vercelHost();
+        if (h) return registry.idForUrl('https://' + h);
+    }
+    return 'localhost';
 }
 
 const isDataNodeEnv = () => String(process.env.DATA_NODE || '').toLowerCase() === 'on';
 
-/** Thông tin web ĐANG PHỤC VỤ request này (web chính hoặc web dữ liệu) — hiện cho mọi người dùng thấy. */
+/**
+ * Thông tin web ĐANG PHỤC VỤ request này — hiện cho mọi người dùng thấy.
+ * Không còn khái niệm "web chính": chạy trên Vercel thì web nào cũng là web kết nối (tên = NODE_NAME hoặc địa chỉ web);
+ * chỉ khi chạy localhost mới hiện "localhost". `isMain` giờ chỉ có nghĩa "web đang mở trang này" (ẩn nút quản lý).
+ */
 function selfInfo() {
     const dataNode = isDataNodeEnv();
+    const local = !process.env.VERCEL && !dataNode;
+    const id = nodeId();
+    const host = vercelHost();
     return {
-        id: nodeId(),
-        name: String(process.env.NODE_NAME || (dataNode ? (process.env.NODE_ID || nodeId()) : 'Web chính')),
-        url: String(process.env.NODE_URL || process.env.MAIN_URL || '').replace(/\/+$/, ''),
+        id,
+        name: String(process.env.NODE_NAME || (local ? 'localhost' : (dataNode ? (process.env.NODE_ID || id) : (host || id)))),
+        url: local ? 'http://localhost:' + (process.env.PORT || 3000) : (host ? 'https://' + host : ''),
         isMain: !dataNode,
+        isLocal: local,
         dataNode
     };
 }

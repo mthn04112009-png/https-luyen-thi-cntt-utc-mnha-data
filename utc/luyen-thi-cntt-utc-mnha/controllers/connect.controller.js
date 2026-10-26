@@ -45,8 +45,8 @@ exports.index = wrap(async (req, res) => {
     //   Trước đây chỉ liệt kê web dữ liệu trong sổ đăng ký nên lưu lượng của web chính (nơi admin up slide) không hiện ở đâu cả.
     const me = usage.selfInfo();
     const mainNode = {
-        id: me.id, name: me.name || 'Web chính', url: mainUrl(), enabled: true, isMain: true,
-        createdAt: null, keyHint: null, createdBy: null, health: { ok: true, ms: null }, vercel: null, note: 'Web đang mở trang này — nơi admin up slide / tài liệu / flashcard / bài.'
+        id: me.id, name: me.name, url: me.url || mainUrl(), enabled: true, isMain: true,
+        createdAt: null, keyHint: null, createdBy: null, health: { ok: true, ms: null }, vercel: null, note: 'Web đang mở trang này — nơi admin up slide / tài liệu / flashcard / bài (' + (me.isLocal ? 'localhost' : 'web kết nối') + ').'
     };
     const all = [mainNode, ...list.filter((n) => n.id !== mainNode.id)];
     const ids = all.map((n) => n.id);

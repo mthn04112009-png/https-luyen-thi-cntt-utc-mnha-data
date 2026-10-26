@@ -9,4 +9,4 @@ mixin servedByBadge(action)
                 i(data-lucide="server", class="w-3.5 h-3.5")
                 span #{action || 'Dữ liệu'} qua web kết nối:
                 b= sb_.name
-                span(class="font-mono text-indigo-500") (#{sb_.id}#{sb_.isMain ? ' · web chính' : ' · web dữ liệu'})
+                span(class="font-mono text-indigo-500") (#{sb_.id}#{sb_.isLocal ? ' · localhost' : ''})

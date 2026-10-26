@@ -516,7 +516,7 @@ html(lang="vi")
                     div(class="mt-2 text-xs text-gray-400")
                         | Dữ liệu đang tải / tải lên qua web kết nối: 
                         b(class="text-gray-600")= sb.name
-                        |  (#{sb.id}#{sb.isMain ? ' · web chính' : ' · web dữ liệu'})
+                        |  (#{sb.id}#{sb.isLocal ? ' · localhost' : ''})
 
         //- ★ Chip cố định: ai cũng thấy trang này đang chạy qua web kết nối nào
         if sb
