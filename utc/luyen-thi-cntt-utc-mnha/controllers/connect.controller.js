@@ -48,7 +48,11 @@ exports.index = wrap(async (req, res) => {
         id: me.id, name: me.name, url: me.url || mainUrl(), enabled: true, isMain: true,
         createdAt: null, keyHint: null, createdBy: null, health: { ok: true, ms: null }, vercel: null, note: 'Web đang mở trang này — nơi admin up slide / tài liệu / flashcard / bài (' + (me.isLocal ? 'localhost' : 'web kết nối') + ').'
     };
-    const all = [mainNode, ...list.filter((n) => n.id !== mainNode.id)];
+    // Web này chỉ nối backend + frontend: khi đã có web kết nối đang bật thì KHÔNG liệt kê nó như một web dữ liệu
+    // (dữ liệu up / tải đi thẳng web kết nối). Chỉ hiện khi chạy localhost hoặc chưa có web kết nối nào để dự phòng.
+    const hasConnectWeb = list.some((n) => n.enabled !== false);
+    const showSelf = me.isLocal || !hasConnectWeb;
+    const all = (showSelf ? [mainNode] : []).concat(list.filter((n) => n.id !== mainNode.id));
     const ids = all.map((n) => n.id);
     const useMap = await usage.snapshotAll(ids).catch(() => ({}));
     const weekOffset = usage.clampWeek(req.query && req.query.w);

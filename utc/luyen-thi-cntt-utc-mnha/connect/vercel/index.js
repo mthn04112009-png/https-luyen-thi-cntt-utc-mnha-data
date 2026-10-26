@@ -142,11 +142,50 @@ function createRouter() {
         res.setHeader('Access-Control-Allow-Origin', main || origin || '*');
         res.setHeader('Vary', 'Origin');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-MNHA-Node, X-MNHA-Ts, X-MNHA-Sig');
+        res.setHeader('Access-Control-Expose-Headers', 'X-Total-Size, X-Chunk-Count, X-Chunk-Index, Content-Length, X-Data-Ticket-Error');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Cloudinary-Names, X-MNHA-Node, X-MNHA-Ts, X-MNHA-Sig');
         res.setHeader('Access-Control-Max-Age', '600');
         if (req.method === 'OPTIONS') return res.status(204).end();
         next();
     });
+
+    // ---- MẶT PHẲNG DỮ LIỆU: trình duyệt gọi THẲNG web này (kèm vé do web chính cấp) để up / tải file.
+    //      Chỉ mở đúng 3 thao tác nặng; mọi thứ khác (trang HTML, admin…) KHÔNG đi qua đường này.
+    const DATA_ALLOW = [
+        ['POST', /^\/(slides|documents)\/dashboard\/upload-(chunk|part)\/?$/],
+        ['GET', /^\/(slides|documents)\/file\/[0-9a-fA-F]{24}\/?$/],
+        // ảnh câu hỏi trắc nghiệm / flashcard (kiểm duyệt Cloudinary → GitHub)
+        ['GET', /^\/admin\/quiz\/upload-image\/config\/?$/],
+        ['POST', /^\/admin\/quiz\/upload-image\/?$/],
+        // ảnh viết tay của học viên
+        ['GET', /^\/submissions\/drawing-upload\/config\/?$/],
+        ['POST', /^\/submissions\/drawing-upload\/?$/],
+        // xem trước flashcard (parse nội dung khi gõ)
+        ['POST', /^\/flashcards\/dashboard\/parse\/?$/]
+    ];
+    router.use('/api/node/data', async (req, res, next) => {
+        try {
+            if (!DATA_ALLOW.some(([m, re]) => m === req.method && re.test(req.path))) { res.setHeader('X-Data-Ticket-Error', '1'); return json(res, 404, { ok: false, error: 'Thao tác này không đi qua web kết nối.' }); }
+            const raw = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+            let key;
+            try { key = await ownKey(req); } catch (e) { throw bad('Web này chưa có khoá kết nối: ' + e.message, 409); }
+            const accepted = new Set([nodeId()]);
+            try { accepted.add(registry.idForUrl(registry.cleanUrl(nodeUrl(req)))); } catch (_) { /* ignore */ }
+            let t;
+            try { t = require('../../services/connect/ticket').verify(key, accepted, raw); }
+            catch (e) { if (e.status === 403) _keyCache = null; throw e; }
+            const User = require('../../models/User');
+            const u = await User.findById(t.uid).select('-passwordHash');
+            if (!u || u.deletedForever) throw bad('Tài khoản không còn hợp lệ.', 401);
+            req.user = u; res.locals.user = u; req._userAttached = true;   // middleware attachUser của router bên dưới sẽ bỏ qua
+            next();
+        } catch (e) { res.setHeader('X-Data-Ticket-Error', '1'); json(res, e.status || 401, { ok: false, error: e.message }); }
+    });
+    router.use('/api/node/data/slides', require('../../routes/slide'));
+    router.use('/api/node/data/documents', require('../../routes/document'));
+    router.use('/api/node/data/flashcards', require('../../routes/flashcard'));
+    router.use('/api/node/data/submissions', require('../../routes/submission'));
+    router.use('/api/node/data', require('../../routes/quiz'));   // chỉ /admin/quiz/upload-image* lọt qua DATA_ALLOW
 
     // ---- công khai: web chính dò tuần tự
     router.get('/api/node/health', (req, res) => {

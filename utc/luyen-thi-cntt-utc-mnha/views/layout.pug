@@ -1,5 +1,4 @@
 - var b = (typeof brand !== 'undefined' && brand) || { logoUrl: '/images/logo.png', logoAlt: 'Luyện thi CNTT UTC', subText: 'UTC', footerText: null }
-- var sb = (typeof servedBy !== 'undefined' && servedBy) || null
 doctype html
 html(lang="vi")
     head
@@ -23,7 +22,7 @@ html(lang="vi")
         script(id="MathJax-script", async, src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js")
 
 
-    body(class="bg-gray-50 text-gray-900 min-h-screen", data-served-by=(sb ? sb.name : false), data-served-id=(sb ? sb.id : false))
+    body(class="bg-gray-50 text-gray-900 min-h-screen")
 
         header(class="bg-white border-b border-gray-200 sticky top-0 z-50")
             div(class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8")
@@ -512,19 +511,6 @@ html(lang="vi")
                 | © #{new Date().getFullYear()} Luyện thi của MNHA. All rights reserved.
                 if b.footerText
                     |  - #{b.footerText}
-                if sb
-                    div(class="mt-2 text-xs text-gray-400")
-                        | Dữ liệu đang tải / tải lên qua web kết nối: 
-                        b(class="text-gray-600")= sb.name
-                        |  (#{sb.id}#{sb.isLocal ? ' · localhost' : ''})
-
-        //- ★ Chip cố định: ai cũng thấy trang này đang chạy qua web kết nối nào
-        if sb
-            div(class="fixed bottom-3 left-3 z-40 pointer-events-none")
-                div(class="inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-200 shadow-sm text-[11px] text-gray-600 px-2.5 py-1", title=(sb.url || sb.id))
-                    span(class="w-1.5 h-1.5 rounded-full bg-emerald-500")
-                    | Qua: 
-                    b(class="text-gray-800")= sb.name
 
         //- JAVASCRIPT
         script.

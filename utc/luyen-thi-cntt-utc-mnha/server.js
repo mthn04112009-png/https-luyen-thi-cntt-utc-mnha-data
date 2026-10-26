@@ -586,6 +586,30 @@ if (DATA_NODE) {
     console.log("🔗 Chế độ WEB DỮ LIỆU: " + connectVercel.nodeName() + " (" + connectVercel.nodeId() + ")");
 } else {
     app.use("/connect", require("./routes/connect"));
+
+    // ★ Web này chỉ nối backend + frontend: dữ liệu lớn (up / tải file) đi THẲNG trình duyệt ⇄ web kết nối bằng "vé".
+    //   Localhost hoặc chưa có web kết nối khả dụng → { ok:false } → trình duyệt dùng chính web này.
+    const dataNodes = require("./services/connect/dataNodes");
+    const { attachUser: attachUserForTicket } = require("./middleware/auth");
+    app.get("/api/data-ticket", attachUserForTicket, async (req, res) => {
+        res.set("Cache-Control", "no-store");
+        if (!req.user) return res.status(401).json({ ok: false, error: "Chưa đăng nhập" });
+        try {
+            const t = await dataNodes.issue(req.user._id);
+            if (!t) return res.json({ ok: false, local: !process.env.VERCEL, self: require("./services/connect/usage").selfInfo() });
+            return res.json({ ok: true, node: t.node, ticket: t.ticket, exp: t.exp });
+        } catch (e) {
+            console.warn("[data-ticket]", e.message);
+            return res.json({ ok: false, error: e.message });
+        }
+    });
+    // Trình duyệt báo web kết nối không gọi được → cho nghỉ 90 giây, lần sau chọn web kế tiếp.
+    app.post("/api/data-ticket/fail", attachUserForTicket, (req, res) => {
+        if (!req.user) return res.status(401).json({ ok: false });
+        const id = String((req.body || {}).id || "").slice(0, 64);
+        if (id) { require("./services/connect/nodes").markFailed(id); dataNodes.invalidate(); }
+        return res.json({ ok: true });
+    });
 }
 
 // POST nhầm vào trang đích của từng vai trò (vd: form không có action, redirect 307/308).

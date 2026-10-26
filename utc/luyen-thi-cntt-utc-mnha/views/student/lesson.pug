@@ -722,7 +722,7 @@ block content
             });
             drawPad.setDisabled(true); // mở khi AI kết nối + còn giờ (xem updateLock)
 
-            fetch("/submissions/drawing-upload/config", { cache: "no-store", headers: { "Accept": "application/json" } })
+            (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload/config", { cache: "no-store", headers: { "Accept": "application/json" } })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
                     if (d && d.success) photoCfg = { enabled: !!d.enabled, maxBytes: d.maxBytes || photoCfg.maxBytes, accounts: d.accounts || [], maxSelected: d.maxSelected || 5 };
@@ -770,7 +770,7 @@ block content
                 syncPhotoBtn();
                 try {
                     setPhotoStatus("busy", "⏳ Đang kiểm duyệt ảnh (" + cloudNames.join(", ") + ")...");
-                    const res = await fetch("/submissions/drawing-upload", {
+                    const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
                         method: "POST",
                         headers: { "Content-Type": file.type, "Accept": "application/json", "X-Cloudinary-Names": cloudNames.join(",") },
                         body: file

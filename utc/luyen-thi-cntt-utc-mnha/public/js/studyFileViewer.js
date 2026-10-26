@@ -39,7 +39,7 @@
     // Tải file theo phần
     // ------------------------------------------------------------
     function fetchChunk(i) {
-        return fetch(D.fileUrl + '?chunk=' + i, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+        return (window.MnhaData ? window.MnhaData.fetch : fetch)(D.fileUrl + '?chunk=' + i, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
             if (!r.ok) return r.text().then(function (t) { throw new Error(t && t.length < 200 ? t : 'Máy chủ trả HTTP ' + r.status); });
             var count = Number(r.headers.get('X-Chunk-Count')) || 1;
             return r.arrayBuffer().then(function (buf) { return { buf: buf, count: count }; });

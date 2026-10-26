@@ -741,7 +741,7 @@
     }
 
     function loadUploadConfig() {
-        fetch("/admin/quiz/upload-image/config", { cache: "no-store", headers: { "Accept": "application/json" } })
+        (window.MnhaData ? window.MnhaData.fetch : fetch)("/admin/quiz/upload-image/config", { cache: "no-store", headers: { "Accept": "application/json" } })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (d && d.success) {
@@ -828,7 +828,7 @@
             return blobToBase64(blob);
         }).then(function (b64) {
             setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
-            return fetch("/admin/quiz/upload-image", {
+            return (window.MnhaData ? window.MnhaData.fetch : fetch)("/admin/quiz/upload-image", {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json", "Accept": "application/json" },

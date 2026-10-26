@@ -116,7 +116,7 @@ const getConfig = async (req, res) => {
 // POST /admin/quiz/upload-image
 const uploadQuizImage = async (req, res) => {
     try {
-        const user = req.session && req.session.user;
+        const user = req.user || (req.session && req.session.user);
         if (!user) return res.status(401).json({ success: false, message: 'Chưa đăng nhập.' });
         const userId = String(user.id || user._id);
 

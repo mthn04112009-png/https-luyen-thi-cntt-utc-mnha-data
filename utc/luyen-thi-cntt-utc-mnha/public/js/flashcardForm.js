@@ -132,7 +132,7 @@
             els.hints.classList.add('hidden');
             return;
         }
-        fetch('/flashcards/dashboard/parse', {
+        (window.MnhaData ? window.MnhaData.fetch : fetch)('/flashcards/dashboard/parse', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ mode: mode, content: text })
@@ -194,7 +194,7 @@
         els.upBtn.title = upCfg.enabled ? '' : (accounts.length ? 'GitHub chưa cấu hình nên chưa lưu được ảnh' : 'Chưa có tài khoản Cloudinary — thêm ở Quản trị → API Key → Cloudinary');
     }
 
-    fetch('/admin/quiz/upload-image/config', { cache: 'no-store', headers: { 'Accept': 'application/json' } })
+    (window.MnhaData ? window.MnhaData.fetch : fetch)('/admin/quiz/upload-image/config', { cache: 'no-store', headers: { 'Accept': 'application/json' } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
             if (d && d.success) upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, uploadMaxBytes: d.uploadMaxBytes || d.maxBytes || upCfg.uploadMaxBytes };
@@ -287,7 +287,7 @@
             return blobToBase64(blob);
         }).then(function (b64) {
             upStatus('busy', '⏳ Đang kiểm duyệt ảnh bằng ' + cloud + ' rồi lưu lên GitHub…');
-            return fetch('/admin/quiz/upload-image', {
+            return (window.MnhaData ? window.MnhaData.fetch : fetch)('/admin/quiz/upload-image', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ mime: sentMime, data: b64, names: cloud })
