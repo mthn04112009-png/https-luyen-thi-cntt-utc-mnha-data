@@ -1,0 +1,51 @@
+//- Mixin dùng chung: dung lượng từng repo GitHub dữ liệu (services/githubPool.js).
+//-   info = githubService.pool.summary(); fmt = usage.formatBytes; manage = có nút "Đăng ký webhook" (chỉ web chính)
+//-   Dung lượng lấy từ WEBHOOK push (RAM, không lưu JSON). "API" = chưa có webhook nào tới instance này nên hỏi GitHub 1 lần.
+
+mixin reposCard(info, fmt, manage)
+    section(id="repos", class="mt-8 bg-white rounded-2xl border border-gray-200 p-5")
+        div(class="flex flex-wrap items-start justify-between gap-3")
+            div
+                h2(class="text-lg font-semibold text-gray-900") Repo GitHub dữ liệu
+                p(class="mt-1 text-sm text-gray-600")
+                    | Repo chính <code>#{info ? info.base : ''}</code> đạt #{info ? fmt(info.limit) : '200MB'} → server tự tạo <code>#{info ? info.base : ''}-1</code>, <code>-2</code>… rồi đọc/ghi tiếp (đọc gộp mọi repo, file mới vào repo đang dùng, file đã có ghi đè đúng repo chứa nó).
+            if manage && info && info.enabled
+                form(method="post", action="/connect/github/webhook")
+                    button(type="submit", class="px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-medium hover:bg-slate-900") Đăng ký webhook cho mọi repo
+        if !info
+            p(class="mt-3 text-sm text-red-600") Không đọc được thông tin repo.
+        else if !info.enabled
+            p(class="mt-3 text-sm text-gray-600") Đang tắt (<code>GITHUB_REPO_POOL=off</code>) — chỉ dùng một repo chính.
+        else
+            p(class="mt-2 text-xs text-gray-500")
+                | Sổ đã tạo: <code>#{info.indexPath}</code> (id · tên repo · ngày tạo — không lưu dung lượng) · Tổng: <b>#{fmt(info.totalBytes)}</b> · #{info.repos.length} repo
+            each r in info.repos
+                - var pct = r.pct || 0
+                div(class="mt-3")
+                    div(class="flex flex-wrap items-center justify-between gap-2 text-sm")
+                        span(class="font-medium break-all")
+                            a(href=r.url, target="_blank", rel="noopener noreferrer", class="text-indigo-700 hover:underline") #{r.owner}/#{r.repo}
+                            span(class="ml-2 text-xs rounded-full bg-gray-100 text-gray-600 px-2 py-0.5") id #{r.id}#{r.main ? ' · repo chính' : ''}
+                            if r.active
+                                span(class="ml-2 text-xs rounded-full bg-indigo-50 text-indigo-700 px-2 py-0.5") đang ghi
+                            if r.full
+                                span(class="ml-2 text-xs rounded-full bg-red-50 text-red-700 px-2 py-0.5") đầy
+                        span(class="text-xs text-gray-600") <b>#{fmt(r.bytes)}</b> / #{fmt(r.limit)} (#{pct}%)
+                    div(class="mt-1 h-2 rounded-full bg-gray-100 overflow-hidden")
+                        div(class=(pct >= 100 ? 'h-2 bg-red-500' : pct >= 80 ? 'h-2 bg-amber-500' : 'h-2 bg-emerald-500'), style="width:" + pct + "%")
+                    div(class="mt-0.5 text-[11px] text-gray-400")
+                        | nguồn: #{r.source === 'webhook' ? 'webhook' : (r.source === 'estimate' ? 'webhook + ước tính phần vừa ghi' : 'API GitHub (chưa có webhook)')}
+                        if r.sizeAt
+                            |  · #{r.sizeAt}
+                        if r.createdAt
+                            |  · tạo #{r.createdAt}
+            if manage
+                p(class="mt-3 text-[11px] text-gray-500")
+                    | Webhook push (<b>tự động</b> gắn cho mọi repo khi web khởi động): Payload URL <code>#{info.webhookUrl || '(thiếu MAIN_URL)'}</code> · Content type <code>application/json</code> · Event <code>push</code> ·
+                    if info.webhookSecretAuto
+                        |  Secret tự sinh (không cần đặt <code>GITHUB_WEBHOOK_SECRET</code>).
+                    else
+                        |  Secret = <code>GITHUB_WEBHOOK_SECRET</code>.
+                    if !info.webhookSecretSet
+                        |  <b class="text-red-600">Chưa sinh được secret.</b>
+                    |  Nút trên gắn lại nếu cần.

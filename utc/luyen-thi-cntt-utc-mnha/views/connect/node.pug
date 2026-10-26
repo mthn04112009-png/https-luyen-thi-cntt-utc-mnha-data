@@ -2,6 +2,7 @@ extends ../layout
 
 block content
     include _week
+    include _repos
     div(class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8")
         div(class="flex flex-wrap items-start justify-between gap-4")
             div
@@ -67,6 +68,8 @@ block content
                     +weekNav(hist)
                 div(class="mt-3")
                     +weekTable(hist)
+
+        +reposCard(repos, fmt, false)
 
         section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
             h2(class="text-lg font-semibold text-gray-900") .env của web này

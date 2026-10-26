@@ -56,7 +56,11 @@ function rateLimited(userId) {
 }
 
 function rawUrl(path) {
-    return `https://raw.githubusercontent.com/${githubService.owner}/${githubService.repo}/${githubService.branch}/${path}`;
+    // Ảnh có thể nằm ở repo -1, -2… (githubPool) → lấy đúng repo chứa file vừa ghi
+    let r = null;
+    try { r = githubService.repoForSync ? githubService.repoForSync(path) : null; } catch (_) { r = null; }
+    const o = (r && r.owner) || githubService.owner, p = (r && r.repo) || githubService.repo, b = (r && r.branch) || githubService.branch;
+    return `https://raw.githubusercontent.com/${o}/${p}/${b}/${path}`;
 }
 
 /** cache/image/<timestamp>.<ext>; nếu trùng mili-giây (hiếm) thì thêm -1, -2… */

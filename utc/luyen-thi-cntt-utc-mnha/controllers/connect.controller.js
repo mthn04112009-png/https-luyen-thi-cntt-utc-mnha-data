@@ -37,6 +37,13 @@ const mainUrl = () => String(process.env.MAIN_URL || 'https://luyen-thi-cntt-utc
 const mainEnv = () => envTemplate({ id: 'luyen-thi-cntt-utc-mnha', url: mainUrl(), name: 'Web chính', dataNode: false });
 const nodeEnv = (n) => envTemplate({ id: n.id, url: n.url, name: n.name, dataNode: true });
 
+// Dung lượng từng repo GitHub dữ liệu (webhook → RAM; chưa có thì hỏi API) — xem services/githubPool.js
+const poolSummary = () => {
+    const gh = require('../services/githubService');
+    if (gh.pool && gh.pooled) return gh.pool.summary().catch(() => null);
+    return Promise.resolve(gh.pool ? { enabled: false, repos: [], limit: gh.pool.LIMIT(), base: gh.repo, indexPath: gh.pool.INDEX_PATH(), totalBytes: 0 } : null);
+};
+
 exports.index = wrap(async (req, res) => {
     // Ghi bộ đếm đang giữ (nếu có) rồi mới đọc số liệu.
     await usage.flush().catch(() => { /* đã log */ });
@@ -70,8 +77,9 @@ exports.index = wrap(async (req, res) => {
         return a;
     }, { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 });
     const weekInfo = viewNodes.length && viewNodes[0].hist ? viewNodes[0].hist : (await usage.history('__none__', { week: weekOffset }).catch(() => null));
+    const repos = await poolSummary();
     res.render('connect/index', {
-        title: 'Web kết nối', user: req.user, nodes: viewNodes, weekTotal, weekInfo,
+        title: 'Web kết nối', user: req.user, nodes: viewNodes, weekTotal, weekInfo, repos,
         mainEnv: mainEnv(), diffKeys: DIFFERENT_KEYS,
         registryPath: registry.PATH(), usagePath: usage.FILE(),
         fmt: usage.formatBytes, gb: usage.bytesToGb,
@@ -149,4 +157,15 @@ exports.vercel = wrap(async (req, res) => {
     });
     flash(req, 'success', `Đã lưu số liệu Vercel cho "${n.name}".`);
     res.redirect('/connect');
+});
+
+exports.githubWebhook = wrap(async (req, res) => {
+    const gh = require('../services/githubService');
+    if (!gh.pool || !gh.pooled) throw new Error('Nhóm repo GitHub đang tắt (GITHUB_REPO_POOL=off).');
+    const out = await gh.pool.registerWebhooks();
+    const bad = out.filter((r) => r.error || r.skipped);
+    const ok = out.length - bad.length;
+    flash(req, bad.length ? (ok ? 'info' : 'error') : 'success',
+        `Webhook push: ${ok}/${out.length} repo đã sẵn sàng` + (bad.length ? ' — ' + bad.map((r) => `${r.repo}: ${r.error || r.reason}`).join('; ') : '.'));
+    res.redirect('/connect#repos');
 });

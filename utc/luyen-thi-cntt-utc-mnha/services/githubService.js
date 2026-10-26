@@ -6,6 +6,7 @@
 // path helpers (submissionPath, subjectPath, lessonPath).
 // ============================================================
 
+const { Octokit } = require('@octokit/rest');
 const {
     octokit,
     owner,
@@ -56,6 +57,12 @@ async function withRetry(fn, label = 'github') {
     }
     throw lastErr;
 }
+
+// ---------------------------------------------------------------------------
+// FACTORY: một "client" GitHub = 1 cặp owner/repo/branch + Octokit riêng.
+// Client mặc định dùng config/github.js; client phụ cho các repo -1, -2… (services/githubPool.js).
+// ---------------------------------------------------------------------------
+function buildClient({ octokit, owner, repo, branch, isConfigured }) {
 
 /**
  * Đảm bảo các env cần thiết đã cấu hình.
@@ -550,6 +557,34 @@ async function fileExists(path) {
  */
 function invalidate(_path) { /* no-op */ }
 
+return {
+    writeJsonFile, readJsonFile, readJsonFileWithSha, writeJsonFileIfSha, updateJsonFile,
+    writeBinaryFile, readBinaryFile, readBinaryFileLarge, createBlob, getBlobBuffer,
+    writeBinaryFileBig, deleteFile, fileExists, getFileSha, invalidate,
+    getRepoTree, invalidateTree, uniqueJsonPath,
+    isConfigured, owner, repo, branch, _octokit: octokit
+};
+} // buildClient
+
+// Client mặc định (repo chính của app) — giữ nguyên hành vi cũ.
+const client = buildClient({ octokit, owner, repo, branch, isConfigured: Boolean(isConfigured) });
+
+/** Tạo client cho repo KHÁC trong nhóm repo dữ liệu (-1, -2…). Không đụng cache/client mặc định. */
+function createClient(opt = {}) {
+    const tok = opt.token || process.env.GITHUB_TOKEN;
+    const o = opt.owner || process.env.GITHUB_OWNER;
+    const r = opt.repo;
+    const b = opt.branch || process.env.GITHUB_BRANCH || 'main';
+    if (!r) throw new Error('createClient: thiếu repo');
+    if (!tok || !o) throw new Error('createClient: thiếu token/owner để tạo client GitHub.');
+    const octo = new Octokit({
+        auth: tok,
+        userAgent: 'luyen-thi-cntt/1.0.0',
+        request: { timeout: Object.prototype.hasOwnProperty.call(opt, 'timeout') ? opt.timeout : (process.env.VERCEL ? 50000 : 120000) }
+    });
+    return buildClient({ octokit: octo, owner: o, repo: r, branch: b, isConfigured: true });
+}
+
 // ============================================================
 // PATH HELPERS — alias cho code cũ
 // ============================================================
@@ -565,40 +600,30 @@ function lessonPath(subjectSlug, lessonSlug) {
     return lessonFile(subjectSlug, lessonSlug);
 }
 
-module.exports = {
-    // Core
-    writeJsonFile,
-    readJsonFile,
-    readJsonFileWithSha,
-    writeJsonFileIfSha,
-    updateJsonFile,
-    writeBinaryFile,
-    readBinaryFile,
-    readBinaryFileLarge,
-    createBlob,
-    getBlobBuffer,
-    writeBinaryFileBig,
-    deleteFile,
-    fileExists,
-    getFileSha,
-    invalidate,
+// NHIỀU repo dữ liệu (services/githubPool.js): repo chính ≥ 200MB → tự tạo <GITHUB_REPO>-1, -2…
+// File .json luôn ở repo chính; file khác (PDF/ảnh/âm thanh…) mới sang repo phụ. GITHUB_REPO_POOL=off → như cũ.
+const pool = require('./githubPool').createPool({
+    env: process.env,
+    base: () => client,
+    createClient: (opt) => createClient(opt),
+    webhookPath: '/webhooks/github'
+});
+const pooled = Boolean(isConfigured) && pool.enabled();
 
-    // Cây thư mục + tên file ngẫu nhiên không trùng
-    getRepoTree,
-    invalidateTree,
-    uniqueJsonPath,
+module.exports = {
+    // Client mặc định (giữ tương thích code cũ)
+    ...client,
+    // Có pool → mọi thao tác đi qua facade (đọc gộp / ghi file mới vào repo đang dùng)
+    ...(pooled ? pool.facade() : {}),
 
     // Path helpers
     submissionPath,
     subjectPath,
     lessonPath,
 
-    // Config
-    isConfigured,
-    owner,
-    repo,
-    branch,
-
-    // Debug
-    _octokit: octokit
+    // Client của repo CHÍNH (không qua pool) + bộ quản lý nhóm repo
+    base: client,
+    createClient,
+    pool,
+    pooled
 };

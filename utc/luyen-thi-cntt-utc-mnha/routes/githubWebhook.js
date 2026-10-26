@@ -4,7 +4,7 @@
 // Cấu hình trên GitHub: Settings → Webhooks → Add webhook
 //   Payload URL : https://<domain-của-bạn>/webhooks/github
 //   Content type: application/json
-//   Secret      : (cùng giá trị GITHUB_WEBHOOK_SECRET trong .env)
+//   Secret      : GITHUB_WEBHOOK_SECRET (không đặt thì tự sinh — webhook cũng được TỰ gắn khi web khởi động, xem githubPool.autoSetup)
 //   Events      : Just the push event
 //
 // Payload liệt kê file thêm / sửa / xoá → githubStore chỉ đọc đúng các file đó,
@@ -26,17 +26,30 @@ function validSignature(secret, rawBody, header) {
 }
 
 router.post('/', async (req, res) => {
-    const secret = process.env.GITHUB_WEBHOOK_SECRET;
+    // Secret: GITHUB_WEBHOOK_SECRET nếu có, không thì tự sinh từ khoá bí mật sẵn có (githubPool.webhookSecret)
+    let secret = process.env.GITHUB_WEBHOOK_SECRET;
+    try { const gs = require('../services/githubService'); if (!secret && gs.pool) secret = gs.pool.webhookSecret(); } catch (_) { /* ignore */ }
     if (!secret) {
-        return res.status(503).json({ ok: false, error: 'GITHUB_WEBHOOK_SECRET chưa được cấu hình.' });
+        return res.status(503).json({ ok: false, error: 'Chưa có secret webhook (thiếu GITHUB_WEBHOOK_SECRET / SESSION_ENC_KEY).' });
     }
     if (!validSignature(secret, req.rawBody, req.get('x-hub-signature-256'))) {
         return res.status(401).json({ ok: false, error: 'Chữ ký không hợp lệ.' });
     }
 
     const event = req.get('x-github-event');
+
+    // ★ Nhóm repo dữ liệu (githubPool): payload nào cũng mang dung lượng repo → ghi vào RAM.
+    //   Repo phụ (-1, -2…) chỉ chứa file nhị phân (JSON luôn ở repo chính) → không cần đồng bộ lessons/submissions.
+    let poolNote = null;
+    if (event === 'ping' || event === 'push') {
+        try {
+            const gs = require('../services/githubService');
+            if (gs.pool && gs.pooled) poolNote = await gs.pool.noteFromPayload(req.body, event);
+        } catch (e) { console.warn('[webhook] ghi dung lượng repo lỗi:', e.message); }
+    }
     if (event === 'ping') return res.json({ ok: true, pong: true });
     if (event !== 'push') return res.status(202).json({ ok: true, ignored: `event ${event}` });
+    if (poolNote && poolNote.rec && !poolNote.main) return res.json({ ok: true, repo: poolNote.rec.repo, bytes: poolNote.bytes, note: 'repo phụ — chỉ cập nhật dung lượng' });
 
     // ★ Sửa trực tiếp AI-database/index.json trên GitHub (danh sách nhà cung cấp AI) → nạp lại ngay
     try {

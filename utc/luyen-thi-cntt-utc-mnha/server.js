@@ -213,6 +213,15 @@ app.use(require("./services/aiProviderService").middleware);
 //   Đặt TRƯỚC session/auth: GitHub không có cookie, chỉ xác thực bằng chữ ký HMAC.
 app.use("/webhooks/github", require("./routes/githubWebhook"));
 
+// ★ Tự gắn webhook push cho mọi repo dữ liệu (1 lần, không chặn request) — địa chỉ lấy từ MAIN_URL hoặc từ request đầu tiên.
+app.use((req, res, next) => {
+    try {
+        const gh = require("./services/githubService");
+        if (gh.pool && gh.pooled) gh.pool.autoSetup({ origin: `${(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0]}://${req.get("host")}` });
+    } catch (_) { /* không ảnh hưởng request */ }
+    next();
+});
+
 // ============================================================
 // SESSION
 // ============================================================

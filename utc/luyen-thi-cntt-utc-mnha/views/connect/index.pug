@@ -2,6 +2,7 @@ extends ../layout
 
 block content
     include _week
+    include _repos
     - var okCls = 'border-emerald-300 bg-emerald-50 text-emerald-900'
     - var errCls = 'border-red-300 bg-red-50 text-red-900'
     - var infoCls = 'border-sky-300 bg-sky-50 text-sky-900'
@@ -20,6 +21,8 @@ block content
             div(class="mt-4 rounded-xl border px-4 py-3 text-sm " + (flash.type === 'error' ? errCls : flash.type === 'success' ? okCls : infoCls))= flash.message
         p(class="mt-4 text-xs text-gray-500")
             | Sổ đăng ký: <code>#{registryPath}</code> · Lưu lượng đo được: <code>#{usagePath}</code> · Chỉ admin mặc định (role=admin, userKey=null) dùng được trang này.
+
+        +reposCard(repos, fmt, true)
 
         //- thêm web
         section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")

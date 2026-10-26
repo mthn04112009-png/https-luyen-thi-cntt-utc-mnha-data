@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(requireDefaultAdmin);
 router.get('/', c.index);
 router.post('/check', c.check);
+router.post('/github/webhook', c.githubWebhook);
 router.post('/add', c.add);
 router.post('/node/:id/rename', c.rename);
 router.post('/node/:id/toggle', c.toggle);

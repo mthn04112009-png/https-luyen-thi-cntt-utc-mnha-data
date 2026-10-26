@@ -244,12 +244,14 @@ function createRouter() {
             await usage.flush().catch(() => { /* đã log */ });
             const use = await usage.snapshot(nodeId()).catch(() => null);
             const hist = await usage.history(nodeId(), { week: usage.clampWeek(req.query && req.query.w) }).catch(() => null);
+            const ghs = require('../../services/githubService');
+            const repos = ghs.pool && ghs.pooled ? await ghs.pool.summary().catch(() => null) : { enabled: false, repos: [], limit: ghs.pool ? ghs.pool.LIMIT() : 0, base: ghs.repo, indexPath: '', totalBytes: 0 };
             const template = envTemplate({ id: nodeId(), url: nodeUrl(req), name: nodeName(), dataNode: true });
             res.render('connect/node', {
                 title: 'Web dữ liệu — ' + nodeName(), user: req.user,
                 nodeId: nodeId(), nodeUrl: nodeUrl(req), nodeName: nodeName(),
                 node: registry.publicNode(node),
-                setup, setupKey, error, use, hist, template, registryPath: registry.PATH(), usagePath: usage.FILE(), fmt: usage.formatBytes
+                setup, setupKey, error, use, hist, repos, template, registryPath: registry.PATH(), usagePath: usage.FILE(), fmt: usage.formatBytes
             });
         } catch (e) { next(e); }
     });

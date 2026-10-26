@@ -536,7 +536,8 @@ function dropPath(kind, path) {
 // ------------------------------------------------------------
 async function syncFromTree({ force = false } = {}) {
     const service = gh();
-    const tree = await service.getRepoTree({ force: true });
+    // JSON luôn ở repo CHÍNH (githubPool) → chỉ cần cây thư mục của repo chính, không gộp các repo -1, -2… chứa file nhị phân.
+    const tree = await (service.base || service).getRepoTree({ force: true });
     const canDelete = !tree.truncated && tree.files.size > 0;
     const subjects = await loadSubjects();
     const stats = {};
