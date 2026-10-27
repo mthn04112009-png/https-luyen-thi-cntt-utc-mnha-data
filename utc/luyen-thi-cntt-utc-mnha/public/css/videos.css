@@ -102,4 +102,8 @@
 .vd-yt-rate option { color: #111827; }
 .vd-yt:fullscreen { max-height: none; aspect-ratio: auto !important; width: 100vw; height: 100vh; background: #000; }
 .vd-yt:-webkit-full-screen { max-height: none; aspect-ratio: auto !important; width: 100vw; height: 100vh; background: #000; }
-@media (max-width: 600px) { .vd-yt-vol, .vd-yt-rate { display: none; } .vd-yt-big { width: 3.5rem; height: 3.5rem; font-size: 1.4rem; } }
+@media (max-width: 600px) { .vd-yt-vol, .vd-yt-rate:not(.vd-yt-q) { display: none; } .vd-yt-big { width: 3.5rem; height: 3.5rem; font-size: 1.4rem; } }
+
+.vd-yt-q { max-width: 7.5rem; }
+.vd-yt-note { position: absolute; top: .75rem; right: .75rem; z-index: 5; max-width: min(24rem, 80%); padding: .5rem .75rem; border-radius: .5rem; background: rgba(15, 23, 42, .88); color: #fde68a; font-size: .8rem; line-height: 1.35; pointer-events: none; }
+.vd-yt-note[hidden] { display: none; }
