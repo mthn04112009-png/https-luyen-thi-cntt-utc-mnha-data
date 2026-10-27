@@ -240,13 +240,16 @@ ctrl.study = async (req, res) => {
             }
             const p = parseEmbed(o.code);
             if (!p.ok) return Object.assign(base, { error: 'Mã nhúng của video này không hợp lệ.' });
-            return Object.assign(base, { src: p.src, ratio: p.ratio, frameTitle: it.title || p.title || `Video ${i + 1}` });
+            const frameTitle = it.title || p.title || `Video ${i + 1}`;
+            // YouTube + trình phát riêng: KHÔNG đưa link/mã video vào trang; mã chỉ được lấy khi bấm phát (ctrl.play)
+            if (p.youtubeId && cfg.YT_CUSTOM) return Object.assign(base, { player: 'yt', ratio: p.ratio, frameTitle });
+            return Object.assign(base, { src: p.src, ratio: p.ratio, frameTitle });
         });
 
         const siblings = await Video.find(itemFilter(req, scope, { subjectId: subject._id }))
             .sort({ createdAt: -1, _id: -1 }).select('title').lean();
         const vd = {
-            id: String(rec._id), title: rec.title, description: rec.description || '',
+            id: String(rec._id), base: app.base, title: rec.title, description: rec.description || '',
             subject: { id: String(subject._id), name: subject.name },
             siblings: siblings.map((s) => ({ id: String(s._id), title: s.title })),
             videos, iframeAllow: cfg.IFRAME_ALLOW, iframeReferrer: cfg.IFRAME_REFERRER
@@ -256,6 +259,29 @@ ctrl.study = async (req, res) => {
     } catch (e) {
         console.error('[videos.study]', e);
         return renderError(req, res, 500, `Không tải được ${app.noun}.`);
+    }
+};
+
+/** Trình phát riêng: trả mã video YouTube của 1 video, chỉ khi người có quyền bấm phát (không nằm trong HTML/JSON của trang). */
+ctrl.play = async (req, res) => {
+    try {
+        if (!(await canUse(req))) return fail(res, 403, 'Bạn không có quyền xem video.');
+        const site = req.get ? req.get('sec-fetch-site') : '';
+        if (site && site !== 'same-origin' && site !== 'same-site') return fail(res, 403, 'Yêu cầu không hợp lệ.');
+        await githubSync.syncKinds([app.key]);
+        const scope = await getContentScope(req);
+        const found = await loadVisible(req, scope, req.params.vid);
+        if (!found) return fail(res, 404, `Không tìm thấy ${app.noun}.`);
+        const item = (found.rec.videos || []).find((v) => v.id === req.params.item);
+        if (!item) return fail(res, 404, 'Không tìm thấy video.');
+        const o = openItem(item);
+        const p = o.error ? null : parseEmbed(o.code);
+        if (!p || !p.ok || !p.youtubeId) return fail(res, 404, 'Video này không dùng trình phát riêng.');
+        res.set({ 'Cache-Control': 'private, no-store' });
+        return res.json({ success: true, id: p.youtubeId, start: p.start || 0 });
+    } catch (e) {
+        console.error('[videos.play]', e);
+        return fail(res, 500, 'Không tải được video.');
     }
 };
 

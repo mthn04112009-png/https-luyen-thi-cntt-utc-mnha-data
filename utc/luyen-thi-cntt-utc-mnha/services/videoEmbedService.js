@@ -65,7 +65,13 @@ function parseEmbed(code) {
         if (r >= 0.4 && r <= 3.5) ratio = r;
     }
     const title = decodeEntities(attrs.title || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, cfg.LIMITS.MAX_VIDEO_TITLE_LEN);
-    return { ok: true, src: u.toString(), ratio: Math.round(ratio * 10000) / 10000, title };
+    // YouTube video đơn (…/embed/<11 ký tự>) → trình phát riêng chỉ cần mã video + giây bắt đầu
+    let youtubeId = null, start = 0;
+    if (/^(www\.)?youtube(-nocookie)?\.com$/i.test(u.hostname)) {
+        const ym = /^\/embed\/([A-Za-z0-9_-]{11})\/?$/.exec(u.pathname);
+        if (ym && ym[1] !== 'videoseries' && ym[1] !== 'live_stream') { youtubeId = ym[1]; start = Math.max(0, Math.min(86400, parseInt(u.searchParams.get('start'), 10) || 0)); }
+    }
+    return { ok: true, src: u.toString(), ratio: Math.round(ratio * 10000) / 10000, title, youtubeId, start };
 }
 
 module.exports = { parseEmbed };

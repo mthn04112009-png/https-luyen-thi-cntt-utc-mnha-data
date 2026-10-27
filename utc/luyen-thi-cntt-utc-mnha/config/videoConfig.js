@@ -42,4 +42,7 @@ function isAllowedSource(hostname) {
 const IFRAME_ALLOW = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
 const IFRAME_REFERRER = 'strict-origin-when-cross-origin';
 
-module.exports = { APP, LIMITS, isAllowedSource, IFRAME_ALLOW, IFRAME_REFERRER };
+// Trình phát RIÊNG cho video YouTube (không hiện iframe/link YouTube trong trang). Tắt: VIDEO_YT_CUSTOM=0
+const YT_CUSTOM = String(process.env.VIDEO_YT_CUSTOM || '1') !== '0';
+
+module.exports = { APP, LIMITS, isAllowedSource, IFRAME_ALLOW, IFRAME_REFERRER, YT_CUSTOM };

@@ -23,5 +23,6 @@ router.get('/',                        requireAuth, studentOrAdmin, ctrl.getHub)
 router.get('/subjects',                requireAuth, studentOrAdmin, ctrl.getSubjects);
 router.get('/subjects/:id',            requireAuth, studentOrAdmin, ctrl.getSubject);
 router.get('/study/:vid',              requireAuth, studentOrAdmin, ctrl.study);
+router.get('/play/:vid/:item',         requireAuth, studentOrAdmin, ctrl.play);
 
 module.exports = router;

@@ -91,8 +91,33 @@ const VK = '<iframe src="https://vk.com/video_ext.php?oid=-1&id=2&hash=abc" widt
         const r = await call(ctrl.study, { params: { vid: id } });
         assert.strictEqual(r.rendered[0], 'videos/study'); const vd = r.rendered[1].vd;
         assert.strictEqual(vd.videos.length, 3); assert.strictEqual(vd.videos[1].src, 'https://ok.ru/videoembed/123456');
-        assert.ok(vd.videos.every((v) => v.src && v.ratio > 0 && !v.error)); assert.ok(!JSON.stringify(vd).includes('<iframe'));
+        assert.ok(vd.videos.every((v) => v.ratio > 0 && !v.error)); assert.ok(!JSON.stringify(vd).includes('<iframe'));
         assert.strictEqual(vd.siblings.length, 1);
+    });
+    await t('YouTube dùng trình phát riêng: trang KHÔNG chứa mã/link YouTube (chỉ video nguồn khác có src)', async () => {
+        const vd = (await call(ctrl.study, { params: { vid: id } })).rendered[1].vd;
+        assert.strictEqual(vd.videos[0].player, 'yt'); assert.strictEqual(vd.videos[0].src, undefined);
+        assert.ok(!/UPen6eK|youtube/i.test(JSON.stringify(vd)), 'JSON của trang lộ YouTube');
+        assert.strictEqual(vd.videos[2].src.startsWith('https://vk.com/'), true); assert.strictEqual(vd.videos[2].player, undefined);
+    });
+    await t('play: người có quyền lấy được mã + giây bắt đầu; video không phải YouTube / không tồn tại → 404', async () => {
+        const vd = (await call(ctrl.study, { params: { vid: id } })).rendered[1].vd;
+        const r = await call(ctrl.play, { user: STU, params: { vid: id, item: vd.videos[0].id } });
+        assert.ok(r.body.success); assert.strictEqual(r.body.id, 'UPen6eK_qGs'); assert.strictEqual(r.body.start, 0);
+        assert.strictEqual((await call(ctrl.play, { params: { vid: id, item: vd.videos[1].id } })).code, 404);      // ok.ru
+        assert.strictEqual((await call(ctrl.play, { params: { vid: id, item: 'khong-co' } })).code, 404);
+        assert.strictEqual((await call(ctrl.play, { params: { vid: 'zz', item: vd.videos[0].id } })).code, 404);
+    });
+    await t('play: chặn yêu cầu từ trang khác (Sec-Fetch-Site: cross-site) và người chưa duyệt', async () => {
+        const vd = (await call(ctrl.study, { params: { vid: id } })).rendered[1].vd;
+        const q = (site, user) => call(ctrl.play, { user, get: (k) => (k.toLowerCase() === 'sec-fetch-site' ? site : ''), params: { vid: id, item: vd.videos[0].id } });
+        assert.strictEqual((await q('cross-site', STU)).code, 403); assert.strictEqual((await q('same-origin', STU)).code, 200);
+        assert.strictEqual((await q('same-origin', { _id: new ObjectId(), role: 'student', status: 'pending' })).code, 403);
+    });
+    await t('YouTube có start=90 → nhận start; playlist (videoseries) vẫn dùng iframe thường', async () => {
+        const p = embed.parseEmbed('<iframe src="https://www.youtube.com/embed/UPen6eK_qGs?start=90"></iframe>');
+        assert.strictEqual(p.youtubeId, 'UPen6eK_qGs'); assert.strictEqual(p.start, 90);
+        assert.strictEqual(embed.parseEmbed('<iframe src="https://www.youtube.com/embed/videoseries?list=PL123"></iframe>').youtubeId, null);
     });
     await t('nạp lại từ GitHub (sync) vẫn đủ 3 video; videoCount đúng', async () => {
         await sync.syncKinds(['videos'], { force: true });

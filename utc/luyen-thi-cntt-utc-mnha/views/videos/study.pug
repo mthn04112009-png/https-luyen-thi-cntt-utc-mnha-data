@@ -31,4 +31,5 @@ block content
                     button(type="button", id="vdNext", class="vd-chip") Video sau →
 
     script#vdData(type="application/json")!= JSON.stringify(vd).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+    script(src="/js/videoYtPlayer.js")
     script(src="/js/videoViewer.js")

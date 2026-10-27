@@ -31,6 +31,7 @@
     }
 
     function buildFrame(v) {
+        if (v.player === 'yt' && !v.error && window.VdYT) return window.VdYT.create(v, vd);
         var box = el('div', 'vd-frame');
         if (v.error || !v.src) {
             box.className = 'vd-err';
@@ -62,7 +63,11 @@
         return item;
     }
 
-    function clearList() { while (list.firstChild) list.removeChild(list.firstChild); }
+    function clearList() {
+        var olds = list.querySelectorAll('.vd-frame');
+        for (var k = 0; k < olds.length; k++) { if (olds[k]._destroy) olds[k]._destroy(); }
+        while (list.firstChild) list.removeChild(list.firstChild);
+    }
 
     function renderIndex() {
         while (index.firstChild) index.removeChild(index.firstChild);
