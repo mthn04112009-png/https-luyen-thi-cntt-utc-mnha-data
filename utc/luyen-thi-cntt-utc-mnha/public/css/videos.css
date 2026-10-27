@@ -1,0 +1,72 @@
+/* ============================================================
+ * videos.css — Video bài giảng (/videos). Mọi thứ nằm trong .vd (xem) và .vf (form).
+ * Video xếp dọc, mỗi video chiếm trọn bề rộng khung và co giãn theo tỉ lệ width/height của mã nhúng.
+ * ============================================================ */
+.vd { max-width: 84rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; color: #1e1b4b; }
+.vd *, .vd *::before, .vd *::after { box-sizing: border-box; }
+.vd [hidden] { display: none !important; }
+.vd button { font-family: inherit; }
+.vd button:focus-visible, .vd a:focus-visible { outline: 3px solid #6366f1; outline-offset: 2px; }
+
+.vd-top { display: grid; grid-template-columns: 1fr auto; gap: .75rem 1rem; align-items: center; margin-bottom: 1rem; }
+.vd-back { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .25rem; font-size: .875rem; color: #4f46e5; text-decoration: none; }
+.vd-back:hover { text-decoration: underline; }
+.vd-head h1 { margin: 0; font-size: 1.6rem; line-height: 1.25; font-weight: 800; }
+.vd-head p { margin: .25rem 0 0; color: #6b7280; font-size: .9rem; }
+.vd-tools { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.vd-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .85rem; border: 1px solid #d1d5db; border-radius: 999px; background: #fff; color: #374151; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.vd-chip:hover { background: #eef2ff; border-color: #a5b4fc; }
+.vd-chip.on { background: #e0e7ff; border-color: #6366f1; color: #3730a3; }
+.vd-chip:disabled { opacity: .45; cursor: default; }
+
+.vd-grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1rem; align-items: start; }
+.vd-units { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; padding: .75rem; max-height: 80vh; overflow: auto; position: sticky; top: 1rem; }
+.vd-units h2 { margin: 0 0 .5rem; padding: 0 .5rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+.vd-units a { display: block; padding: .5rem .6rem; border-radius: .5rem; font-size: .875rem; color: #374151; text-decoration: none; }
+.vd-units a:hover { background: #f5f3ff; }
+.vd-units a.on { background: #e0e7ff; color: #3730a3; font-weight: 600; }
+
+.vd-main { min-width: 0; }
+.vd-index { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+.vd-index:empty { display: none; }
+.vd-index button { min-width: 2.2rem; padding: .35rem .65rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; color: #374151; font-size: .82rem; font-weight: 600; cursor: pointer; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-index button:hover { background: #eef2ff; border-color: #a5b4fc; }
+.vd-index button.on { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+
+.vd-list { display: flex; flex-direction: column; gap: 1.5rem; }
+.vd-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; overflow: hidden; scroll-margin-top: 1rem; }
+.vd-item-h { margin: 0; padding: .75rem 1rem; display: flex; align-items: center; gap: .6rem; font-size: 1rem; font-weight: 700; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+.vd-item-h .n { flex: none; min-width: 1.7rem; height: 1.7rem; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: .8rem; display: inline-flex; align-items: center; justify-content: center; }
+/* Khung video: giữ đúng tỉ lệ, luôn vừa bề rộng, không vượt quá chiều cao màn hình */
+.vd-frame { position: relative; width: 100%; background: #0b1020; aspect-ratio: 16 / 9; max-height: 85vh; margin: 0 auto; }
+.vd-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vd-err { padding: 1.25rem; color: #b91c1c; font-size: .9rem; background: #fef2f2; }
+.vd-empty { padding: 2rem; text-align: center; color: #6b7280; }
+
+.vd-pager { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: 1rem; }
+.vd-pos { font-size: .85rem; color: #6b7280; }
+
+@media (max-width: 900px) {
+    .vd-grid { grid-template-columns: 1fr; }
+    .vd-units { max-height: 12rem; order: 2; position: static; }
+    .vd-top { grid-template-columns: 1fr; }
+    .vd-head h1 { font-size: 1.3rem; }
+    .vd-item { border-radius: .75rem; }
+}
+
+/* ---------- Form (admin) ---------- */
+.vf-item { border: 1px solid #e5e7eb; border-radius: .9rem; background: #f9fafb; padding: 1rem; }
+.vf-item.bad { border-color: #fca5a5; background: #fef2f2; }
+.vf-item-top { display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; }
+.vf-item-top .n { flex: none; min-width: 1.8rem; height: 1.8rem; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: .8rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.vf-item-top input { flex: 1; min-width: 0; padding: .45rem .7rem; border: 1px solid #d1d5db; border-radius: .5rem; font-size: .9rem; background: #fff; }
+.vf-btn { padding: .35rem .6rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; color: #374151; font-size: .8rem; cursor: pointer; }
+.vf-btn:hover { background: #eef2ff; border-color: #a5b4fc; }
+.vf-btn.del { color: #b91c1c; }
+.vf-btn.del:hover { background: #fef2f2; border-color: #fca5a5; }
+.vf-btn:disabled { opacity: .4; cursor: default; }
+.vf-code { width: 100%; min-height: 6rem; padding: .6rem .75rem; border: 1px solid #d1d5db; border-radius: .5rem; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #fff; resize: vertical; }
+.vf-code:focus, .vf-item-top input:focus { outline: 2px solid #6366f1; outline-offset: 0; }
+.vf-hint { margin-top: .35rem; font-size: .78rem; color: #6b7280; }
+.vf-hint.err { color: #b91c1c; }
+.vf-hint.ok { color: #047857; }

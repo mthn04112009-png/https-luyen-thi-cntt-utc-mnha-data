@@ -1,0 +1,34 @@
+extends ../layout
+
+block content
+    link(rel="stylesheet", href="/css/videos.css")
+
+    div(class="vd", id="vdApp")
+        div(class="vd-top")
+            a(href=(app.base + "/subjects/" + vd.subject.id), class="vd-back")
+                i(data-lucide="arrow-left", class="w-4 h-4")
+                span= vd.subject.name
+            div(class="vd-head")
+                h1= vd.title
+                if vd.description
+                    p= vd.description
+            div(class="vd-tools")
+                button(type="button", id="vdModeAll", class="vd-chip on", aria-pressed="true") Xem tất cả
+                button(type="button", id="vdModeOne", class="vd-chip", aria-pressed="false") Từng video
+
+        div(class="vd-grid")
+            nav(class="vd-units", aria-label="Danh sách cùng môn")
+                h2 Cùng môn học
+                each s in vd.siblings
+                    a(href=(app.base + "/study/" + s.id), class=(s.id === vd.id ? "on" : ""))= s.title
+
+            div(class="vd-main")
+                nav(class="vd-index", id="vdIndex", aria-label="Danh sách video trong bài")
+                div(class="vd-list", id="vdList")
+                div(class="vd-pager", id="vdPager", hidden)
+                    button(type="button", id="vdPrev", class="vd-chip") ← Video trước
+                    span(id="vdPos", class="vd-pos")
+                    button(type="button", id="vdNext", class="vd-chip") Video sau →
+
+    script#vdData(type="application/json")!= JSON.stringify(vd).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+    script(src="/js/videoViewer.js")

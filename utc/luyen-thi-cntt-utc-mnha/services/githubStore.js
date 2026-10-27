@@ -154,6 +154,60 @@ function studyFileKind(dir) {
     };
 }
 
+/**
+ * Loại dữ liệu cho ứng dụng /videos (Video bài giảng).
+ *   subjects/{môn}/videos/{slug}_{unix}.json — videos = [{ id, title, enc }], enc = mã nhúng <iframe> đã mã hoá
+ *   (services/videoCryptoService.js, chuỗi "v1.…"). Không có file nhị phân.
+ *   RAM chỉ giữ bản MÃ HOÁ (không giải mã ở đây); server giải mã khi người có quyền mở trang xem.
+ */
+function videoKind() {
+    const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+    const cleanVideos = (arr) => (Array.isArray(arr) ? arr : [])
+        .filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.enc === 'string' && x.enc.startsWith('v1.') && x.enc.length <= 12000)
+        .slice(0, 100)
+        .map((x) => ({ id: x.id, title: str(x.title).slice(0, 200), enc: x.enc }));
+    return {
+        re: /^subjects\/([^/]+)\/videos\/([^/]+)\.json$/,
+        defaults: () => ({
+            description: '', videos: [], videoCount: 0, order: 0,
+            githubFile: null, githubSha: null, isPublished: true,
+            userKey: null, createdBy: null, updatedBy: null,
+            isDeleted: false, deletedAt: null, deletedBy: null, slug: null
+        }),
+        idKey: 'videoId',
+        fromJson(path, m, json, ctx) {
+            const subject = ctx.subjects.get(m[1]);
+            if (!subject) return { skip: `không có môn học slug "${m[1]}"` };
+            const videos = cleanVideos(json.videos);
+            const r = {
+                subjectId: subject._id, userKey: subject.userKey || null,
+                slug: (str(json.slug) || m[2]).toLowerCase(),
+                title: (str(json.title) || m[2]).slice(0, 200),
+                videos, videoCount: videos.length
+            };
+            if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
+            if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
+            if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            if (json.isDeleted !== undefined) {
+                r.isDeleted = json.isDeleted === true;
+                r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
+            }
+            for (const k of ['createdBy', 'updatedBy', 'deletedBy']) {
+                const v = toObjectId(json[k]); if (v) r[k] = v;
+            }
+            return { rec: r, createdAt: toDate(json.createdAt), updatedAt: toDate(json.updatedAt) };
+        },
+        toPatch: (r) => ({
+            videoId: hex(r._id),
+            title: r.title, slug: r.slug, description: r.description,
+            videos: r.videos || [], videoCount: (r.videos || []).length,
+            order: r.order, isPublished: r.isPublished,
+            createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
+            isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
+        })
+    };
+}
+
 const KINDS = {
     lessons: {
         re: /^subjects\/([^/]+)\/lessons\/([^/]+)\.json$/,
@@ -248,6 +302,7 @@ const KINDS = {
 
     slides: studyFileKind('slides'),         // Slide bài học  (PDF / PPT / PPTX mã hoá)
     documents: studyFileKind('documents'),   // Tài liệu học tập (PDF mã hoá)
+    videos: videoKind(),                     // Video bài giảng (mã nhúng iframe mã hoá, chỉ JSON)
 
     prompts: {
         re: /^prompts\/([^/]+)\.json$/,
@@ -388,10 +443,10 @@ const S = {
     headSha: null,
     etag: null,
     checkedAt: 0,
-    recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
-    paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
-    shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
-    skipShas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
+    recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
+    paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
+    shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
+    skipShas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() }, // path → sha của file ĐÃ BỊ BỎ QUA (không tải lại khi sha không đổi)
     lastPatch: new Map(),     // id(hex) → chuỗi patch đã khớp với GitHub
     confirmed: new Set(),     // id(hex) đã thấy trên GitHub (xoá file → gỡ ngay, không chờ)
     localAt: new Map(),       // id(hex) → thời điểm tạo cục bộ (chưa chắc đã có trong cây thư mục)
@@ -542,7 +597,7 @@ async function syncFromTree({ force = false } = {}) {
     const subjects = await loadSubjects();
     const stats = {};
 
-    for (const kind of ['lessons', 'flashcards', 'slides', 'documents', 'prompts', 'submissions']) {   // lessons trước submissions
+    for (const kind of ['lessons', 'flashcards', 'slides', 'documents', 'videos', 'prompts', 'submissions']) {   // lessons trước submissions
         const K = KINDS[kind];
         const remote = [];
         for (const [path, sha] of tree.files) {

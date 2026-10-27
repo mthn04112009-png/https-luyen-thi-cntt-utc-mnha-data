@@ -562,6 +562,7 @@ app.use("/apps", require("./routes/apps"));
 app.use("/flashcards", require("./routes/flashcard"));
 app.use("/slides", require("./routes/slide"));   // ★ Slide bài học: PDF/PPT/PPTX mã hoá lưu GitHub
 app.use("/documents", require("./routes/document"));   // ★ Tài liệu học tập: PDF mã hoá lưu GitHub
+app.use("/videos", require("./routes/video"));   // ★ Video bài giảng: iframe mã hoá lưu GitHub
 app.use("/lessons", lessonRoutes);
 app.use("/submissions", submissionRoutes);
 app.use("/practice", practiceRoutes);

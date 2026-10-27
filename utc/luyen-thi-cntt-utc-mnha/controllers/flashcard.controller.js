@@ -150,9 +150,9 @@ exports.getApps = async (req, res) => {
                 href: '/flashcards',
                 icon: 'layers'
             });
-            // Slide bài học + Tài liệu học tập: cùng điều kiện quyền với Flashcards (admin / student đã duyệt)
+            // Slide bài học + Tài liệu học tập + Video bài giảng: cùng điều kiện quyền với Flashcards (admin / student đã duyệt)
             const { APPS } = require('../config/studyFileConfig');
-            for (const a of [APPS.slides, APPS.documents]) {
+            for (const a of [APPS.slides, APPS.documents, require('../config/videoConfig').APP]) {
                 apps.push({ id: a.key, name: a.name, description: a.description, href: a.base, icon: a.icon });
             }
         }
