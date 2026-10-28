@@ -16,11 +16,24 @@
      *   Chỉ chặn: chuyển trang / mở tab YouTube (iframe sandbox KHÔNG có allow-popups, allow-top-navigation) và chuột phải trên vùng hình.
      * false: quay lại thanh điều khiển tự dựng (không chọn được chất lượng thật). */
     var NATIVE_CONTROLS = true;
-    /* Bố cục giao diện gốc YouTube (tính theo % khung nên đúng cả khi phóng to / toàn màn hình):
-     *   - TRÊN: tiêu đề + kênh + chia sẻ (bên TRÁI, là link) | âm lượng, CC, ⚙ (bên PHẢI, phải bấm được)
-     *   - ĐÁY : thời gian, thanh tua, ⛶ (phải bấm được) | logo YouTube ở góc phải dưới (là link)
-     *   → 1 lớp chắn giữa (chặn chuột phải trên hình) + 2 miếng chắn riêng: tiêu đề (trên-trái) và logo (dưới-phải). */
-    var NATIVE_TOP = '13%', NATIVE_BOTTOM = '20%';
+    /* Lớp chắn PHỦ TOÀN BỘ khung (chặn chuột phải, tiêu đề, logo, link…) trừ vài "lỗ" đúng chỗ các nút gốc của YouTube cần bấm.
+     * Mỗi lỗ là [trái, trên, phải, dưới] tính theo % khung (các lỗ không được chồng lên nhau). Chỉ trong các lỗ này chuột phải mới ra menu YouTube
+     * — không tránh được vì iframe khác trang: muốn bấm được nút của nó thì chuột phải trên chính nút đó cũng tới được nó.
+     * Theo bố cục YouTube hiện tại: trên-phải = âm lượng, CC, ⚙ ; đáy = thanh tua và ⛶. Lệch thì chỉnh số ở đây. */
+    var NATIVE_HOLES = [
+        [80, 0, 99.5, 11],      // âm lượng · CC · ⚙ (góc trên phải)
+        [93, 76, 99, 84],       // ⛶ toàn màn hình
+        [2, 84, 98, 92]         // thanh tua (+ thời gian)
+    ];
+    function shieldClip(holes) {
+        var pts = ['0% 0%'];
+        holes.forEach(function (h) {
+            var x1 = h[0] + '%', y1 = h[1] + '%', x2 = h[2] + '%', y2 = h[3] + '%';
+            pts.push(x1 + ' ' + y1, x2 + ' ' + y1, x2 + ' ' + y2, x1 + ' ' + y2, x1 + ' ' + y1, '0% 0%');
+        });
+        pts.push('100% 0%', '100% 100%', '0% 100%', '0% 0%');
+        return 'polygon(evenodd, ' + pts.join(', ') + ')';
+    }
     var apiPromise = null;
     var QKEY = 'vdYtQuality';
     var QLABEL = { highres: 'Cao nhất', hd2880: '2880p', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p', hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p', auto: 'Tự động' };
@@ -93,11 +106,8 @@
         if (NATIVE_CONTROLS) {
             box.classList.add('vd-native');          // ẩn thanh tự dựng; lớp chắn chừa dải điều khiển gốc ở đáy khung (xem CSS)
             bar.style.display = 'none';
-            shield.style.top = NATIVE_TOP; shield.style.bottom = NATIVE_BOTTOM;      // chừa dải trên (⚙, CC, âm lượng) và dải đáy (thanh tua, ⛶) cho thanh gốc
-            var blockTop = el('div', 'vd-yt-block'), blockLogo = el('div', 'vd-yt-block');
-            blockTop.style.cssText = 'position:absolute;z-index:2;left:0;top:0;width:72%;height:' + NATIVE_TOP + ';';        // tiêu đề / kênh / chia sẻ (link)
-            blockLogo.style.cssText = 'position:absolute;z-index:2;right:0;bottom:0;width:18%;height:10%;';                  // logo YouTube (link)
-            box.appendChild(blockTop); box.appendChild(blockLogo);
+            var clip = shieldClip(NATIVE_HOLES);
+            shield.style.clipPath = clip; shield.style.webkitClipPath = clip;      // khoét lỗ cho các nút gốc; còn lại chắn hết
             if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) shield.style.display = 'none';   // cảm ứng: chạm vào hình để hiện thanh gốc
         }
 

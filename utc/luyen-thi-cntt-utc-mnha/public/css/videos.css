@@ -109,7 +109,5 @@
 .vd-yt-note[hidden] { display: none; }
 
 /* ---- Chế độ thanh điều khiển GỐC của YouTube (NATIVE_CONTROLS) ----
-   Vị trí/kích thước các lớp chắn được đặt trong videoYtPlayer.js (theo % khung): chắn giữa (chuột phải), tiêu đề (trên-trái), logo (dưới-phải).
-   Chừa trống dải trên (⚙ CC âm lượng) và dải đáy (thanh tua ⛶) để bấm được thanh điều khiển gốc. */
+   Lớp chắn .vd-yt-shield phủ cả khung và được khoét lỗ (clip-path đặt trong videoYtPlayer.js, biến NATIVE_HOLES) đúng chỗ các nút gốc. */
 .vd-native .vd-yt-bar { display: none !important; }
-.vd-yt-block { background: transparent; cursor: default; }
