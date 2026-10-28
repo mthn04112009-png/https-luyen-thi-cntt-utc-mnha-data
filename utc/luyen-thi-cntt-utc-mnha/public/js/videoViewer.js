@@ -14,7 +14,8 @@
     /* ---- Hạn chế soi trang (chỉ là rào cản với người xem thường, không phải bảo mật tuyệt đối) ----
      *  • Chặn chuột phải trên cả trang.
      *  • Bấm phím mở DevTools (Ctrl+Shift+I/J/C, F12; macOS: Cmd+Option+I/J/C) ⇒ chuyển về danh sách môn học. */
-    (function guard() {
+    var blocked = (function guard() {
+        if (vd.admin === true) return false;      // tài khoản admin (server đặt vd.admin) được mở DevTools / chuột phải thoải mái
         var HOME = (vd.base ? vd.base : '/videos') + '/subjects';
         function leave() { try { window.location.replace(HOME); } catch (e) { window.location.href = HOME; } }
         document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);
@@ -23,7 +24,32 @@
             var hit = c === 'F12' || (e.ctrlKey && e.shiftKey && tools) || (e.metaKey && e.altKey && tools);
             if (hit) { e.preventDefault(); e.stopPropagation(); leave(); }
         }, true);
+
+        /* DevTools ĐÃ MỞ SẴN trước khi vào trang (hoặc mở bằng menu trình duyệt, không qua phím tắt) ⇒ chuyển về danh sách môn học.
+         * Bỏ qua điện thoại / máy tính bảng (không có F12; thanh trình duyệt làm lệch kích thước). */
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return false;
+        var SIZE_GAP = 200;                       // lệch outer/inner quá mức này ⇒ DevTools gắn cạnh/đáy cửa sổ (tăng nếu bị nhận nhầm do zoom)
+        function bySize() {
+            return (window.outerWidth - window.innerWidth > SIZE_GAP) || (window.outerHeight - window.innerHeight > SIZE_GAP);
+        }
+        function byDebugger() {                   // DevTools tách rời cửa sổ: lệnh debugger chỉ làm trang dừng khi DevTools đang mở
+            var t = performance.now();
+            debugger;
+            return performance.now() - t > 100;
+        }
+        /* Lớp 3 — không phụ thuộc breakpoint (vẫn bắt được khi người xem bấm "Deactivate breakpoints" làm lệnh debugger vô hiệu):
+         * in 1 phần tử có thuộc tính id dạng getter ra console; DevTools đang mở sẽ đọc id để vẽ xem trước ⇒ getter chạy.
+         * Kết quả có thể đến trễ nên đọc ở vòng kiểm tra sau. */
+        var consoleHit = false, probe = new Image();
+        try { Object.defineProperty(probe, 'id', { get: function () { consoleHit = true; return ''; } }); } catch (e) { /* ignore */ }
+        function ping() { try { console.debug(probe); } catch (e) { /* ignore */ } }
+        function open() { var hit = consoleHit || bySize() || byDebugger(); ping(); return hit; }
+        if (open()) { leave(); return true; }     // F12 đã mở lúc dán link
+        setTimeout(function () { if (consoleHit) leave(); }, 400);
+        setInterval(function () { if (open()) leave(); }, 1000);   // mở F12 sau khi trang đã tải
+        return false;
     })();
+    if (blocked) return;                          // không dựng trình phát khi đang bị chuyển hướng
     var list = document.getElementById('vdList');
     var index = document.getElementById('vdIndex');
     var pager = document.getElementById('vdPager');
