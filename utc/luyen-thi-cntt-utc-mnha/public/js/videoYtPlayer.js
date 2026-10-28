@@ -12,10 +12,20 @@
  * ============================================================ */
 (function () {
     'use strict';
+    /* NATIVE_CONTROLS = true: dùng thanh điều khiển GỐC của YouTube (chọn chất lượng, tua, phụ đề, tốc độ… bấm được như trên YouTube).
+     *   Chỉ chặn: chuyển trang / mở tab YouTube (iframe sandbox KHÔNG có allow-popups, allow-top-navigation) và chuột phải trên vùng hình.
+     * false: quay lại thanh điều khiển tự dựng (không chọn được chất lượng thật). */
+    var NATIVE_CONTROLS = true;
+    /* Bố cục giao diện gốc YouTube (tính theo % khung nên đúng cả khi phóng to / toàn màn hình):
+     *   - TRÊN: tiêu đề + kênh + chia sẻ (bên TRÁI, là link) | âm lượng, CC, ⚙ (bên PHẢI, phải bấm được)
+     *   - ĐÁY : thời gian, thanh tua, ⛶ (phải bấm được) | logo YouTube ở góc phải dưới (là link)
+     *   → 1 lớp chắn giữa (chặn chuột phải trên hình) + 2 miếng chắn riêng: tiêu đề (trên-trái) và logo (dưới-phải). */
+    var NATIVE_TOP = '13%', NATIVE_BOTTOM = '20%';
     var apiPromise = null;
     var QKEY = 'vdYtQuality';
     var QLABEL = { highres: 'Cao nhất', hd2880: '2880p', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p', hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p', auto: 'Tự động' };
     var QORDER = ['highres', 'hd2880', 'hd2160', 'hd1440', 'hd1080', 'hd720', 'large', 'medium', 'small', 'tiny'];
+    var QHEIGHT = { hd2880: 2880, hd2160: 2160, hd1440: 1440, hd1080: 1080, hd720: 720, large: 480, medium: 360, small: 240, tiny: 144 };
     var players = [];           // các trình phát đang sống — khi 1 cái phát thì tạm dừng các cái còn lại
 
     function loadApi() {
@@ -80,14 +90,62 @@
         var note = el('div', 'vd-yt-note'); note.hidden = true;
         box.appendChild(stage); box.appendChild(shield); box.appendChild(cover); box.appendChild(note); box.appendChild(bar);
         box.classList.add('is-idle-state');          // chưa tải: chỉ hiện nút ▶ lớn
+        if (NATIVE_CONTROLS) {
+            box.classList.add('vd-native');          // ẩn thanh tự dựng; lớp chắn chừa dải điều khiển gốc ở đáy khung (xem CSS)
+            bar.style.display = 'none';
+            shield.style.top = NATIVE_TOP; shield.style.bottom = NATIVE_BOTTOM;      // chừa dải trên (⚙, CC, âm lượng) và dải đáy (thanh tua, ⛶) cho thanh gốc
+            var blockTop = el('div', 'vd-yt-block'), blockLogo = el('div', 'vd-yt-block');
+            blockTop.style.cssText = 'position:absolute;z-index:2;left:0;top:0;width:72%;height:' + NATIVE_TOP + ';';        // tiêu đề / kênh / chia sẻ (link)
+            blockLogo.style.cssText = 'position:absolute;z-index:2;right:0;bottom:0;width:18%;height:10%;';                  // logo YouTube (link)
+            box.appendChild(blockTop); box.appendChild(blockLogo);
+            if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) shield.style.display = 'none';   // cảm ứng: chạm vào hình để hiện thanh gốc
+        }
 
-        var videoId = '', startAt = 0, chosenQ = 'auto', noteTimer = null, qChecking = null, pauseAfterLoad = false, firstPlay = true;
-        try { var sq = localStorage.getItem(QKEY); if (sq && QLABEL[sq]) chosenQ = sq; } catch (e) { /* ignore */ }
+        var videoId = '', startAt = 0, chosenQ = 'auto', noteTimer = null, qChecking = null, firstPlay = true, soundChecked = false, noQ = {}, qSeq = 0, qPending = false, restoreSound = null, restoreRate = 0, ro = null;
+        if (!NATIVE_CONTROLS) { try { var sq = localStorage.getItem(QKEY); if (sq && QLABEL[sq]) chosenQ = sq; } catch (e) { /* ignore */ } }
         var player = null, ready = false, loading = false, destroyed = false, dragging = false, timer = null, hideTimer = null, wantPlay = false;
         var me = { pause: function () { if (player && ready) { try { player.pauseVideo(); } catch (e) { /* ignore */ } } } };
         players.push(me);
 
+        /* ---- Âm thanh ----
+         * Lỗi cũ: kéo thanh âm lượng về 0 rồi bấm nút loa → isMuted() vẫn false nên chỉ "mute" thêm, bấm lại thì unMute()
+         * nhưng âm lượng vẫn 0 ⇒ bật tiếng mà không có tiếng. Ngoài ra YouTube xử lý unMute/setVolume bất đồng bộ và trình duyệt
+         * có thể tự tắt tiếng khi tự phát, nên ta: nhớ âm lượng trước đó, luôn đặt lại âm lượng > 0 khi bật tiếng và kiểm tra lại. */
+        var lastVol = 100, unmuteCheck = null;
+        function curVol() { try { var v = player.getVolume(); return isFinite(v) ? v : 100; } catch (e) { return 100; } }
+        function isSilent() { try { return player.isMuted() || curVol() === 0; } catch (e) { return false; } }
+        function doUnmute(fromUser) {
+            if (!ready) return;
+            var v = curVol(); if (!(v > 0)) v = lastVol > 0 ? lastVol : 100;
+            lastVol = v;
+            try { player.unMute(); } catch (e) { /* ignore */ }
+            try { player.setVolume(v); } catch (e) { /* ignore */ }
+            vol.value = String(v);
+            clearTimeout(unmuteCheck);
+            unmuteCheck = setTimeout(function () {
+                if (destroyed || !ready) return;
+                if (isSilent()) { try { player.unMute(); player.setVolume(v); } catch (e) { /* ignore */ } }
+                syncUi();
+                if (fromUser && isSilent()) showNote('Trình duyệt đang chặn tiếng — hãy bấm lại nút loa hoặc kéo thanh âm lượng.');
+            }, 350);
+        }
+        function doMute() {
+            if (!ready) return;
+            var v = curVol(); if (v > 0) lastVol = v;
+            try { player.mute(); } catch (e) { /* ignore */ }
+        }
+        function toggleMute() { if (!ready) return; if (isSilent()) doUnmute(true); else doMute(); syncUi(); }
+        function changeVol(v) {
+            if (!ready) return;
+            v = Math.max(0, Math.min(100, v));
+            if (v > 0) { lastVol = v; if (player.isMuted()) { try { player.unMute(); } catch (e) { /* ignore */ } } }
+            try { player.setVolume(v); } catch (e) { /* ignore */ }
+            vol.value = String(v);
+            syncUi();
+        }
+
         function setCover(mode, msg) {                // mode: idle | loading | paused | ended | error | hidden
+            if (NATIVE_CONTROLS && mode === 'paused') mode = 'hidden';      // để lộ thanh điều khiển gốc khi đang dừng
             box.setAttribute('data-state', mode);
             status.textContent = msg || '';
             big.textContent = mode === 'ended' ? '↻' : '▶';
@@ -102,7 +160,8 @@
             var d = player.getDuration() || 0, c = player.getCurrentTime() || 0;
             tDur.textContent = fmt(d);
             if (!dragging) { tCur.textContent = fmt(c); seek.value = d > 0 ? String(Math.round(c / d * 1000)) : '0'; }
-            var muted = player.isMuted(); bMute.textContent = muted || player.getVolume() === 0 ? '🔇' : '🔊';
+            var silent = isSilent(); bMute.textContent = silent ? '🔇' : '🔊';
+            if (document.activeElement !== vol) vol.value = player.isMuted() ? '0' : String(curVol());
         }
         function wake() {
             box.classList.remove('is-idle');
@@ -115,11 +174,13 @@
             clearTimeout(noteTimer); noteTimer = setTimeout(function () { note.hidden = true; }, 4500);
         }
         function curQ() { try { return player.getPlaybackQuality(); } catch (e) { return ''; } }
+        /* YouTube chỉ báo các mức "vừa với kích thước khung hiện tại" nên lúc mới phát (khung nhỏ) danh sách thường THIẾU 1080p/720p.
+         * Vì vậy luôn đưa các mức phổ biến vào danh sách (noQ = mức đã kiểm chứng là video không có), sau đó xác minh khi người dùng chọn. */
+        var BASE_Q = ['hd1080', 'hd720', 'large', 'medium', 'small', 'tiny'];
         function fillQualities() {
             var list = [];
             try { list = player.getAvailableQualityLevels() || []; } catch (e) { /* ignore */ }
-            var have = QORDER.filter(function (q) { return list.indexOf(q) >= 0 && q !== 'highres'; });
-            if (!have.length) return;                                // YouTube chưa báo danh sách → giữ "Tự động"
+            var have = QORDER.filter(function (q) { return q !== 'highres' && !noQ[q] && (list.indexOf(q) >= 0 || BASE_Q.indexOf(q) >= 0); });
             var keep = chosenQ;
             qual.textContent = '';
             var a = el('option', '', 'Tự động'); a.value = 'auto'; qual.appendChild(a);
@@ -131,34 +192,73 @@
             var c = curQ(), a = qual.querySelector('option[value="auto"]');
             if (a) a.textContent = QLABEL[c] ? 'Tự động (' + QLABEL[c] + ')' : 'Tự động';
         }
-        /** Đổi chất lượng: YouTube chỉ coi đây là "gợi ý", nên đặt xong tải lại video đúng giây hiện tại để áp dụng; kiểm tra lại sau đó. */
-        function applyQuality(q, userChoice) {
-            if (!ready || !videoId) return;
-            chosenQ = q;
+        /* ---- Đổi chất lượng ----
+         * YouTube đã bỏ hiệu lực của setPlaybackQuality. Ở chế độ tự động, YouTube chọn độ phân giải theo KÍCH THƯỚC khung phát,
+         * nên ta cho iframe một kích thước ảo đúng bằng độ phân giải muốn xem (vd 1920×1080) rồi thu nhỏ bằng CSS cho vừa khung. */
+        function frameEl() { try { return player.getIframe(); } catch (e) { return null; } }
+        /* ---- Đổi chất lượng ----
+         * YouTube KHÔNG cho trang web ép độ phân giải bằng lệnh (setPlaybackQuality đã vô hiệu) và cũng không tin kích thước "ảo" (iframe to rồi thu nhỏ
+         * bằng transform: chỉ khung đổi, độ phân giải không đổi). Ở chế độ tự động YouTube chọn theo kích thước HIỂN THỊ THẬT × devicePixelRatio.
+         * Nên ở đây chất lượng được điều khiển bằng chính bề rộng thật của khung phát: chọn 720p ⇒ khung rộng đủ ~720 điểm ảnh vật lý cao, v.v.
+         * Khung không thể rộng hơn cột chứa nó; muốn nét hơn nữa thì bấm toàn màn hình (khung = cả màn hình). */
+        function frameEl() { try { return player.getIframe(); } catch (e) { return null; } }
+        function layoutFrame() { var f = frameEl(); if (f && f.getAttribute('style')) f.removeAttribute('style'); }      // iframe luôn đúng kích thước thật (CSS: 100%)
+        function inFs() { return (document.fullscreenElement || document.webkitFullscreenElement) === box; }
+        function sizeFrame(q) {
+            var avail = box.parentElement ? box.parentElement.clientWidth : 0;
+            if (inFs() || !q || q === 'auto' || !QHEIGHT[q] || !avail) { box.style.width = ''; box.style.marginLeft = ''; box.style.marginRight = ''; return null; }
+            var dpr = window.devicePixelRatio || 1;
+            var ratio = Number(item.ratio) > 0 ? Number(item.ratio) : 16 / 9;
+            var need = Math.ceil(QHEIGHT[q] * 1.04 / dpr * ratio);          // bề rộng CSS cần có để có QHEIGHT[q] điểm ảnh vật lý theo chiều cao (+4% dư)
+            var w = Math.min(need, avail);
+            box.style.width = w + 'px'; box.style.marginLeft = 'auto'; box.style.marginRight = 'auto';
+            return { need: need, w: w, limited: need > avail + 1 };
+        }
+        function applyQuality(q, userChoice, silent) {
+            if (!ready) return;
+            chosenQ = q; qPending = false;
             if (userChoice) { try { localStorage.setItem(QKEY, q); } catch (e) { /* ignore */ } }
-            var t = 0, was = false;
-            try { t = player.getCurrentTime() || 0; was = playing(); } catch (e) { /* ignore */ }
-            pauseAfterLoad = !was;
-            try { player.setPlaybackQuality(q === 'auto' ? 'default' : q); } catch (e) { /* ignore */ }
-            try { player.loadVideoById({ videoId: videoId, startSeconds: t, suggestedQuality: q === 'auto' ? 'default' : q }); } catch (e) { /* ignore */ }
             clearTimeout(qChecking);
-            qChecking = setTimeout(function () {
-                if (destroyed || !ready || q === 'auto') { reflectAuto(); return; }
-                var got = curQ();
-                if (got && got !== q) {
-                    showNote('YouTube chưa cho đổi sang ' + QLABEL[q] + ' với video này (đang phát ' + (QLABEL[got] || got) + ').');
+            var seqId = ++qSeq;
+            var info = sizeFrame(q);
+            if (q === 'auto') {
+                try { player.setPlaybackQualityRange('tiny', 'highres'); } catch (e) { /* ignore */ }
+                try { player.setPlaybackQuality('default'); } catch (e) { /* ignore */ }
+                qChecking = setTimeout(reflectAuto, 2500);
+                return;
+            }
+            try { player.setPlaybackQualityRange(q, q); } catch (e) { /* ignore */ }      // có bản YouTube còn nhận; không thì bỏ qua
+            try { player.setPlaybackQuality(q); } catch (e) { /* ignore */ }
+            var t = 0; try { t = player.getCurrentTime() || 0; } catch (e) { /* ignore */ }
+            if (playing()) { setTimeout(function () { if (!destroyed && ready && seqId === qSeq && playing()) { try { player.seekTo(t, true); } catch (e) { /* ignore */ } } }, 300); }   // đợi khung đổi xong rồi buộc chọn lại
+            var waited = 0;
+            (function poll() {
+                qChecking = setTimeout(function () {
+                    if (destroyed || !ready || seqId !== qSeq) return;
+                    var st = -1; try { st = player.getPlayerState(); } catch (e) { /* ignore */ }
+                    if (st !== 1 && st !== 3) { qPending = true; return; }          // đang dừng: kiểm chứng khi phát tiếp
+                    var got = curQ();
+                    if (got === q || (QHEIGHT[got] || 0) > (QHEIGHT[q] || 0)) { return; }
+                    waited += 500;
+                    if (waited < 10000) { poll(); return; }
+                    try { console.info('[VdYT] chất lượng', { muonXem: q, dangPhat: got, khungCSS: info, dpr: window.devicePixelRatio }); } catch (e) { /* ignore */ }
+                    if (!silent) {
+                        showNote(info && info.limited
+                            ? 'Khung chỉ rộng ' + info.w + 'px nên YouTube chỉ lên tới ' + (QLABEL[got] || got) + '. Bấm ⛶ toàn màn hình để xem nét hơn.'
+                            : 'YouTube đang phát ' + (QLABEL[got] || got) + ' (mạng chưa đủ nhanh hoặc video không có mức ' + QLABEL[q] + ').');
+                    }
                     if (qual.querySelector('option[value="' + got + '"]')) qual.value = got;
-                }
-            }, 3000);
+                }, 500);
+            })();
         }
 
         function onState(e) {
             var S = window.YT.PlayerState;
-            if (e.data === S.PLAYING && pauseAfterLoad) { pauseAfterLoad = false; try { player.pauseVideo(); } catch (x) { /* ignore */ } return; }
             if (e.data === S.PLAYING) {
-                try { player.setPlaybackRate(Number(rate.value)); } catch (x) { /* ignore */ }   // loadVideoById đặt lại tốc độ
-                if (firstPlay) { firstPlay = false; fillQualities(); }
+                if (firstPlay) { firstPlay = false; fillQualities(); if (chosenQ !== 'auto' && qual.querySelector('option[value="' + chosenQ + '"]')) { applyQuality(chosenQ, false, true); } else { chosenQ = 'auto'; sizeFrame('auto'); } }
+                if (!firstPlay && qPending && chosenQ !== 'auto') applyQuality(chosenQ, false, true);
                 reflectAuto();
+                if (!soundChecked) { soundChecked = true; setTimeout(function () { if (!destroyed && ready && player.isMuted()) doUnmute(false); }, 300); }
                 players.forEach(function (p) { if (p !== me) p.pause(); });
                 setCover('hidden'); box.classList.remove('is-idle-state'); wake();
             } else if (e.data === S.PAUSED) { setCover('paused'); box.classList.remove('is-idle'); }
@@ -167,6 +267,57 @@
             syncUi();
         }
         function fail(msg) { loading = false; ready = false; setCover('error', msg || 'Không phát được video này.'); big.hidden = false; big.textContent = '↻'; }
+
+        /** Tạo trình phát YouTube. */
+        function buildPlayer(id, startSec) {
+            var target;
+            if (NATIVE_CONTROLS) {
+                var qs = ['enablejsapi=1', 'controls=1', 'fs=1', 'rel=0', 'modestbranding=1', 'iv_load_policy=3', 'playsinline=1', 'cc_load_policy=0', 'hl=vi',
+                    'start=' + Math.floor(startSec || 0), 'origin=' + encodeURIComponent(window.location.origin)].join('&');
+                target = document.createElement('iframe');
+                target.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?' + qs;
+                target.title = item.frameTitle || item.title || 'Video';
+                target.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+                target.setAttribute('allowfullscreen', '');
+                target.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+                // KHÔNG có allow-popups / allow-top-navigation ⇒ logo, tiêu đề, "Xem trên YouTube", chia sẻ… không mở được tab/trang mới
+                target.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+            } else { target = el('div'); }
+            stage.textContent = ''; stage.appendChild(target);
+            player = new window.YT.Player(target, {
+                width: '100%', height: '100%', videoId: id, host: 'https://www.youtube-nocookie.com',
+                playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, hl: 'vi', start: Math.floor(startSec || 0), origin: window.location.origin },
+                events: {
+                    onReady: function () {
+                        ready = true; loading = false;
+                        try { var v0 = player.getVolume(); vol.value = String(v0); if (v0 > 0) lastVol = v0; } catch (e) { /* ignore */ }
+                        if (restoreSound) {                                   // vừa tạo lại trình phát → giữ nguyên âm lượng / tắt tiếng
+                            try { player.setVolume(restoreSound.vol); if (restoreSound.muted) player.mute(); else player.unMute(); } catch (e) { /* ignore */ }
+                            restoreSound = null;
+                        }
+                        try {
+                            var rates = player.getAvailablePlaybackRates();
+                            if (rates && rates.length) { rate.textContent = ''; rates.forEach(function (x) { var o = el('option', '', x + 'x'); o.value = String(x); if (x === (restoreRate || 1)) o.selected = true; rate.appendChild(o); }); }
+                            if (restoreRate) { player.setPlaybackRate(restoreRate); restoreRate = 0; }
+                        } catch (e) { /* ignore */ }
+                        clearInterval(timer); timer = setInterval(syncUi, 250);
+                        layoutFrame();
+                        if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
+                        if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(layoutFrame); ro.observe(stage); }
+                        if (wantPlay) { try { player.playVideo(); } catch (e) { /* ignore */ } }
+                        setTimeout(function () {                               // trình duyệt chặn tự phát → hiện nút ▶ thay vì kẹt ở "đang tải"
+                            if (destroyed || !ready || box.getAttribute('data-state') !== 'loading') return;
+                            var st = -1; try { st = player.getPlayerState(); } catch (e) { /* ignore */ }
+                            if (st !== 1 && st !== 3) setCover('paused');
+                        }, 3000);
+                        syncUi();
+                    },
+                    onStateChange: onState,
+                    onPlaybackQualityChange: function () { reflectAuto(); },
+                    onError: function () { fail('Video không phát được (đã bị gỡ hoặc không cho phép nhúng).'); }
+                }
+            });
+        }
 
         function start() {
             if (destroyed || loading) return;
@@ -182,31 +333,8 @@
                 if (destroyed) return;
                 if (!d || !d.success) return fail((d && d.message) || 'Không tải được video.');
                 videoId = d.id; startAt = d.start || 0;
-                var target = el('div'); stage.textContent = ''; stage.appendChild(target);
-                player = new window.YT.Player(target, {
-                    width: '100%', height: '100%', videoId: d.id, host: 'https://www.youtube-nocookie.com',
-                    playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, hl: 'vi', start: d.start || 0, origin: window.location.origin },
-                    events: {
-                        onReady: function () {
-                            ready = true; loading = false;
-                            try { vol.value = String(player.getVolume()); } catch (e) { /* ignore */ }
-                            try {
-                                var rates = player.getAvailablePlaybackRates();
-                                if (rates && rates.length) { rate.textContent = ''; rates.forEach(function (x) { var o = el('option', '', x + 'x'); o.value = String(x); if (x === 1) o.selected = true; rate.appendChild(o); }); }
-                            } catch (e) { /* ignore */ }
-                            timer = setInterval(syncUi, 250);
-                            if (wantPlay) {
-                                // đã chọn chất lượng từ trước → bắt đầu thẳng ở chất lượng đó (không phải tải lại)
-                                if (chosenQ !== 'auto') { try { player.loadVideoById({ videoId: videoId, startSeconds: startAt, suggestedQuality: chosenQ }); } catch (e) { /* ignore */ } }
-                                else { try { player.playVideo(); } catch (e) { /* ignore */ } }
-                            }
-                            syncUi();
-                        },
-                        onStateChange: onState,
-                        onPlaybackQualityChange: function () { reflectAuto(); },
-                        onError: function () { fail('Video không phát được (đã bị gỡ hoặc không cho phép nhúng).'); }
-                    }
-                });
+                if (chosenQ !== 'auto') sizeFrame(chosenQ);      // áp chất lượng đã lưu NGAY: chỉnh bề rộng thật của khung trước khi tải video
+                buildPlayer(d.id, d.start || 0);
             }).catch(function (err) { fail(err && err.message ? err.message : 'Không tải được video.'); });
         }
 
@@ -226,8 +354,8 @@
         shield.addEventListener('click', function () { toggle(); wake(); });
         cover.addEventListener('click', function (e) { if (e.target === cover || e.target === big || e.target === coverTitle || e.target === status) { toggle(); } });
         bPlay.addEventListener('click', toggle);
-        bMute.addEventListener('click', function () { if (!ready) return; if (player.isMuted()) { player.unMute(); } else { player.mute(); } syncUi(); });
-        vol.addEventListener('input', function () { if (!ready) return; var v = Number(vol.value); player.setVolume(v); if (v > 0 && player.isMuted()) player.unMute(); syncUi(); });
+        bMute.addEventListener('click', toggleMute);
+        vol.addEventListener('input', function () { changeVol(Number(vol.value)); });
         qual.addEventListener('change', function () { applyQuality(qual.value, true); });
         rate.addEventListener('change', function () { if (ready) player.setPlaybackRate(Number(rate.value)); });
         bFs.addEventListener('click', toggleFs);
@@ -243,19 +371,33 @@
             if (e.key === ' ' || e.key === 'k') { e.preventDefault(); toggle(); }
             else if (e.key === 'ArrowLeft') { e.preventDefault(); seekBy(-5); }
             else if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(5); }
-            else if (e.key === 'ArrowUp' && ready) { e.preventDefault(); player.setVolume(Math.min(100, player.getVolume() + 10)); syncUi(); }
-            else if (e.key === 'ArrowDown' && ready) { e.preventDefault(); player.setVolume(Math.max(0, player.getVolume() - 10)); syncUi(); }
-            else if (e.key === 'm' && ready) { if (player.isMuted()) player.unMute(); else player.mute(); syncUi(); }
+            else if (e.key === 'ArrowUp' && ready) { e.preventDefault(); changeVol((player.isMuted() ? 0 : curVol()) + 10); }
+            else if (e.key === 'ArrowDown' && ready) { e.preventDefault(); changeVol((player.isMuted() ? 0 : curVol()) - 10); }
+            else if (e.key === 'm' && ready) { toggleMute(); }
             else if (e.key === 'f') { e.preventDefault(); toggleFs(); }
             wake();
         });
 
         box._destroy = function () {
-            destroyed = true; clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking);
+            document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); window.removeEventListener('resize', onWinResize); window.removeEventListener('blur', onWinBlur);
+            destroyed = true; clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
             var i = players.indexOf(me); if (i >= 0) players.splice(i, 1);
             if (player && player.destroy) { try { player.destroy(); } catch (e) { /* ignore */ } }
             player = null; ready = false;
         };
+
+        var nativeActive = false;
+        function releaseShield() { if (!nativeActive) return; nativeActive = false; shield.style.pointerEvents = ''; try { var f = frameEl(); if (f) f.blur(); } catch (e) { /* ignore */ } }
+        function onWinBlur() {      // bấm vào iframe (thanh gốc) ⇒ cửa sổ mất focus, iframe thành phần tử đang focus
+            if (!NATIVE_CONTROLS) return;
+            setTimeout(function () { var f = frameEl(); if (f && document.activeElement === f) { nativeActive = true; shield.style.pointerEvents = 'none'; } }, 0);
+        }
+        if (NATIVE_CONTROLS) { window.addEventListener('blur', onWinBlur); box.addEventListener('mouseleave', releaseShield); }
+        function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
+        function onWinResize() { if (!inFs()) sizeFrame(chosenQ); }
+        document.addEventListener('fullscreenchange', onFs);
+        document.addEventListener('webkitfullscreenchange', onFs);
+        window.addEventListener('resize', onWinResize);
 
         setCover('idle');
         return box;
