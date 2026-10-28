@@ -18,17 +18,61 @@
     /* Điện thoại / máy tính bảng (chạm): KHÔNG dùng thanh gốc của YouTube (nó có nút sao chép link, ⋮, "Xem trên YouTube", logo… bấm được).
      * Thay vào đó che KÍN cả khung và dùng thanh điều khiển tự dựng của web. Máy tính (chuột) giữ thanh gốc + các lỗ như cũ. */
     var IS_TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-    var NATIVE_CONTROLS = !IS_TOUCH;
+    /* LUÔN dùng thanh điều khiển riêng + che kín khung (giống điện thoại) cho mọi thiết bị.
+     * Lý do: nút ⛶ gốc của YouTube đưa CHÍNH iframe lên toàn màn hình → lớp chắn của web nằm dưới, không che được link/logo/tiêu đề nữa.
+     * Giờ iframe không có nút ⛶ gốc (fs=0, không allowfullscreen); nút ⛶ của web phóng to cả khung (iframe + lớp chắn + thanh riêng). */
+    var NATIVE_CONTROLS = false;
     /* Lớp chắn PHỦ TOÀN BỘ khung (chặn chuột phải, tiêu đề, logo, link…) trừ vài "lỗ" đúng chỗ các nút gốc của YouTube cần bấm.
      * Mỗi lỗ là [trái, trên, phải, dưới] tính theo % khung (các lỗ không được chồng lên nhau). Chỉ trong các lỗ này chuột phải mới ra menu YouTube
      * — không tránh được vì iframe khác trang: muốn bấm được nút của nó thì chuột phải trên chính nút đó cũng tới được nó.
      * Theo bố cục YouTube hiện tại: trên-phải = âm lượng, CC, ⚙ ; đáy = thanh tua và ⛶. Lệch thì chỉnh số ở đây. */
     /* Hiệu chỉnh: mở trang với ?vddebug=1 ⇒ lớp chắn tô đỏ nhạt, các LỖ trong suốt hiện rõ để căn cho khớp từng nút.
      * Giữ lỗ vừa khít nút: lỗ càng rộng thì càng dễ chạm vào link YouTube (logo ở góc dưới phải, tiêu đề ở trên trái) ⇒ hiện URL ở thanh trạng thái. */
-    var NATIVE_HOLES = [
-        [83, 0, 98.5, 9],        // âm lượng · CC · ⚙ (góc trên phải)
-        [0, 9, 100, 90]          // MÁY TÍNH: bỏ lớp chắn ở TOÀN BỘ phần giữa khung (hình + ⛶ + thanh tua + menu ⚙); chỉ che dải tiêu đề (trên) và dải logo (dưới 90%)
-    ];
+    /* Các nút gốc của YouTube có kích thước/vị trí CỐ ĐỊNH theo px tính từ mép khung (không đổi theo % khi phóng to), nên lớp chắn cũng tính theo px:
+     *   • TOP_H     : dải trên che avatar + tiêu đề (link YouTube) — cao 66px.
+     *   • HOLE_R_FAR / HOLE_R_NEAR : lỗ trên-phải (âm lượng · CC · ⚙) nằm cách mép PHẢI từ 214px đến 22px.
+     *   • BOTTOM_H  : dải dưới che nút sao chép link + logo YouTube — cao 74px (thanh tua nằm ngay trên dải này).
+     * Phần giữa khung để trống. Thường và toàn màn hình đều cùng số px ⇒ căn y hệt nhau trên mọi màn hình. Lệch thì chỉnh 4 số này (xem bằng ?vddebug=1). */
+    var TOP_H = 66, BOTTOM_H = 74, HOLE_R_FAR = 214, HOLE_R_NEAR = 22;
+    /* TOÀN MÀN HÌNH: YouTube vẽ giao diện to hơn (tiêu đề/avatar cao hơn, nút lớn hơn) nên vùng có link cũng rộng hơn → dải che dày hơn, và
+     * CHE THÊM phần giữa-trái của hình (bấm vào đó vẫn phát/dừng nhờ lớp chắn). Chỉ chừa: dải điều khiển dưới (thanh tua, giờ, ⛶),
+     * cột phải rộng FS_RIGHT (âm lượng · CC · ⚙ và menu ⚙ bung ra). */
+    var FS_TOP_H = 104, FS_BOTTOM_H = 84, FS_BAND = 90, FS_RIGHT = 340;
+    function piecesFor(fs) {
+        if (!fs) return [
+            'left:0;top:0;right:' + HOLE_R_FAR + 'px;height:' + TOP_H + 'px;',          // trên-trái: avatar + tiêu đề
+            'right:0;top:0;width:' + HOLE_R_NEAR + 'px;height:' + TOP_H + 'px;',        // mép phải trên
+            'left:0;right:0;bottom:0;height:' + BOTTOM_H + 'px;'                        // dải dưới: link + logo
+        ];
+        return [
+            'left:0;top:0;right:' + HOLE_R_FAR + 'px;height:' + FS_TOP_H + 'px;',                                              // trên-trái: avatar + tiêu đề (cao hơn)
+            'right:0;top:0;width:' + HOLE_R_NEAR + 'px;height:' + TOP_H + 'px;',                                              // mép phải trên
+            'left:0;right:0;bottom:0;height:' + FS_BOTTOM_H + 'px;',                                                          // dải dưới: link + logo
+            'left:0;right:' + FS_RIGHT + 'px;top:' + FS_TOP_H + 'px;bottom:' + (FS_BOTTOM_H + FS_BAND) + 'px;'                // giữa-trái của hình
+        ];
+    }
+    /* ---- HYBRID (chỉ máy có chuột) ----
+     * Giữ thanh điều khiển + lớp chắn của web, nhưng chừa 1 lỗ đúng nút ⚙ gốc của YouTube để người xem chọn "Chất lượng" THẬT.
+     * Bấm ⚙ ⇒ bảng menu YouTube bung ra GIỮA-ĐÁY khung (rộng ~500px) và nút ✕ ở GIỮA-ĐỈNH ⇒ lúc đó mở thêm lỗ cho bảng + ✕
+     * (các dải che tiêu đề / link / logo vẫn giữ ở hai bên) và tạm ẩn thanh web để không che bảng. Căn lại bằng ?vddebug=1. */
+    var HYBRID = !IS_TOUCH && !NATIVE_CONTROLS;
+    var GEAR_R_FAR = 96, GEAR_R_NEAR = 24;     // lỗ ⚙: cách mép PHẢI từ 24px đến 96px
+    var MENU_HALF = 270, MENU_X_HALF = 60;     // nửa bề rộng bảng menu (500/2 + dư) · nửa bề rộng vùng nút ✕ giữa-đỉnh
+    function hybridPieces(menuOpen, fs) {
+        var th = fs ? FS_TOP_H : TOP_H, bh = fs ? FS_BOTTOM_H : BOTTOM_H;
+        if (!menuOpen) return [
+            'left:0;top:0;right:' + GEAR_R_FAR + 'px;height:' + th + 'px;',          // trên-trái: avatar + tiêu đề
+            'right:0;top:0;width:' + GEAR_R_NEAR + 'px;height:' + th + 'px;',        // mép phải trên
+            'left:0;right:0;top:' + th + 'px;bottom:0;'                              // phần còn lại của khung
+        ];
+        var side = 'max(0px,calc(50% - ' + MENU_HALF + 'px))';
+        return [
+            'left:0;top:0;width:max(0px,calc(50% - ' + MENU_X_HALF + 'px));height:' + th + 'px;',   // trên-trái: tiêu đề (chừa ✕)
+            'left:0;bottom:0;width:' + side + ';height:' + bh + 'px;',                                // đáy-trái: nút sao chép link
+            'right:0;bottom:0;width:' + side + ';height:' + bh + 'px;'                                // đáy-phải: logo YouTube
+        ];
+    }
+    var NATIVE_HOLES = null;
     /* Máy tính: phần GIỮA khung để trống (bấm/chuột phải tới thẳng YouTube). Điện thoại/máy tính bảng thì che kín cả khung (xem IS_TOUCH). */
     /* Khi người xem BẤM vào nút gốc (⚙ …) menu của YouTube bung ra phía trên thanh điều khiển → cần thêm 1 lỗ lớn cho menu.
      * Chỉ MỞ THÊM lỗ này, KHÔNG tắt cả lớp chắn: tiêu đề (trên-trái) và logo (đáy) vẫn được che. Các lỗ không chồng nhau. */
@@ -112,8 +156,9 @@
         [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].forEach(function (x) { var o = el('option', '', x + 'x'); o.value = String(x); if (x === 1) o.selected = true; rate.appendChild(o); });
         var qual = el('select', 'vd-yt-rate vd-yt-q'); qual.setAttribute('aria-label', 'Chất lượng hình ảnh');
         var qo = el('option', '', 'Tự động'); qo.value = 'auto'; qual.appendChild(qo);
+        var bTh = el('button', 'vd-yt-b', '▭'); bTh.type = 'button'; bTh.setAttribute('aria-label', 'Chế độ rạp'); bTh.title = 'Chế độ rạp (T)';
         var bFs = el('button', 'vd-yt-b', '⛶'); bFs.type = 'button'; bFs.setAttribute('aria-label', 'Toàn màn hình');
-        [bPlay, tCur, seek, tDur, bMute, vol, rate, qual, bFs].forEach(function (x) { bar.appendChild(x); });
+        [bPlay, tCur, seek, tDur, bMute, vol, rate, qual].concat(IS_TOUCH ? [] : [bTh], [bFs]).forEach(function (x) { bar.appendChild(x); });
 
         var note = el('div', 'vd-yt-note'); note.hidden = true;
         box.appendChild(stage); box.appendChild(shield); box.appendChild(cover); box.appendChild(note); box.appendChild(bar);
@@ -125,11 +170,11 @@
             bar.style.display = 'none';
             shield.style.pointerEvents = 'none';     // khung chứa không bắt chuột; chỉ các mảnh con bắt (chừa các lỗ cho nút gốc)
             var dbg = /[?&]vddebug=1/.test(window.location.search);     // ?vddebug=1: tô đỏ nhạt các mảnh chắn để căn lỗ (xem NATIVE_HOLES)
-            buildPieces = function (holes) {
+            buildPieces = function () {
                 while (shield.firstChild) shield.removeChild(shield.firstChild);
-                shieldRects(holes).forEach(function (r) {
-                    var d = el('div', 'vd-yt-piece'), e = 0.12;       // chồng mép 0,12% để không hở khe 1px giữa các mảnh
-                    d.style.cssText = 'position:absolute;pointer-events:auto;cursor:pointer;left:' + (r[0] - e) + '%;top:' + (r[1] - e) + '%;width:' + (r[2] - r[0] + 2 * e) + '%;height:' + (r[3] - r[1] + 2 * e) + '%;' + (dbg ? 'background:rgba(255,0,0,.28);' : '');
+                piecesFor(inFs()).forEach(function (css) {
+                    var d = el('div', 'vd-yt-piece');
+                    d.style.cssText = 'position:absolute;pointer-events:auto;cursor:pointer;' + css + (dbg ? 'background:rgba(255,0,0,.28);' : '');
                     shield.appendChild(d);
                 });
             };
@@ -138,8 +183,23 @@
             shield.style.webkitUserSelect = 'none'; shield.style.userSelect = 'none'; shield.style.webkitTouchCallout = 'none';
         }
 
+        if (HYBRID) {
+            shield.style.pointerEvents = 'none';     // chỉ các mảnh con bắt chuột; lỗ ⚙ để trống cho YouTube
+            var dbgH = /[?&]vddebug=1/.test(window.location.search);
+            buildPieces = function (menuOpen) {
+                while (shield.firstChild) shield.removeChild(shield.firstChild);
+                hybridPieces(!!menuOpen, inFs()).forEach(function (css) {
+                    var d = el('div', 'vd-yt-piece');
+                    d.style.cssText = 'position:absolute;pointer-events:auto;cursor:pointer;' + css + (dbgH ? 'background:rgba(255,0,0,.28);' : '');
+                    shield.appendChild(d);
+                });
+            };
+            buildPieces(false);
+            qual.style.display = 'none';             // chất lượng chọn bằng ⚙ gốc của YouTube
+        }
+
         var videoId = '', startAt = 0, chosenQ = 'auto', noteTimer = null, qChecking = null, firstPlay = true, soundChecked = false, noQ = {}, qSeq = 0, qPending = false, restoreSound = null, restoreRate = 0, ro = null;
-        if (!NATIVE_CONTROLS) { try { var sq = localStorage.getItem(QKEY); if (sq && QLABEL[sq]) chosenQ = sq; } catch (e) { /* ignore */ } }
+        if (!NATIVE_CONTROLS && !HYBRID) { try { var sq = localStorage.getItem(QKEY); if (sq && QLABEL[sq]) chosenQ = sq; } catch (e) { /* ignore */ } }
         var player = null, ready = false, loading = false, destroyed = false, dragging = false, timer = null, hideTimer = null, wantPlay = false;
         var me = { pause: function () { if (player && ready) { try { player.pauseVideo(); } catch (e) { /* ignore */ } } } };
         players.push(me);
@@ -182,7 +242,7 @@
         }
 
         function setCover(mode, msg) {                // mode: idle | loading | paused | ended | error | hidden
-            if (NATIVE_CONTROLS && mode === 'paused') mode = 'hidden';      // để lộ thanh điều khiển gốc khi đang dừng
+            if ((NATIVE_CONTROLS || HYBRID) && mode === 'paused') mode = 'hidden';      // để lộ thanh điều khiển gốc khi đang dừng
             box.setAttribute('data-state', mode);
             status.textContent = msg || '';
             big.textContent = mode === 'ended' ? '↻' : '▶';
@@ -223,6 +283,7 @@
             var a = el('option', '', 'Tự động'); a.value = 'auto'; qual.appendChild(a);
             have.forEach(function (q) { var o = el('option', '', QLABEL[q]); o.value = q; qual.appendChild(o); });
             qual.value = have.indexOf(keep) >= 0 ? keep : 'auto';
+            labelQualities();
         }
         function reflectAuto() {
             if (chosenQ !== 'auto') return;
@@ -246,17 +307,66 @@
             pst.textContent = '.vd-yt.vd-pfs{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;z-index:2147483000;background:#000}';
             document.head.appendChild(pst);
         }
-        function setPseudoFs(on) { pseudoFs = on; box.classList.toggle('vd-pfs', on); sizeFrame(on ? 'auto' : chosenQ); }
+        /* ---- Chế độ rạp ----
+         * Phóng khung ra TOÀN BỀ RỘNG cửa sổ (nền đen che phần còn lại của trang), chưa vào toàn màn hình thật.
+         * Khung rộng hơn cột chứa nên YouTube chọn độ phân giải cao hơn (đặc biệt trên máy tính có tỉ lệ điểm ảnh = 1). */
+        var theater = false, spacer = null;
+        if (!document.getElementById('vdYtTheaterStyle')) {
+            var tst = document.createElement('style'); tst.id = 'vdYtTheaterStyle';
+            tst.textContent = '.vd-yt.vd-theater{position:fixed!important;left:0!important;top:50%!important;transform:translateY(-50%)!important;width:100vw!important;max-width:none!important;max-height:100vh!important;margin:0!important;z-index:2147482000;box-shadow:0 0 0 100vmax #000}' +
+                '.vd-yt.vd-theater:fullscreen{top:0!important;transform:none!important;box-shadow:none!important}' +
+                '.vd-yt.vd-theater:-webkit-full-screen{top:0!important;transform:none!important;box-shadow:none!important}';
+            document.head.appendChild(tst);
+        }
+        function onTheaterKey(e) { if (e.key === 'Escape' && theater && !inFs()) { e.preventDefault(); setTheater(false); } }
+        function setTheater(on) {
+            if (on === theater) return;
+            if (on) {
+                spacer = document.createElement('div');                       // giữ chỗ cho khung để trang không bị nhảy
+                spacer.style.cssText = 'width:100%;height:' + box.offsetHeight + 'px;';
+                if (box.parentNode) box.parentNode.insertBefore(spacer, box);
+                try { document.documentElement.style.overflow = 'hidden'; } catch (e) { /* ignore */ }
+            } else {
+                if (spacer && spacer.parentNode) spacer.parentNode.removeChild(spacer);
+                spacer = null;
+                try { document.documentElement.style.overflow = ''; } catch (e) { /* ignore */ }
+            }
+            theater = on;
+            box.classList.toggle('vd-theater', on);
+            bTh.textContent = on ? '▣' : '▭';
+            bTh.title = on ? 'Thoát chế độ rạp (T / Esc)' : 'Chế độ rạp (T)';
+            sizeFrame(on ? 'auto' : chosenQ); labelQualities();
+            if (on) document.addEventListener('keydown', onTheaterKey); else document.removeEventListener('keydown', onTheaterKey);
+            if (ready && chosenQ !== 'auto') { qPending = true; }
+            wake();
+        }
+        function setPseudoFs(on) { pseudoFs = on; box.classList.toggle('vd-pfs', on); sizeFrame(on ? 'auto' : chosenQ); labelQualities(); if (buildPieces) buildPieces(); }
         function inFs() { return pseudoFs || (document.fullscreenElement || document.webkitFullscreenElement) === box; }
         function sizeFrame(q) {
             var avail = box.parentElement ? box.parentElement.clientWidth : 0;
-            if (inFs() || !q || q === 'auto' || !QHEIGHT[q] || !avail) { box.style.width = ''; box.style.marginLeft = ''; box.style.marginRight = ''; return null; }
+            if (inFs() || theater || !q || q === 'auto' || !QHEIGHT[q] || !avail) { box.style.width = ''; box.style.marginLeft = ''; box.style.marginRight = ''; return null; }
             var dpr = window.devicePixelRatio || 1;
             var ratio = Number(item.ratio) > 0 ? Number(item.ratio) : 16 / 9;
             var need = Math.ceil(QHEIGHT[q] * 1.04 / dpr * ratio);          // bề rộng CSS cần có để có QHEIGHT[q] điểm ảnh vật lý theo chiều cao (+4% dư)
             var w = Math.min(need, avail);
             box.style.width = w + 'px'; box.style.marginLeft = 'auto'; box.style.marginRight = 'auto';
             return { need: need, w: w, limited: need > avail + 1 };
+        }
+        /* Máy tính (devicePixelRatio=1) cần khung RỘNG HƠN cột chứa để YouTube chọn 720p/1080p.
+         * Mức nào không vừa trong trang → gắn ⛶ và khi chọn sẽ tự vào toàn màn hình (khung = cả màn hình nên mới phát nét). */
+        function fitsFrame(q) {
+            if (!QHEIGHT[q] || inFs()) return true;
+            var avail = theater ? window.innerWidth : (box.parentElement ? box.parentElement.clientWidth : 0);
+            if (!avail) return true;
+            var dpr = window.devicePixelRatio || 1, ratio = Number(item.ratio) > 0 ? Number(item.ratio) : 16 / 9;
+            return Math.ceil(QHEIGHT[q] * 1.04 / dpr * ratio) <= avail + 1;
+        }
+        function labelQualities() {
+            for (var k = 0; k < qual.options.length; k++) {
+                var o = qual.options[k], v = o.value;
+                if (v === 'auto' || !QLABEL[v]) continue;
+                o.textContent = QLABEL[v] + (fitsFrame(v) ? '' : ' \u26F6');
+            }
         }
         function applyQuality(q, userChoice, silent) {
             if (!ready) return;
@@ -265,6 +375,11 @@
             clearTimeout(qChecking);
             var seqId = ++qSeq;
             var info = sizeFrame(q);
+            if (userChoice && info && info.limited && !inFs() && !theater) {
+                toggleFs();                                    // đang là thao tác của người xem nên trình duyệt cho phép vào toàn màn hình
+                showNote('Đã chuyển sang toàn màn hình để xem ' + (QLABEL[q] || q) + ' (khung trong trang quá hẹp để YouTube phát mức này).');
+                silent = true;
+            }
             if (q === 'auto') {
                 try { player.setPlaybackQualityRange('tiny', 'highres'); } catch (e) { /* ignore */ }
                 try { player.setPlaybackQuality('default'); } catch (e) { /* ignore */ }
@@ -282,16 +397,18 @@
                     var st = -1; try { st = player.getPlayerState(); } catch (e) { /* ignore */ }
                     if (st !== 1 && st !== 3) { qPending = true; return; }          // đang dừng: kiểm chứng khi phát tiếp
                     var got = curQ();
+                    if (!QHEIGHT[got]) { return; }      // getPlaybackQuality đã bị YouTube vô hiệu (trả 'auto'/rỗng) → không kiểm chứng được, giữ nguyên lựa chọn của người xem
                     if (got === q || (QHEIGHT[got] || 0) > (QHEIGHT[q] || 0)) { return; }
                     waited += 500;
                     if (waited < 10000) { poll(); return; }
                     try { console.info('[VdYT] chất lượng', { muonXem: q, dangPhat: got, khungCSS: info, dpr: window.devicePixelRatio }); } catch (e) { /* ignore */ }
                     if (!silent) {
-                        showNote(info && info.limited
-                            ? 'Khung chỉ rộng ' + info.w + 'px nên YouTube chỉ lên tới ' + (QLABEL[got] || got) + '. Bấm ⛶ toàn màn hình để xem nét hơn.'
-                            : 'YouTube đang phát ' + (QLABEL[got] || got) + ' (mạng chưa đủ nhanh hoặc video không có mức ' + QLABEL[q] + ').');
+                        showNote(inFs()
+                            ? 'YouTube đang phát ' + (QLABEL[got] || got) + ' (độ phân giải màn hình hoặc tốc độ mạng chưa đủ cho ' + QLABEL[q] + ').'
+                            : (info && info.limited
+                                ? 'Khung chỉ rộng ' + info.w + 'px nên YouTube chỉ lên tới ' + (QLABEL[got] || got) + '. Bấm ⛶ toàn màn hình để xem nét hơn.'
+                                : 'YouTube đang phát ' + (QLABEL[got] || got) + ' (mạng chưa đủ nhanh hoặc video không có mức ' + QLABEL[q] + ').'));
                     }
-                    if (qual.querySelector('option[value="' + got + '"]')) qual.value = got;
                 }, 500);
             })();
         }
@@ -299,7 +416,7 @@
         function onState(e) {
             var S = window.YT.PlayerState;
             if (e.data === S.PLAYING) {
-                if (firstPlay) { firstPlay = false; fillQualities(); if (chosenQ !== 'auto' && qual.querySelector('option[value="' + chosenQ + '"]')) { applyQuality(chosenQ, false, true); } else { chosenQ = 'auto'; sizeFrame('auto'); } }
+                if (firstPlay) { firstPlay = false; if (HYBRID) showNote('Đổi chất lượng: bấm ⚙ ở góc trên bên phải khung hình.'); fillQualities(); if (chosenQ !== 'auto' && qual.querySelector('option[value="' + chosenQ + '"]')) { applyQuality(chosenQ, false, true); } else { chosenQ = 'auto'; sizeFrame('auto'); } }
                 if (!firstPlay && qPending && chosenQ !== 'auto') applyQuality(chosenQ, false, true);
                 reflectAuto();
                 if (!soundChecked) { soundChecked = true; setTimeout(function () { if (!destroyed && ready && player.isMuted()) doUnmute(false); }, 300); }
@@ -315,22 +432,21 @@
         /** Tạo trình phát YouTube. */
         function buildPlayer(id, startSec) {
             var target;
-            if (NATIVE_CONTROLS) {
-                var qs = ['enablejsapi=1', 'controls=1', 'fs=1', 'rel=0', 'modestbranding=1', 'iv_load_policy=3', 'playsinline=1', 'cc_load_policy=0', 'hl=vi',
+            {
+                var qs = ['enablejsapi=1', 'controls=' + ((NATIVE_CONTROLS || HYBRID) ? 1 : 0), 'fs=' + (NATIVE_CONTROLS ? 1 : 0), 'disablekb=' + (NATIVE_CONTROLS ? 0 : 1), 'rel=0', 'modestbranding=1', 'iv_load_policy=3', 'playsinline=1', 'cc_load_policy=0', 'hl=vi',
                     'start=' + Math.floor(startSec || 0), 'origin=' + encodeURIComponent(window.location.origin)].join('&');
                 target = document.createElement('iframe');
                 target.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?' + qs;
                 target.title = item.frameTitle || item.title || 'Video';
-                target.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
-                target.setAttribute('allowfullscreen', '');
+                target.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
                 target.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
                 // KHÔNG có allow-popups / allow-top-navigation ⇒ logo, tiêu đề, "Xem trên YouTube", chia sẻ… không mở được tab/trang mới
                 target.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
-            } else { target = el('div'); }
+            }
             stage.textContent = ''; stage.appendChild(target);
             player = new window.YT.Player(target, {
                 width: '100%', height: '100%', videoId: id, host: 'https://www.youtube-nocookie.com',
-                playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, hl: 'vi', start: Math.floor(startSec || 0), origin: window.location.origin },
+                playerVars: { controls: (NATIVE_CONTROLS || HYBRID) ? 1 : 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, hl: 'vi', start: Math.floor(startSec || 0), origin: window.location.origin },
                 events: {
                     onReady: function () {
                         ready = true; loading = false;
@@ -357,7 +473,7 @@
                         syncUi();
                     },
                     onStateChange: onState,
-                    onPlaybackQualityChange: function () { reflectAuto(); },
+                    onPlaybackQualityChange: function () { reflectAuto(); if (HYBRID && nativeActive) { clearTimeout(menuTimer); menuTimer = setTimeout(function () { menuMode(false); }, 700); } },
                     onError: function () { fail('Video không phát được (đã bị gỡ hoặc không cho phép nhúng).'); }
                 }
             });
@@ -407,6 +523,7 @@
         qual.addEventListener('change', function () { applyQuality(qual.value, true); });
         rate.addEventListener('change', function () { if (ready) player.setPlaybackRate(Number(rate.value)); });
         bFs.addEventListener('click', toggleFs);
+        bTh.addEventListener('click', function () { setTheater(!theater); });
         seek.addEventListener('input', function () { dragging = true; if (ready) tCur.textContent = fmt((player.getDuration() || 0) * Number(seek.value) / 1000); });
         seek.addEventListener('change', function () { if (ready) player.seekTo((player.getDuration() || 0) * Number(seek.value) / 1000, true); dragging = false; syncUi(); });
         box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -423,12 +540,14 @@
             else if (e.key === 'ArrowDown' && ready) { e.preventDefault(); changeVol((player.isMuted() ? 0 : curVol()) - 10); }
             else if (e.key === 'm' && ready) { toggleMute(); }
             else if (e.key === 'f') { e.preventDefault(); toggleFs(); }
+            else if ((e.key === 't' || e.key === 'T') && !IS_TOUCH) { e.preventDefault(); setTheater(!theater); }
             wake();
         });
 
         box._destroy = function () {
             document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); window.removeEventListener('resize', onWinResize); window.removeEventListener('blur', onWinBlur); window.removeEventListener('focus', releaseShield);
-            destroyed = true; clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
+            if (theater) setTheater(false); document.removeEventListener('keydown', onTheaterKey);
+            destroyed = true; clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); clearTimeout(menuTimer); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
             var i = players.indexOf(me); if (i >= 0) players.splice(i, 1);
             if (player && player.destroy) { try { player.destroy(); } catch (e) { /* ignore */ } }
             player = null; ready = false;
@@ -436,8 +555,17 @@
 
         /* Lớp chắn KHÔNG bao giờ bị ẩn. Chỉ khi người xem THẬT SỰ bấm vào nút gốc (chuột đang nằm trong 1 lỗ) mới mở thêm lỗ cho menu ⚙;
          * lớp chắn vẫn che tiêu đề / logo. Iframe tự lấy focus lúc bắt đầu phát (autoplay) thì bỏ qua — lỗi cũ: lúc đó cả lớp chắn bị ẩn nên chỉ che được giây đầu. */
-        var nativeActive = false;
-        function releaseShield() { if (!nativeActive) return; nativeActive = false; if (buildPieces) buildPieces(NATIVE_HOLES); try { var f = frameEl(); if (f) f.blur(); } catch (e) { /* ignore */ } }
+        var nativeActive = false, menuTimer = null;
+        /* Bật/tắt "chế độ menu": mở thêm lỗ cho bảng menu + ✕ của YouTube và ẩn thanh web (nó nằm đè lên đáy bảng).
+         * Không có tín hiệu báo bảng đã đóng nên tự thoát khi: đổi chất lượng xong · chuột rời khung · bấm vào lớp chắn · quá 15 giây. */
+        function menuMode(on) {
+            nativeActive = on; clearTimeout(menuTimer);
+            if (HYBRID) bar.style.visibility = on ? 'hidden' : '';
+            if (buildPieces) buildPieces(on);
+            if (on) { if (HYBRID) menuTimer = setTimeout(function () { if (nativeActive) menuMode(false); }, 15000); return; }
+            try { var f = frameEl(); if (f) f.blur(); } catch (e) { /* ignore */ }
+        }
+        function releaseShield() { if (!nativeActive) return; menuMode(false); }
         var actTimer = null;
         function checkNativeFocus() {
             var f = frameEl();
@@ -446,12 +574,12 @@
             var over = false, ps = shield.children;
             for (var k = 0; k < ps.length; k++) { if (ps[k].matches(':hover')) { over = true; break; } }
             if (over || !box.matches(':hover')) return;      // chuột không nằm trong lỗ nào ⇒ focus tự nhảy, không phải bấm nút gốc
-            nativeActive = true; if (buildPieces) buildPieces(NATIVE_HOLES_MENU);
+            menuMode(true);
         }
-        function onWinBlur() { if (!NATIVE_CONTROLS) return; setTimeout(checkNativeFocus, 0); }
-        if (NATIVE_CONTROLS) { window.addEventListener('blur', onWinBlur); window.addEventListener('focus', releaseShield); shield.addEventListener('mousedown', releaseShield); box.addEventListener('mouseleave', releaseShield); box.addEventListener('mouseenter', function () { clearInterval(actTimer); actTimer = setInterval(checkNativeFocus, 250); }); box.addEventListener('mouseleave', function () { clearInterval(actTimer); actTimer = null; }); }
-        function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
-        function onWinResize() { if (!inFs()) sizeFrame(chosenQ); }
+        function onWinBlur() { if (!(NATIVE_CONTROLS || HYBRID)) return; setTimeout(checkNativeFocus, 0); }
+        if (NATIVE_CONTROLS || HYBRID) { window.addEventListener('blur', onWinBlur); window.addEventListener('focus', releaseShield); shield.addEventListener('mousedown', releaseShield); box.addEventListener('mouseleave', releaseShield); box.addEventListener('mouseenter', function () { clearInterval(actTimer); actTimer = setInterval(checkNativeFocus, 250); }); box.addEventListener('mouseleave', function () { clearInterval(actTimer); actTimer = null; }); }
+        function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); labelQualities(); nativeActive = false; clearTimeout(menuTimer); bar.style.visibility = ''; if (buildPieces) buildPieces(false); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
+        function onWinResize() { if (!inFs()) sizeFrame(chosenQ); labelQualities(); }
         document.addEventListener('fullscreenchange', onFs);
         document.addEventListener('webkitfullscreenchange', onFs);
         window.addEventListener('resize', onWinResize);
