@@ -59,9 +59,7 @@
     var modeAll = document.getElementById('vdModeAll');
     var modeOne = document.getElementById('vdModeOne');
     var videos = Array.isArray(vd.videos) ? vd.videos : [];
-    var MODE_KEY = 'vdMode';
-    var mode = 'all', cur = 0;
-    try { if (localStorage.getItem(MODE_KEY) === 'one') mode = 'one'; } catch (e) { /* ignore */ }
+    var mode = 'one', cur = 0;      // chỉ còn chế độ "Từng video" (đã bỏ "Xem tất cả")
 
     function el(tag, cls, text) {
         var e = document.createElement(tag);
@@ -142,22 +140,11 @@
             videos.forEach(function (v, i) { list.appendChild(buildItem(v, i)); });
             pager.hidden = true;
         }
-        modeAll.className = 'vd-chip' + (mode === 'all' ? ' on' : '');
-        modeOne.className = 'vd-chip' + (mode === 'one' ? ' on' : '');
-        modeAll.setAttribute('aria-pressed', mode === 'all' ? 'true' : 'false');
-        modeOne.setAttribute('aria-pressed', mode === 'one' ? 'true' : 'false');
-        // chỉ có 1 video → không cần chuyển chế độ
-        modeAll.parentNode.hidden = videos.length < 2;
+        // ẩn cụm nút chuyển chế độ (không còn chế độ nào khác để chọn)
+        if (modeAll && modeAll.parentNode) modeAll.parentNode.hidden = true;
         renderIndex();
     }
 
-    function setMode(m) {
-        mode = m;
-        try { localStorage.setItem(MODE_KEY, m); } catch (e) { /* ignore */ }
-        render();
-    }
-    modeAll.addEventListener('click', function () { setMode('all'); });
-    modeOne.addEventListener('click', function () { setMode('one'); });
     prev.addEventListener('click', function () { cur--; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     next.addEventListener('click', function () { cur++; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     document.addEventListener('keydown', function (e) {
