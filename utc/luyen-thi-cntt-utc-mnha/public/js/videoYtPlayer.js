@@ -24,11 +24,18 @@
      * Giữ lỗ vừa khít nút: lỗ càng rộng thì càng dễ chạm vào link YouTube (logo ở góc dưới phải, tiêu đề ở trên trái) ⇒ hiện URL ở thanh trạng thái. */
     var NATIVE_HOLES = [
         [83, 0, 98.5, 9],        // âm lượng · CC · ⚙ (góc trên phải)
-        [0, 9, 100, 90]          // TOÀN BỘ phần giữa khung (hình + ⛶ + thanh tua) — không che; chỉ che dải tiêu đề (trên) và dải logo (dưới 90%)
+        [93.5, 78, 98.5, 85.2],  // ⛶ toàn màn hình
+        [2, 85.2, 98, 89.8]      // thanh tua
     ];
+    /* Phần GIỮA khung (hình video) được che kín: chuột phải (Safari/Chrome… "Sao chép URL video", "Sao chép link") và
+     * link hiện khi rê chuột đều không tới được iframe YouTube. Bấm vào hình vẫn phát/dừng (do trình phát của web xử lý). */
     /* Khi người xem BẤM vào nút gốc (⚙ …) menu của YouTube bung ra phía trên thanh điều khiển → cần thêm 1 lỗ lớn cho menu.
      * Chỉ MỞ THÊM lỗ này, KHÔNG tắt cả lớp chắn: tiêu đề (trên-trái) và logo (đáy) vẫn được che. Các lỗ không chồng nhau. */
-    var NATIVE_HOLES_MENU = NATIVE_HOLES;      // vùng giữa đã trống nên menu ⚙ không cần khoét thêm
+    var NATIVE_HOLES_MENU = [
+        [83, 0, 98.5, 9],        // âm lượng · CC · ⚙
+        [50, 9, 98.5, 85.2],     // vùng menu ⚙ (đã gồm cả nút ⛶)
+        [2, 85.2, 98, 89.8]      // thanh tua
+    ];
     /* Chia phần CÒN LẠI của khung (trừ các lỗ) thành các hình chữ nhật rời; mỗi mảnh là một div trong suốt bắt chuột.
      * Chuột chỉ chạm iframe YouTube ở đúng các lỗ ⇒ ở mọi nơi khác trình duyệt KHÔNG thấy link của YouTube nên không hiện URL ở thanh trạng thái. */
     function shieldRects(holes) {
@@ -128,6 +135,8 @@
                 });
             };
             buildPieces(NATIVE_HOLES);
+            ['contextmenu', 'dragstart', 'selectstart', 'auxclick'].forEach(function (t) { shield.addEventListener(t, function (e) { e.preventDefault(); }); });
+            shield.style.webkitUserSelect = 'none'; shield.style.userSelect = 'none'; shield.style.webkitTouchCallout = 'none';
             if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) shield.style.display = 'none';   // cảm ứng: chạm vào hình để hiện thanh gốc
         }
 
