@@ -10,6 +10,20 @@
     if (!dataEl) return;
     var vd;
     try { vd = JSON.parse(dataEl.textContent); } catch (e) { return; }
+
+    /* ---- Hạn chế soi trang (chỉ là rào cản với người xem thường, không phải bảo mật tuyệt đối) ----
+     *  • Chặn chuột phải trên cả trang.
+     *  • Bấm phím mở DevTools (Ctrl+Shift+I/J/C, F12; macOS: Cmd+Option+I/J/C) ⇒ chuyển về danh sách môn học. */
+    (function guard() {
+        var HOME = (vd.base ? vd.base : '/videos') + '/subjects';
+        function leave() { try { window.location.replace(HOME); } catch (e) { window.location.href = HOME; } }
+        document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);
+        document.addEventListener('keydown', function (e) {
+            var c = e.code, tools = (c === 'KeyI' || c === 'KeyJ' || c === 'KeyC');
+            var hit = c === 'F12' || (e.ctrlKey && e.shiftKey && tools) || (e.metaKey && e.altKey && tools);
+            if (hit) { e.preventDefault(); e.stopPropagation(); leave(); }
+        }, true);
+    })();
     var list = document.getElementById('vdList');
     var index = document.getElementById('vdIndex');
     var pager = document.getElementById('vdPager');
