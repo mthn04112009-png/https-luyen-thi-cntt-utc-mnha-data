@@ -54,10 +54,10 @@
     /* ---- HYBRID (chỉ máy có chuột) ----
      * Giữ thanh điều khiển + lớp chắn của web, nhưng chừa 1 lỗ đúng nút ⚙ gốc của YouTube để người xem chọn "Chất lượng" THẬT.
      * Bấm ⚙ ⇒ bảng menu YouTube bung ra GIỮA-ĐÁY khung (rộng ~500px) và nút ✕ ở GIỮA-ĐỈNH ⇒ lúc đó mở thêm lỗ cho bảng + ✕
-     * (các dải che tiêu đề / link / logo vẫn giữ ở hai bên) và tạm ẩn thanh web để không che bảng. Căn lại bằng ?vddebug=1. */
+     * (mọi chỗ khác vẫn bị che; bấm ra ngoài bảng ⇒ thoát chế độ menu). Thanh web vẫn hiện. Căn lại bằng ?vddebug=1. */
     var HYBRID = !IS_TOUCH && !NATIVE_CONTROLS;
-    var GEAR_R_FAR = 96, GEAR_R_NEAR = 24;     // lỗ ⚙: cách mép PHẢI từ 24px đến 96px
-    var MENU_HALF = 270, MENU_X_HALF = 60;     // nửa bề rộng bảng menu (500/2 + dư) · nửa bề rộng vùng nút ✕ giữa-đỉnh
+    var GEAR_R_FAR = 116, GEAR_R_NEAR = 24;    // lỗ CC + ⚙: cách mép PHẢI từ 24px đến 116px (⚙ ≈ 28–62, CC ≈ 77–111; nút âm lượng gốc ≈ 126–158 nằm NGOÀI lỗ nên bị che)
+    var MENU_HALF = 270, MENU_X_HALF = 60, MENU_H = 340;   // nửa bề rộng bảng menu (500/2 + dư) · nửa bề rộng vùng nút ✕ giữa-đỉnh · chiều cao vùng chừa cho bảng menu (kể cả danh sách chất lượng)
     function hybridPieces(menuOpen, fs) {
         var th = fs ? FS_TOP_H : TOP_H, bh = fs ? FS_BOTTOM_H : BOTTOM_H;
         if (!menuOpen) return [
@@ -65,11 +65,14 @@
             'right:0;top:0;width:' + GEAR_R_NEAR + 'px;height:' + th + 'px;',        // mép phải trên
             'left:0;right:0;top:' + th + 'px;bottom:0;'                              // phần còn lại của khung
         ];
-        var side = 'max(0px,calc(50% - ' + MENU_HALF + 'px))';
+        var side = 'max(0px,calc(50% - ' + MENU_HALF + 'px))', xs = 'max(0px,calc(50% - ' + MENU_X_HALF + 'px))', xe = 'calc(50% + ' + MENU_X_HALF + 'px)';
         return [
-            'left:0;top:0;width:max(0px,calc(50% - ' + MENU_X_HALF + 'px));height:' + th + 'px;',   // trên-trái: tiêu đề (chừa ✕)
-            'left:0;bottom:0;width:' + side + ';height:' + bh + 'px;',                                // đáy-trái: nút sao chép link
-            'right:0;bottom:0;width:' + side + ';height:' + bh + 'px;'                                // đáy-phải: logo YouTube
+            'left:0;top:0;width:' + xs + ';height:' + th + 'px;',                                      // trên-trái: tiêu đề (chừa ✕ ở giữa)
+            'left:' + xe + ';top:0;right:' + GEAR_R_FAR + 'px;height:' + th + 'px;',                    // trên giữa → trước lỗ CC/⚙ (chừa ✕)
+            'right:0;top:0;width:' + GEAR_R_NEAR + 'px;height:' + th + 'px;',                           // mép phải trên
+            'left:0;right:0;top:' + th + 'px;bottom:' + MENU_H + 'px;',                                 // dải giữa: bấm vào đây = thoát menu + phát/dừng của web
+            'left:0;bottom:0;width:' + side + ';height:' + MENU_H + 'px;',                              // trái bảng menu
+            'right:0;bottom:0;width:' + side + ';height:' + MENU_H + 'px;'                              // phải bảng menu
         ];
     }
     var NATIVE_HOLES = null;
@@ -196,6 +199,35 @@
             };
             buildPieces(false);
             qual.style.display = 'none';             // chất lượng chọn bằng ⚙ gốc của YouTube
+
+            /* Mặt nạ che THANH ĐIỀU KHIỂN GỐC của YouTube (giờ + thanh tua + nút sao chép link + logo ở đáy) để chỉ còn thanh của web.
+             * Không thể ẩn bằng CSS vì iframe khác trang ⇒ chỉ có thể phủ mảng đen lên đúng chỗ. Các thành phần gốc có vị trí CỐ ĐỊNH theo px
+             * tính từ đáy khung (cùng số ở khung thường và toàn màn hình). Mặt nạ CHỈ hiện khi thanh gốc có thể hiện (đang dừng / thanh web đang hiện);
+             * đang xem mà thanh web ẩn thì mặt nạ ẩn nên phụ đề / chữ ở đáy hình không bị che. Lệch thì chỉnh số bên dưới (xem bằng ?vddebug=1). */
+            var MASK = [
+                'left:0;bottom:84px;width:150px;height:34px;',   // giờ "0:38 / 11:00:10" gốc (px CSS tính từ đáy: ≈ 91–111)
+                'left:0;width:max(0px,calc(50% - 270px));bottom:58px;height:30px;',                                   // thanh tua gốc + chấm đỏ: nửa trái
+                'left:max(0px,calc(50% - 270px));right:max(0px,calc(50% - 270px));bottom:58px;height:30px;|mid',     // đoạn giữa (ẩn khi mở menu để lộ bảng menu)
+                'right:0;width:max(0px,calc(50% - 270px));bottom:58px;height:30px;',                                  // nửa phải
+                'left:0;bottom:8px;width:90px;height:50px;',      // nút sao chép link (≈ 18–50)
+                'right:0;bottom:12px;width:150px;height:46px;'    // logo YouTube (≈ 25–45; rộng ≈ 54–138 tính từ mép phải)
+            ];
+            var maskSt = document.getElementById('vdYtMaskStyle');
+            if (!maskSt) {
+                maskSt = document.createElement('style'); maskSt.id = 'vdYtMaskStyle';
+                maskSt.textContent = '.vd-yt .vd-yt-mask{display:none;position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}' +
+                    '.vd-yt.vd-mask-on .vd-yt-mask{display:block}.vd-yt.vd-menu-open .vd-yt-mask i.mid{display:none}' +
+                    '.vd-yt-mask i{position:absolute;background:#000;pointer-events:none}';
+                document.head.appendChild(maskSt);
+            }
+            var mask = el('div', 'vd-yt-mask');
+            MASK.forEach(function (css) { var parts = css.split('|'), m = document.createElement('i'); m.style.cssText = parts[0] + (dbgH ? 'background:rgba(0,80,255,.45);' : ''); if (parts[1]) m.className = parts[1]; mask.appendChild(m); });
+            box.insertBefore(mask, cover);           // sau lớp chắn, TRƯỚC thanh web ⇒ thanh web nằm đè lên mặt nạ
+            var pausedNow = false;
+        }
+        function maskSync() {                        // mặt nạ bật khi thanh gốc có thể hiện: đang dừng/hết video, hoặc thanh web đang hiện
+            if (!HYBRID) return;
+            box.classList.toggle('vd-mask-on', !firstPlay && (pausedNow || !box.classList.contains('is-idle')));
         }
 
         var videoId = '', startAt = 0, chosenQ = 'auto', noteTimer = null, qChecking = null, firstPlay = true, soundChecked = false, noQ = {}, qSeq = 0, qPending = false, restoreSound = null, restoreRate = 0, ro = null;
@@ -263,7 +295,8 @@
         function wake() {
             box.classList.remove('is-idle');
             clearTimeout(hideTimer);
-            if (playing()) hideTimer = setTimeout(function () { box.classList.add('is-idle'); }, 2600);
+            maskSync();
+            if (playing()) hideTimer = setTimeout(function () { box.classList.add('is-idle'); maskSync(); }, 2600);
         }
 
         function showNote(msg) {
@@ -421,10 +454,12 @@
                 reflectAuto();
                 if (!soundChecked) { soundChecked = true; setTimeout(function () { if (!destroyed && ready && player.isMuted()) doUnmute(false); }, 300); }
                 players.forEach(function (p) { if (p !== me) p.pause(); });
+                pausedNow = false;
                 setCover('hidden'); box.classList.remove('is-idle-state'); wake();
-            } else if (e.data === S.PAUSED) { setCover('paused'); box.classList.remove('is-idle'); }
-            else if (e.data === S.ENDED) { setCover('ended'); box.classList.remove('is-idle'); }
+            } else if (e.data === S.PAUSED) { pausedNow = true; setCover('paused'); box.classList.remove('is-idle'); }
+            else if (e.data === S.ENDED) { pausedNow = true; setCover('ended'); box.classList.remove('is-idle'); }
             else if (e.data === S.BUFFERING && !wantPlay) { /* giữ nguyên */ }
+            maskSync();
             syncUi();
         }
         function fail(msg) { loading = false; ready = false; setCover('error', msg || 'Không phát được video này.'); big.hidden = false; big.textContent = '↻'; }
@@ -556,11 +591,11 @@
         /* Lớp chắn KHÔNG bao giờ bị ẩn. Chỉ khi người xem THẬT SỰ bấm vào nút gốc (chuột đang nằm trong 1 lỗ) mới mở thêm lỗ cho menu ⚙;
          * lớp chắn vẫn che tiêu đề / logo. Iframe tự lấy focus lúc bắt đầu phát (autoplay) thì bỏ qua — lỗi cũ: lúc đó cả lớp chắn bị ẩn nên chỉ che được giây đầu. */
         var nativeActive = false, menuTimer = null;
-        /* Bật/tắt "chế độ menu": mở thêm lỗ cho bảng menu + ✕ của YouTube và ẩn thanh web (nó nằm đè lên đáy bảng).
+        /* Bật/tắt "chế độ menu": chừa lỗ cho bảng menu + ✕ của YouTube (thanh web vẫn hiện, chỉ đè lên phần đệm đáy bảng).
          * Không có tín hiệu báo bảng đã đóng nên tự thoát khi: đổi chất lượng xong · chuột rời khung · bấm vào lớp chắn · quá 15 giây. */
         function menuMode(on) {
             nativeActive = on; clearTimeout(menuTimer);
-            if (HYBRID) bar.style.visibility = on ? 'hidden' : '';
+            if (HYBRID) box.classList.toggle('vd-menu-open', on);
             if (buildPieces) buildPieces(on);
             if (on) { if (HYBRID) menuTimer = setTimeout(function () { if (nativeActive) menuMode(false); }, 15000); return; }
             try { var f = frameEl(); if (f) f.blur(); } catch (e) { /* ignore */ }
@@ -578,7 +613,7 @@
         }
         function onWinBlur() { if (!(NATIVE_CONTROLS || HYBRID)) return; setTimeout(checkNativeFocus, 0); }
         if (NATIVE_CONTROLS || HYBRID) { window.addEventListener('blur', onWinBlur); window.addEventListener('focus', releaseShield); shield.addEventListener('mousedown', releaseShield); box.addEventListener('mouseleave', releaseShield); box.addEventListener('mouseenter', function () { clearInterval(actTimer); actTimer = setInterval(checkNativeFocus, 250); }); box.addEventListener('mouseleave', function () { clearInterval(actTimer); actTimer = null; }); }
-        function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); labelQualities(); nativeActive = false; clearTimeout(menuTimer); bar.style.visibility = ''; if (buildPieces) buildPieces(false); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
+        function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); labelQualities(); nativeActive = false; clearTimeout(menuTimer); box.classList.remove('vd-menu-open'); if (buildPieces) buildPieces(false); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
         function onWinResize() { if (!inFs()) sizeFrame(chosenQ); labelQualities(); }
         document.addEventListener('fullscreenchange', onFs);
         document.addEventListener('webkitfullscreenchange', onFs);
