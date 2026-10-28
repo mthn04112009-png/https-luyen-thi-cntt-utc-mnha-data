@@ -15,7 +15,10 @@
     /* NATIVE_CONTROLS = true: dùng thanh điều khiển GỐC của YouTube (chọn chất lượng, tua, phụ đề, tốc độ… bấm được như trên YouTube).
      *   Chỉ chặn: chuyển trang / mở tab YouTube (iframe sandbox KHÔNG có allow-popups, allow-top-navigation) và chuột phải trên vùng hình.
      * false: quay lại thanh điều khiển tự dựng (không chọn được chất lượng thật). */
-    var NATIVE_CONTROLS = true;
+    /* Điện thoại / máy tính bảng (chạm): KHÔNG dùng thanh gốc của YouTube (nó có nút sao chép link, ⋮, "Xem trên YouTube", logo… bấm được).
+     * Thay vào đó che KÍN cả khung và dùng thanh điều khiển tự dựng của web. Máy tính (chuột) giữ thanh gốc + các lỗ như cũ. */
+    var IS_TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    var NATIVE_CONTROLS = !IS_TOUCH;
     /* Lớp chắn PHỦ TOÀN BỘ khung (chặn chuột phải, tiêu đề, logo, link…) trừ vài "lỗ" đúng chỗ các nút gốc của YouTube cần bấm.
      * Mỗi lỗ là [trái, trên, phải, dưới] tính theo % khung (các lỗ không được chồng lên nhau). Chỉ trong các lỗ này chuột phải mới ra menu YouTube
      * — không tránh được vì iframe khác trang: muốn bấm được nút của nó thì chuột phải trên chính nút đó cũng tới được nó.
@@ -120,6 +123,8 @@
 
         var note = el('div', 'vd-yt-note'); note.hidden = true;
         box.appendChild(stage); box.appendChild(shield); box.appendChild(cover); box.appendChild(note); box.appendChild(bar);
+        shield.style.webkitTouchCallout = 'none'; shield.style.webkitUserSelect = 'none'; shield.style.userSelect = 'none';
+        ['contextmenu', 'dragstart', 'selectstart'].forEach(function (t) { shield.addEventListener(t, function (e) { e.preventDefault(); }); });
         box.classList.add('is-idle-state');          // chưa tải: chỉ hiện nút ▶ lớn
         if (NATIVE_CONTROLS) {
             box.classList.add('vd-native');          // ẩn thanh tự dựng; lớp chắn chừa dải điều khiển gốc ở đáy khung (xem CSS)
@@ -137,7 +142,6 @@
             buildPieces(NATIVE_HOLES);
             ['contextmenu', 'dragstart', 'selectstart', 'auxclick'].forEach(function (t) { shield.addEventListener(t, function (e) { e.preventDefault(); }); });
             shield.style.webkitUserSelect = 'none'; shield.style.userSelect = 'none'; shield.style.webkitTouchCallout = 'none';
-            if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) shield.style.display = 'none';   // cảm ứng: chạm vào hình để hiện thanh gốc
         }
 
         var videoId = '', startAt = 0, chosenQ = 'auto', noteTimer = null, qChecking = null, firstPlay = true, soundChecked = false, noQ = {}, qSeq = 0, qPending = false, restoreSound = null, restoreRate = 0, ro = null;
@@ -242,7 +246,14 @@
          * Khung không thể rộng hơn cột chứa nó; muốn nét hơn nữa thì bấm toàn màn hình (khung = cả màn hình). */
         function frameEl() { try { return player.getIframe(); } catch (e) { return null; } }
         function layoutFrame() { var f = frameEl(); if (f && f.getAttribute('style')) f.removeAttribute('style'); }      // iframe luôn đúng kích thước thật (CSS: 100%)
-        function inFs() { return (document.fullscreenElement || document.webkitFullscreenElement) === box; }
+        var pseudoFs = false;
+        if (!document.getElementById('vdYtPfsStyle')) {
+            var pst = document.createElement('style'); pst.id = 'vdYtPfsStyle';
+            pst.textContent = '.vd-yt.vd-pfs{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;z-index:2147483000;background:#000}';
+            document.head.appendChild(pst);
+        }
+        function setPseudoFs(on) { pseudoFs = on; box.classList.toggle('vd-pfs', on); sizeFrame(on ? 'auto' : chosenQ); }
+        function inFs() { return pseudoFs || (document.fullscreenElement || document.webkitFullscreenElement) === box; }
         function sizeFrame(q) {
             var avail = box.parentElement ? box.parentElement.clientWidth : 0;
             if (inFs() || !q || q === 'auto' || !QHEIGHT[q] || !avail) { box.style.width = ''; box.style.marginLeft = ''; box.style.marginRight = ''; return null; }
@@ -386,11 +397,15 @@
         function seekBy(sec) { if (!ready) return; var d = player.getDuration() || 0; player.seekTo(Math.max(0, Math.min(d, player.getCurrentTime() + sec)), true); syncUi(); }
         function toggleFs() {
             var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+            if (pseudoFs) { setPseudoFs(false); return; }
             if (fsEl === box) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
-            else { var f = box.requestFullscreen || box.webkitRequestFullscreen; if (f) f.call(box); }
+            else { var f = box.requestFullscreen || box.webkitRequestFullscreen; if (f) f.call(box); else setPseudoFs(true); }
         }
 
-        shield.addEventListener('click', function () { toggle(); wake(); });
+        shield.addEventListener('click', function () {
+            if (IS_TOUCH && ready && playing() && box.classList.contains('is-idle')) { wake(); return; }     // chạm khi thanh đang ẩn: chỉ hiện thanh
+            toggle(); wake();
+        });
         cover.addEventListener('click', function (e) { if (e.target === cover || e.target === big || e.target === coverTitle || e.target === status) { toggle(); } });
         bPlay.addEventListener('click', toggle);
         bMute.addEventListener('click', toggleMute);
