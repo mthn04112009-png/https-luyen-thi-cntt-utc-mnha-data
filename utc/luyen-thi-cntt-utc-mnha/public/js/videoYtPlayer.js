@@ -27,18 +27,12 @@
      * Giữ lỗ vừa khít nút: lỗ càng rộng thì càng dễ chạm vào link YouTube (logo ở góc dưới phải, tiêu đề ở trên trái) ⇒ hiện URL ở thanh trạng thái. */
     var NATIVE_HOLES = [
         [83, 0, 98.5, 9],        // âm lượng · CC · ⚙ (góc trên phải)
-        [93.5, 78, 98.5, 85.2],  // ⛶ toàn màn hình
-        [2, 85.2, 98, 89.8]      // thanh tua
+        [0, 9, 100, 90]          // MÁY TÍNH: bỏ lớp chắn ở TOÀN BỘ phần giữa khung (hình + ⛶ + thanh tua + menu ⚙); chỉ che dải tiêu đề (trên) và dải logo (dưới 90%)
     ];
-    /* Phần GIỮA khung (hình video) được che kín: chuột phải (Safari/Chrome… "Sao chép URL video", "Sao chép link") và
-     * link hiện khi rê chuột đều không tới được iframe YouTube. Bấm vào hình vẫn phát/dừng (do trình phát của web xử lý). */
+    /* Máy tính: phần GIỮA khung để trống (bấm/chuột phải tới thẳng YouTube). Điện thoại/máy tính bảng thì che kín cả khung (xem IS_TOUCH). */
     /* Khi người xem BẤM vào nút gốc (⚙ …) menu của YouTube bung ra phía trên thanh điều khiển → cần thêm 1 lỗ lớn cho menu.
      * Chỉ MỞ THÊM lỗ này, KHÔNG tắt cả lớp chắn: tiêu đề (trên-trái) và logo (đáy) vẫn được che. Các lỗ không chồng nhau. */
-    var NATIVE_HOLES_MENU = [
-        [83, 0, 98.5, 9],        // âm lượng · CC · ⚙
-        [50, 9, 98.5, 85.2],     // vùng menu ⚙ (đã gồm cả nút ⛶)
-        [2, 85.2, 98, 89.8]      // thanh tua
-    ];
+    var NATIVE_HOLES_MENU = NATIVE_HOLES;      // vùng giữa đã trống nên menu ⚙ không cần khoét thêm
     /* Chia phần CÒN LẠI của khung (trừ các lỗ) thành các hình chữ nhật rời; mỗi mảnh là một div trong suốt bắt chuột.
      * Chuột chỉ chạm iframe YouTube ở đúng các lỗ ⇒ ở mọi nơi khác trình duyệt KHÔNG thấy link của YouTube nên không hiện URL ở thanh trạng thái. */
     function shieldRects(holes) {
@@ -434,7 +428,7 @@
 
         box._destroy = function () {
             document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); window.removeEventListener('resize', onWinResize); window.removeEventListener('blur', onWinBlur); window.removeEventListener('focus', releaseShield);
-            destroyed = true; clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
+            destroyed = true; clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
             var i = players.indexOf(me); if (i >= 0) players.splice(i, 1);
             if (player && player.destroy) { try { player.destroy(); } catch (e) { /* ignore */ } }
             player = null; ready = false;
@@ -444,18 +438,18 @@
          * lớp chắn vẫn che tiêu đề / logo. Iframe tự lấy focus lúc bắt đầu phát (autoplay) thì bỏ qua — lỗi cũ: lúc đó cả lớp chắn bị ẩn nên chỉ che được giây đầu. */
         var nativeActive = false;
         function releaseShield() { if (!nativeActive) return; nativeActive = false; if (buildPieces) buildPieces(NATIVE_HOLES); try { var f = frameEl(); if (f) f.blur(); } catch (e) { /* ignore */ } }
-        function onWinBlur() {
-            if (!NATIVE_CONTROLS) return;
-            setTimeout(function () {
-                var f = frameEl();
-                if (!f || nativeActive || document.activeElement !== f) return;
-                var over = false, ps = shield.children;
-                for (var k = 0; k < ps.length; k++) { if (ps[k].matches(':hover')) { over = true; break; } }
-                if (over || !box.matches(':hover')) return;      // chuột không nằm trong lỗ nào ⇒ focus tự nhảy, không phải bấm nút gốc
-                nativeActive = true; if (buildPieces) buildPieces(NATIVE_HOLES_MENU);
-            }, 0);
+        var actTimer = null;
+        function checkNativeFocus() {
+            var f = frameEl();
+            if (!f || nativeActive || destroyed || document.activeElement !== f) return;
+            if (!cover.hidden) return;                        // đang hiện màn chờ/tải: focus là do tự phát
+            var over = false, ps = shield.children;
+            for (var k = 0; k < ps.length; k++) { if (ps[k].matches(':hover')) { over = true; break; } }
+            if (over || !box.matches(':hover')) return;      // chuột không nằm trong lỗ nào ⇒ focus tự nhảy, không phải bấm nút gốc
+            nativeActive = true; if (buildPieces) buildPieces(NATIVE_HOLES_MENU);
         }
-        if (NATIVE_CONTROLS) { window.addEventListener('blur', onWinBlur); window.addEventListener('focus', releaseShield); shield.addEventListener('mousedown', releaseShield); box.addEventListener('mouseleave', releaseShield); }
+        function onWinBlur() { if (!NATIVE_CONTROLS) return; setTimeout(checkNativeFocus, 0); }
+        if (NATIVE_CONTROLS) { window.addEventListener('blur', onWinBlur); window.addEventListener('focus', releaseShield); shield.addEventListener('mousedown', releaseShield); box.addEventListener('mouseleave', releaseShield); box.addEventListener('mouseenter', function () { clearInterval(actTimer); actTimer = setInterval(checkNativeFocus, 250); }); box.addEventListener('mouseleave', function () { clearInterval(actTimer); actTimer = null; }); }
         function onFs() { sizeFrame(inFs() ? 'auto' : chosenQ); }     // toàn màn hình: khung = cả màn hình; thoát ra: trả về bề rộng theo chất lượng đã chọn
         function onWinResize() { if (!inFs()) sizeFrame(chosenQ); }
         document.addEventListener('fullscreenchange', onFs);
