@@ -204,6 +204,7 @@
              * Không thể ẩn bằng CSS vì iframe khác trang ⇒ chỉ có thể phủ mảng đen lên đúng chỗ. Các thành phần gốc có vị trí CỐ ĐỊNH theo px
              * tính từ đáy khung (cùng số ở khung thường và toàn màn hình). Mặt nạ CHỈ hiện khi thanh gốc có thể hiện (đang dừng / thanh web đang hiện);
              * đang xem mà thanh web ẩn thì mặt nạ ẩn nên phụ đề / chữ ở đáy hình không bị che. Lệch thì chỉnh số bên dưới (xem bằng ?vddebug=1). */
+            var MASK_ENABLED = false;                // true = bật lại các mảng đen che thanh gốc (đổi lại thành false để ẩn hết)
             var MASK = [
                 'left:0;bottom:84px;width:150px;height:34px;',   // giờ "0:38 / 11:00:10" gốc (px CSS tính từ đáy: ≈ 91–111)
                 'left:0;width:max(0px,calc(50% - 270px));bottom:58px;height:30px;',                                   // thanh tua gốc + chấm đỏ: nửa trái
@@ -222,7 +223,7 @@
             }
             var mask = el('div', 'vd-yt-mask');
             MASK.forEach(function (css) { var parts = css.split('|'), m = document.createElement('i'); m.style.cssText = parts[0] + (dbgH ? 'background:rgba(0,80,255,.45);' : ''); if (parts[1]) m.className = parts[1]; mask.appendChild(m); });
-            box.insertBefore(mask, cover);           // sau lớp chắn, TRƯỚC thanh web ⇒ thanh web nằm đè lên mặt nạ
+            if (MASK_ENABLED) box.insertBefore(mask, cover);           // sau lớp chắn, TRƯỚC thanh web ⇒ thanh web nằm đè lên mặt nạ
             var pausedNow = false;
         }
         function maskSync() {                        // mặt nạ bật khi thanh gốc có thể hiện: đang dừng/hết video, hoặc thanh web đang hiện
