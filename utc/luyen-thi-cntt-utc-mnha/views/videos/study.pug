@@ -1,6 +1,8 @@
 extends ../layout
+include ../partials/served-by
 
 block content
+    +servedByBadge('Tải xuống')
     link(rel="stylesheet", href="/css/videos.css")
 
     div(class="vd", id="vdApp")

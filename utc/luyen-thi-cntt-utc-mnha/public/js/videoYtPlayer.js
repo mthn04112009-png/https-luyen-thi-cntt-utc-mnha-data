@@ -165,6 +165,47 @@
 
         var note = el('div', 'vd-yt-note'); note.hidden = true;
         box.appendChild(stage); box.appendChild(shield); box.appendChild(cover); box.appendChild(note); box.appendChild(bar);
+
+        /* ---- DẤU CHỐNG SAO CHÉP: web + email + IP người xem, góc PHẢI DƯỚI khung phát ----
+         * • Thanh điều khiển ẨN  ⇒ dấu nằm sát đáy khung.   • Thanh điều khiển HIỆN ⇒ dấu nằm NGAY TRÊN thanh tua / thanh điều khiển.
+         * • Nằm trong chính khung (box) nên vẫn hiện khi toàn màn hình / chế độ rạp; không bắt chuột (pointer-events:none).
+         * • Dữ liệu do server đặt: vd.email, vd.ip (trong #vdData) và/hoặc d.email, d.ip (trong kết quả GET /play/…).
+         * • Chống gỡ: xoá phần tử / sửa style / sửa chữ bằng DevTools ⇒ tự dựng lại ngay (MutationObserver). Chỉ là rào cản, không tuyệt đối. */
+        var wmEmail = String(vd.email || vd.viewerEmail || ''), wmIp = String(vd.ip || vd.viewerIp || '');
+        var wm = el('div', 'vd-yt-wm'), wmBottom = -1, wmTimer = null, wmMo = null, wmMoBox = null;
+        var WM_CSS = 'position:absolute!important;right:12px!important;left:auto!important;top:auto!important;z-index:2147483000!important;display:block!important;visibility:visible!important;opacity:.78!important;' +
+            'transform:none!important;pointer-events:none!important;user-select:none!important;-webkit-user-select:none!important;text-align:right!important;max-width:70%!important;' +
+            'font:600 clamp(10px,1.05vw,13px)/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif!important;color:#fff!important;mix-blend-mode:normal!important;' +
+            'text-shadow:0 0 3px #000,0 1px 2px #000,0 0 6px rgba(0,0,0,.9)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;transition:bottom .2s ease;';
+        function wmLines() { return [wmEmail, wmIp ? 'IP: ' + wmIp : ''].filter(Boolean); }
+        function wmFill() {
+            var ls = wmLines(), same = wm.childNodes.length === ls.length;
+            for (var i = 0; same && i < ls.length; i++) { if (wm.childNodes[i].textContent !== ls[i]) same = false; }
+            if (same) return;
+            while (wm.firstChild) wm.removeChild(wm.firstChild);
+            ls.forEach(function (t) { wm.appendChild(el('div', '', t)); });
+        }
+        function wmApply() { wm.style.cssText = WM_CSS + 'bottom:' + (wmBottom < 0 ? 10 : wmBottom) + 'px!important;'; if (wm.className !== 'vd-yt-wm') wm.className = 'vd-yt-wm'; wm.hidden = false; if (wmMo) wmMo.takeRecords(); }
+        function wmPlace() {
+            if (destroyed) return;
+            wmFill();
+            var b = box.getBoundingClientRect(), r = bar.getBoundingClientRect(), cs = window.getComputedStyle(bar);
+            var vis = cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.height > 0 && r.top < b.bottom - 4;
+            var nb = vis ? Math.round(Math.max(0, b.bottom - r.top)) + 6 : 10;      // thanh hiện: nằm trên thanh · thanh ẩn: sát đáy
+            if (nb !== wmBottom || !wm.getAttribute('style')) { wmBottom = nb; wmApply(); }
+        }
+        wmFill(); wmApply(); box.appendChild(wm);
+        wmTimer = setInterval(wmPlace, 250);
+        if (typeof MutationObserver === 'function') {
+            wmMo = new MutationObserver(function () {
+                if (destroyed) return;
+                if (wm.parentNode !== box) box.appendChild(wm);
+                wmFill(); wmApply();
+            });
+            wmMo.observe(wm, { attributes: true, childList: true, subtree: true, characterData: true });
+            wmMoBox = new MutationObserver(function () { if (!destroyed && wm.parentNode !== box) { box.appendChild(wm); wmFill(); wmApply(); } });
+            wmMoBox.observe(box, { childList: true });
+        }
         shield.style.webkitTouchCallout = 'none'; shield.style.webkitUserSelect = 'none'; shield.style.userSelect = 'none';
         ['contextmenu', 'dragstart', 'selectstart'].forEach(function (t) { shield.addEventListener(t, function (e) { e.preventDefault(); }); });
         box.classList.add('is-idle-state');          // chưa tải: chỉ hiện nút ▶ lớn
@@ -296,8 +337,8 @@
         function wake() {
             box.classList.remove('is-idle');
             clearTimeout(hideTimer);
-            maskSync();
-            if (playing()) hideTimer = setTimeout(function () { box.classList.add('is-idle'); maskSync(); }, 2600);
+            maskSync(); wmPlace();
+            if (playing()) hideTimer = setTimeout(function () { box.classList.add('is-idle'); maskSync(); setTimeout(wmPlace, 260); }, 2600);
         }
 
         function showNote(msg) {
@@ -529,6 +570,7 @@
                 if (destroyed) return;
                 if (!d || !d.success) return fail((d && d.message) || 'Không tải được video.');
                 videoId = d.id; startAt = d.start || 0;
+                if (d.email) wmEmail = String(d.email); if (d.ip) wmIp = String(d.ip); wmFill(); wmPlace();     // server gửi kèm email + IP người xem
                 if (chosenQ !== 'auto') sizeFrame(chosenQ);      // áp chất lượng đã lưu NGAY: chỉnh bề rộng thật của khung trước khi tải video
                 buildPlayer(d.id, d.start || 0);
             }).catch(function (err) { fail(err && err.message ? err.message : 'Không tải được video.'); });
@@ -602,7 +644,7 @@
             document.removeEventListener('keydown', onDocKey);
             document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); window.removeEventListener('resize', onWinResize); window.removeEventListener('blur', onWinBlur); window.removeEventListener('focus', releaseShield);
             if (theater) setTheater(false); document.removeEventListener('keydown', onTheaterKey);
-            destroyed = true; clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); clearTimeout(menuTimer); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
+            destroyed = true; clearInterval(wmTimer); if (wmMo) { try { wmMo.disconnect(); } catch (e) { /* ignore */ } } if (wmMoBox) { try { wmMoBox.disconnect(); } catch (e) { /* ignore */ } } clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); clearTimeout(menuTimer); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }
             var i = players.indexOf(me); if (i >= 0) players.splice(i, 1);
             if (player && player.destroy) { try { player.destroy(); } catch (e) { /* ignore */ } }
             player = null; ready = false;

@@ -40,6 +40,9 @@ const SUBJECT_ALIVE = { deletedAt: null, deletedForever: { $ne: true } };
 // Tiện ích thuần
 // ------------------------------------------------------------
 const isAdmin = (req) => !!(req.user && req.user.role === 'admin');
+// Dấu chống sao chép trên trình phát: email + IP người xem (IP lấy ở server; `trust proxy` đã bật nên req.ip là IP thật sau Vercel)
+const viewerEmail = (req) => String((req.user && req.user.email) || '');
+const viewerIp = (req) => String(req.ip || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
 const isObjectId = (v) => mongoose.Types.ObjectId.isValid(String(v || '')) && String(v).length === 24;
 // JSON nhúng vào <script type="application/json">: thoát "<" để mã nhúng (<iframe…) không đóng thẻ script sớm
 const safeJson = (v) => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
@@ -252,7 +255,8 @@ ctrl.study = async (req, res) => {
             id: String(rec._id), base: app.base, title: rec.title, description: rec.description || '',
             subject: { id: String(subject._id), name: subject.name },
             siblings: siblings.map((s) => ({ id: String(s._id), title: s.title })),
-            videos, iframeAllow: cfg.IFRAME_ALLOW, iframeReferrer: cfg.IFRAME_REFERRER
+            videos, iframeAllow: cfg.IFRAME_ALLOW, iframeReferrer: cfg.IFRAME_REFERRER,
+            email: viewerEmail(req), ip: viewerIp(req)
         };
         res.set({ 'Cache-Control': 'private, no-store' });
         return res.render('videos/study', { title: `${rec.title} · ${app.name}`, user: req.user, app, vd });
@@ -278,7 +282,7 @@ ctrl.play = async (req, res) => {
         const p = o.error ? null : parseEmbed(o.code);
         if (!p || !p.ok || !p.youtubeId) return fail(res, 404, 'Video này không dùng trình phát riêng.');
         res.set({ 'Cache-Control': 'private, no-store' });
-        return res.json({ success: true, id: p.youtubeId, start: p.start || 0 });
+        return res.json({ success: true, id: p.youtubeId, start: p.start || 0, email: viewerEmail(req), ip: viewerIp(req) });
     } catch (e) {
         console.error('[videos.play]', e);
         return fail(res, 500, 'Không tải được video.');

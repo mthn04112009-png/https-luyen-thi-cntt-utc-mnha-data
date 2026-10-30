@@ -51,31 +51,6 @@
     })();
     if (blocked) return;                          // không dựng trình phát khi đang bị chuyển hướng
 
-    /* ---- Watermark: hiện email + IP người xem ở góc phải dưới màn hình ----
-     * Dữ liệu do SERVER đặt trong vdData: vd.email, vd.ip (trình duyệt không tự biết IP thật). Thiếu cả hai thì không hiện.
-     * Khi vào toàn màn hình, phần tử được chuyển vào chính phần tử đang fullscreen để vẫn hiện; thoát ra thì trả về <body>.
-     * Bị xoá khỏi DOM (F12) ⇒ tự gắn lại. Không bắt chuột nên không cản thao tác. */
-    (function watermark() {
-        var parts = [];
-        if (vd.email) parts.push(String(vd.email));
-        if (vd.ip) parts.push('IP ' + String(vd.ip));
-        if (!parts.length) return;
-        var wm = document.createElement('div');
-        wm.id = 'vdWatermark';
-        wm.textContent = parts.join(' · ');
-        wm.style.cssText = 'position:fixed;right:10px;bottom:8px;z-index:2147483000;max-width:80vw;padding:3px 8px;border-radius:6px;' +
-            'font:12px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:rgba(255,255,255,.75);background:rgba(0,0,0,.35);' +
-            'text-shadow:0 1px 2px rgba(0,0,0,.8);pointer-events:none;user-select:none;-webkit-user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-        function host() { return document.fullscreenElement || document.webkitFullscreenElement || document.body; }
-        function attach() { var h = host(); if (wm.parentNode !== h) h.appendChild(wm); }
-        attach();
-        document.addEventListener('fullscreenchange', attach);
-        document.addEventListener('webkitfullscreenchange', attach);
-        try {
-            new MutationObserver(function () { if (!wm.isConnected) attach(); })
-                .observe(document.documentElement, { childList: true, subtree: true });
-        } catch (e) { /* ignore */ }
-    })();
     var list = document.getElementById('vdList');
     var index = document.getElementById('vdIndex');
     var pager = document.getElementById('vdPager');

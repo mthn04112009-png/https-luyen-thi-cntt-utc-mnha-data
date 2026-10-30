@@ -9,7 +9,7 @@
 (function () {
     'use strict';
     if (window.MnhaData) return;
-    var ticket = null, negUntil = 0, pending = null, usedName = '';
+    var ticket = null, negUntil = 0, pending = null, usedName = '', usedId = '';
 
     function isLocalHost() { return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname); }
 
@@ -18,7 +18,7 @@
         if (info && info.node) { name = info.node.name; id = info.node.id; }
         else if (info && info.self) { name = info.self.name; id = info.self.id; }
         else { name = location.hostname; id = location.hostname; }
-        usedName = name;
+        usedName = name; usedId = id;
         var els = document.querySelectorAll('[data-data-badge]');
         for (var i = 0; i < els.length; i++) {
             var n = els[i].querySelector('[data-role="name"]'), d = els[i].querySelector('[data-role="id"]');
@@ -79,7 +79,8 @@
     window.MnhaData = {
         fetch: dataFetch,
         ticket: getTicket,
-        label: function () { return usedName; }
+        label: function () { return usedName; },
+        info: function () { return usedName ? { name: usedName, id: usedId, local: isLocalHost() } : null; }
     };
 
     // Huy hiệu trên trang: xin vé sớm để hiện đúng tên web kết nối ngay khi mở trang.
