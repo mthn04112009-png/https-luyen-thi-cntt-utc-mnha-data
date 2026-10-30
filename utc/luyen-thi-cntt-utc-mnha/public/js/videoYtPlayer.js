@@ -580,7 +580,26 @@
             wake();
         });
 
+        /* Phím tắt kiểu YouTube trên máy tính — chạy ở cấp TRANG nên không cần bấm vào khung phát trước:
+         *   ← tua lùi 5 giây · → tua tiến 5 giây · J lùi 10 giây · L tiến 10 giây.
+         * Bỏ qua khi đang gõ ở ô nhập; bỏ qua nếu handler của khung (ở trên) đã xử lý (defaultPrevented) để không tua 2 lần. */
+        function onDocKey(e) {
+            if (destroyed || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            if (!box.isConnected) return;
+            var tg = e.target, t = tg && tg.tagName;
+            if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || (tg && tg.isContentEditable)) return;
+            var k = e.key, d = 0;
+            if (k === 'ArrowLeft') d = -5;
+            else if (k === 'ArrowRight') d = 5;
+            else if (k === 'j' || k === 'J') d = -10;
+            else if (k === 'l' || k === 'L') d = 10;
+            if (!d) return;
+            e.preventDefault(); seekBy(d); wake();
+        }
+        document.addEventListener('keydown', onDocKey);
+
         box._destroy = function () {
+            document.removeEventListener('keydown', onDocKey);
             document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); window.removeEventListener('resize', onWinResize); window.removeEventListener('blur', onWinBlur); window.removeEventListener('focus', releaseShield);
             if (theater) setTheater(false); document.removeEventListener('keydown', onTheaterKey);
             destroyed = true; clearInterval(actTimer); clearInterval(timer); clearTimeout(hideTimer); clearTimeout(noteTimer); clearTimeout(qChecking); clearTimeout(unmuteCheck); clearTimeout(menuTimer); if (ro) { try { ro.disconnect(); } catch (e) { /* ignore */ } }

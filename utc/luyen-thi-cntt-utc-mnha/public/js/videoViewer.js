@@ -147,13 +147,7 @@
 
     prev.addEventListener('click', function () { cur--; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     next.addEventListener('click', function () { cur++; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
-    document.addEventListener('keydown', function (e) {
-        if (mode !== 'one' || e.altKey || e.ctrlKey || e.metaKey) return;
-        var t = e.target && e.target.tagName;
-        if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-        if (e.key === 'ArrowLeft' && cur > 0) { cur--; render(); }
-        else if (e.key === 'ArrowRight' && cur < videos.length - 1) { cur++; render(); }
-    });
+    /* Phím ← / → đã dành cho TUA video (xử lý trong videoYtPlayer.js), không còn chuyển video trước/sau nữa. */
 
     render();
     if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
