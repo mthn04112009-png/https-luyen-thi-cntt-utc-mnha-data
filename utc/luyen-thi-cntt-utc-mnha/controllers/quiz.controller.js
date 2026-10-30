@@ -54,7 +54,9 @@ const A = {
   cleanHtml: (html) => sanitizeService.sanitizeExplanationHtml(html),
 
   adminScope: async (actor) => (await userKeyService.getContentScope(actor)).query || {},
-  studentCanAccess: (user, lesson) => userKeyService.canAccess(user, lesson),
+  // ★ FIX: userKeyService KHÔNG có hàm canAccess (chỉ export getContentScope…) → trước đây sinh viên nộp bài
+  //   bị TypeError "canAccess is not a function" → 500. getContentScope nhận req ({ user }) và trả scope.canAccess(doc).
+  studentCanAccess: async (user, lesson) => (await userKeyService.getContentScope({ user })).canAccess(lesson),
   adminCanAccess: (actor, lesson) => !actor.userKey || String(lesson.createdBy) === String(actor._id),
 
   formatAiLabel: (provider, keyName) => aiService.formatAiLabel(provider, keyName),
@@ -510,23 +512,30 @@ async function loadStudentLesson(req) {
 }
 
 exports.submit = async (req, res) => {
+  // ★ step: ghi lại bước đang chạy để log/giao diện biết CHÍNH XÁC chỗ lỗi (trước đây chỉ báo chung chung)
+  let step = 'kiểm tra quyền';
   try {
     if (!['student', 'admin'].includes(req.user.role)) return fail(res, 403, 'Bạn không có quyền nộp bài.');
+    step = 'tải bài + kiểm tra quyền truy cập bài (userKeyService.canAccess)';
     const lesson = await loadStudentLesson(req);
     if (!lesson) return fail(res, 404, 'Không tìm thấy bài.');
 
+    step = 'đọc đề từ GitHub (' + lesson.githubFile + ')';
     const file = await A.ghRead(lesson.githubFile);
     if (!file || !file.data.quiz) return fail(res, 500, 'Không đọc được đề.');
     const quiz = file.data.quiz;
+    step = 'chấm bài';
     const answers = sanitizeAnswers(quiz, req.body && req.body.answers);
 
     const result = A.grade(quiz, answers);
+    step = 'tạo đường dẫn bài nộp';
     const subject = await Subject.findById(lesson.subjectId).select('slug').lean();
     const now = new Date();
     // ★ Tên file NGẪU NHIÊN, không trùng file nào trên GitHub
     const path = await githubService.uniqueJsonPath(`submissions/${subject.slug}/${lesson.slug}`, { timestamp: true });
     const subId = new mongoose.Types.ObjectId();
 
+    step = 'tạo bản ghi Submission';
     const sub = await Submission.create({
       _id: subId,
       userId: req.user._id, lessonId: lesson._id, githubFile: path, type: 'quiz',
@@ -540,12 +549,13 @@ exports.submit = async (req, res) => {
       answers, quizSnapshot: quiz, result, gradedAt: now.toISOString(), gradedBy: 'auto',
       teacherComment: null, teacherCommentHistory: [], aiAnalyses: [],
     };
+    step = 'ghi bài nộp lên GitHub';
     const syncStatus = await A.pushSubmission(path, json, sub._id);
 
     res.json({ success: true, submissionId: String(sub._id), status: syncStatus, syncStatus, result: withExplanations(result, quiz) });
   } catch (e) {
-    console.error('[quiz.submit]', e);
-    fail(res, 500, 'Lỗi máy chủ khi chấm bài.');
+    console.error('[quiz.submit] LỖI Ở BƯỚC: ' + step + ' | user=' + (req.user && req.user._id) + ' role=' + (req.user && req.user.role) + ' userKey=' + (req.user && req.user.userKey) + ' lesson=' + req.params.lessonId, e);
+    fail(res, 500, 'Lỗi máy chủ khi chấm bài (bước: ' + step + ').', { step, detail: String((e && e.message) || e).slice(0, 200) });
   }
 };
 
