@@ -51,3 +51,17 @@ Tự đọc file .pptx bằng JSZip và dựng lại slide trong trình duyệt 
 ## Test
 - `node test/studyfiles.js` — mã hoá, chia/nối file, toàn bộ luồng up → xem → sửa → xoá, từ chối dữ liệu xấu, tương thích JSON cũ.
 - `python3 test/browser/make_test_deck.py && node test/browser/viewer.browser.js` — mở trang xem trong Chromium thật (cần playwright, pdf-lib, pdfjs-dist, jszip, python-pptx).
+
+## Giải mã tại trình duyệt (tiết kiệm băng thông Vercel)
+
+- `ctrl.study` nhúng `direct` (token 2 giờ + URL raw GitHub của từng file-phần (đúng repo chứa file: repo chính hoặc <repo>-1, -2… theo `githubService.repoFor`) + `keyUrl`) vào trang xem.
+- Trình duyệt tải thẳng file mã hoá từ `raw.githubusercontent.com` (repo public), đọc header từng khung,
+  `POST {base}/keys/:sid { token, salts }` → server kiểm tra quyền + token rồi trả **khoá riêng của từng khung**
+  (`deriveFrameKeys`, HKDF-SHA256 từ `ENCRYPTION_MASTER_KEY`; khoá gốc không rời server).
+- **Vừa tải vừa giải mã** theo luồng (`response.body`): đủ một khung (~2MB) thì xin khoá + giải mã bằng Web Crypto
+  (AES-256-GCM, AAD = "SLD2"+index+total) rồi ghi thẳng vào mảng đã cấp sẵn đúng kích thước file — không giữ cả file mã hoá, không ghép lần cuối.
+- File > 30MB: không giữ bản giải mã để dùng lại, PDF.js nhận thẳng mảng (không `slice`) → RAM ≈ 1× kích thước file.
+- Nút "Tải xuống": Chrome/Edge máy tính ghi **thẳng từng khung xuống đĩa** (`showSaveFilePicker`, gần như không tốn RAM);
+  trình duyệt khác gom thành `Blob`; file nhỏ đang có sẵn trong RAM thì dùng lại.
+- Mọi lỗi (GitHub/CORS/token hết hạn/trình duyệt cũ) → tự quay về đường cũ `GET {base}/file/:sid?chunk=i` (server giải mã).
+- Token gắn tài khoản + file (HMAC), hết hạn sau 2 giờ; mỗi lần cấp khoá ghi `console.log` (xem ở Vercel Logs).

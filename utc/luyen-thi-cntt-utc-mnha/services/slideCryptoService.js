@@ -178,7 +178,20 @@ function verifyMetaSig(fields, sig) {
     return crypto.timingSafeEqual(Buffer.from(metaSig(fields), 'hex'), Buffer.from(sig, 'hex'));
 }
 
+/**
+ * Tính khoá từng khung từ salt (16 byte, base64url) để TRÌNH DUYỆT tự giải mã (Web Crypto).
+ * Khoá gốc không rời server; mỗi khoá chỉ giải mã được đúng khung có salt đó.
+ */
+function deriveFrameKeys(salts) {
+    const master = needKey();
+    return salts.map((s) => {
+        const salt = Buffer.from(String(s), 'base64url');
+        if (salt.length !== SALT_LEN) throw new Error('Salt không hợp lệ.');
+        return frameKey(master, salt).toString('base64url');
+    });
+}
+
 module.exports = {
-    encryptFrame, decryptFrame, joinFrames, decryptFile, decryptPart, decryptParts, metaSig, verifyMetaSig, isConfigured, MAGIC, FRAME_HEAD
+    encryptFrame, decryptFrame, joinFrames, decryptFile, decryptPart, decryptParts, metaSig, verifyMetaSig, isConfigured, deriveFrameKeys, MAGIC, FRAME_HEAD
 };
 

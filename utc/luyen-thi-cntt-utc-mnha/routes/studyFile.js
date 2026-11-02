@@ -25,5 +25,6 @@ module.exports = function createRouter(ctrl) {
     router.get('/subjects/:id',              requireAuth, studentOrAdmin, ctrl.getSubject);
     router.get('/study/:sid',                requireAuth, studentOrAdmin, ctrl.study);
     router.get('/file/:sid',                 requireAuth, studentOrAdmin, ctrl.file);
+    router.post('/keys/:sid',                requireAuth, studentOrAdmin, ctrl.keys);   // cấp khoá khung cho trình duyệt tự giải mã
     return router;
 };

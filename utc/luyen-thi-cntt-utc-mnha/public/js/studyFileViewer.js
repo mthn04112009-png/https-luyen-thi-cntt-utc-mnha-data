@@ -45,7 +45,7 @@
             return r.arrayBuffer().then(function (buf) { return { buf: buf, count: count }; });
         });
     }
-    function fetchBytes(onProgress) {
+    function fetchBytesServer(onProgress) {
         return fetchChunk(0).then(function (first) {
             var parts = [first.buf], count = first.count;
             function loop(i) {
@@ -61,10 +61,199 @@
             });
         });
     }
+
+    // ------------------------------------------------------------
+    // ★ Giải mã TẠI TRÌNH DUYỆT (ưu tiên): tải thẳng file mã hoá từ GitHub (raw, repo public), VỪA TẢI VỪA GIẢI MÃ
+    //   từng khung (~2MB) → xin khoá từng khung ở {keyUrl} bằng token 2 giờ (khoá gốc không rời server) →
+    //   giải mã bằng Web Crypto → đẩy vào "đích" (RAM / Blob / ghi thẳng xuống đĩa). Không bao giờ giữ cả file mã hoá.
+    //   Mọi lỗi (GitHub/CORS/token hết hạn/trình duyệt cũ) → tự quay về đường cũ qua máy chủ (?chunk=i).
+    // ------------------------------------------------------------
+    var MAGIC = [0x53, 0x4c, 0x44, 0x32];            // "SLD2"
+    var FRAME_HEAD = 12 + 16 + 12 + 16;              // index+total+ctLen | salt | iv | tag
+    var KEEP_CACHE_MAX = 30 * 1000 * 1000;           // file lớn hơn: không giữ bản giải mã để dùng lại (tiết kiệm RAM)
+
+    function u32(b, o) { return ((b[o] * 16777216) + (b[o + 1] << 16) + (b[o + 2] << 8) + b[o + 3]); }
+    function toB64u(b) {
+        var s = '';
+        for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+        return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function fromB64u(s) {
+        s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        var bin = atob(s), out = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+    }
+
+    // Hàng đợi byte: gom các mẩu mạng rồi cắt đúng độ dài một khung (chỉ giữ ≤ 1 khung dở dang + 1 mẩu mạng)
+    function ByteQueue() { this.chunks = []; this.len = 0; }
+    ByteQueue.prototype.push = function (u8) { if (u8.length) { this.chunks.push(u8); this.len += u8.length; } };
+    ByteQueue.prototype.peek = function (n) {
+        var out = new Uint8Array(n), off = 0;
+        for (var i = 0; i < this.chunks.length && off < n; i++) {
+            var c = this.chunks[i], k = Math.min(c.length, n - off);
+            out.set(k === c.length ? c : c.subarray(0, k), off); off += k;
+        }
+        return out;
+    };
+    ByteQueue.prototype.take = function (n) {
+        var out = new Uint8Array(n), off = 0;
+        while (off < n) {
+            var c = this.chunks[0], need = n - off;
+            if (c.length <= need) { out.set(c, off); off += c.length; this.chunks.shift(); }
+            else { out.set(c.subarray(0, need), off); this.chunks[0] = c.subarray(need); off += need; }
+        }
+        this.len -= n;
+        return out;
+    };
+
+    function parseFrame(b) {
+        var o = 12, f = { index: u32(b, 0), total: u32(b, 4) };
+        f.salt = b.subarray(o, o + 16); o += 16;
+        f.iv = b.subarray(o, o + 12); o += 12;
+        f.tag = b.subarray(o, o + 16); o += 16;
+        f.ct = b.subarray(o);
+        return f;
+    }
+    /** Lấy ra mọi khung đã nhận ĐỦ byte trong hàng đợi (pst: trạng thái của file-phần đang đọc). */
+    function drainFrames(q, pst) {
+        var frames = [], i;
+        if (!pst.magic) {
+            if (q.len < 4) return frames;
+            var m = q.take(4);
+            for (i = 0; i < 4; i++) if (m[i] !== MAGIC[i]) throw new Error('File mã hoá không đúng định dạng.');
+            pst.magic = true;
+        }
+        var maxCt = (D.direct.frameBytes || 2 * 1024 * 1024) * 2 + 1024;
+        while (q.len >= FRAME_HEAD) {
+            var ctLen = u32(q.peek(FRAME_HEAD), 8);
+            if (ctLen > maxCt) throw new Error('Khung mã hoá không hợp lệ.');
+            if (q.len < FRAME_HEAD + ctLen) break;
+            frames.push(parseFrame(q.take(FRAME_HEAD + ctLen)));
+        }
+        return frames;
+    }
+    function frameAad(index, total) {
+        var a = new Uint8Array(12);
+        a.set(MAGIC, 0);
+        a[4] = index >>> 24; a[5] = (index >>> 16) & 255; a[6] = (index >>> 8) & 255; a[7] = index & 255;
+        a[8] = total >>> 24; a[9] = (total >>> 16) & 255; a[10] = (total >>> 8) & 255; a[11] = total & 255;
+        return a;
+    }
+    function requestKeys(frames) {
+        return fetch(D.direct.keyUrl, {
+            method: 'POST', credentials: 'same-origin', cache: 'no-store',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ token: D.direct.token, salts: frames.map(function (f) { return toB64u(f.salt); }) })
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (j) {
+                if (!r.ok || !j.keys || j.keys.length !== frames.length) throw new Error(j.message || ('Không xin được khoá (HTTP ' + r.status + ')'));
+                return j.keys;
+            });
+        });
+    }
+    /** Kiểm tra thứ tự → xin khoá → giải mã từng khung → đẩy vào đích (sink.write). */
+    function handleFrames(frames, st, sink) {
+        if (!frames.length) return Promise.resolve();
+        var i;
+        for (i = 0; i < frames.length; i++) {
+            if (frames[i].index !== st.expect + i) throw new Error('Thứ tự khung mã hoá không đúng.');
+            if (st.total === -1) st.total = frames[i].total;
+            if (frames[i].total !== st.total) throw new Error('Số khung mã hoá không đồng nhất.');
+        }
+        st.expect += frames.length;
+        return requestKeys(frames).then(function (keys) {
+            var subtle = window.crypto.subtle;
+            function one(k) {
+                if (k >= frames.length) return Promise.resolve();
+                var f = frames[k], data = new Uint8Array(f.ct.length + 16);     // Web Crypto: ciphertext || authTag
+                data.set(f.ct, 0); data.set(f.tag, f.ct.length);
+                return subtle.importKey('raw', fromB64u(keys[k]), { name: 'AES-GCM' }, false, ['decrypt']).then(function (key) {
+                    return subtle.decrypt({ name: 'AES-GCM', iv: f.iv, additionalData: frameAad(f.index, f.total), tagLength: 128 }, key, data);
+                }).then(function (plain) { return sink.write(new Uint8Array(plain)); }).then(function () { return one(k + 1); });
+            }
+            return one(0);
+        });
+    }
+    /** Tải MỘT file-phần từ GitHub theo luồng, giải mã đến đâu đẩy vào đích đến đó. */
+    function streamPart(url, st, sink) {
+        return fetch(url, { credentials: 'omit', mode: 'cors' }).then(function (r) {
+            if (!r.ok) throw new Error('GitHub trả HTTP ' + r.status);
+            var q = new ByteQueue(), pst = { magic: false };
+            if (!r.body || !r.body.getReader) {                       // trình duyệt cũ không có luồng: tải trọn phần rồi giải mã
+                return r.arrayBuffer().then(function (buf) {
+                    q.push(new Uint8Array(buf));
+                    return handleFrames(drainFrames(q, pst), st, sink).then(function () {
+                        if (q.len || !pst.magic) throw new Error('File mã hoá bị cắt cụt.');
+                    });
+                });
+            }
+            var reader = r.body.getReader();
+            function pump() {
+                return reader.read().then(function (res) {
+                    if (res.done) { if (q.len || !pst.magic) throw new Error('File mã hoá bị cắt cụt.'); return null; }
+                    q.push(res.value);
+                    return handleFrames(drainFrames(q, pst), st, sink).then(pump);
+                });
+            }
+            return pump().catch(function (e) { try { reader.cancel(); } catch (_) { /* bỏ qua */ } throw e; });
+        });
+    }
+    function directStream(onProgress, sink) {
+        var parts = D.direct.parts || [], st = { expect: 0, total: -1 };
+        if (!parts.length) return Promise.reject(new Error('Không có file-phần.'));
+        for (var k = 0; k < parts.length; k++) if (!parts[k].url) return Promise.reject(new Error('Thiếu địa chỉ GitHub của file-phần.'));
+        function loop(p) {
+            if (p >= parts.length) return Promise.resolve();
+            if (onProgress) onProgress(p, parts.length);
+            return streamPart(parts[p].url, st, sink).then(function () { return loop(p + 1); });
+        }
+        return loop(0).then(function () {
+            if (st.total < 0 || st.expect !== st.total) throw new Error('File mã hoá thiếu khung.');
+            return sink.end();
+        });
+    }
+
+    // Các "đích" của dữ liệu đã giải mã
+    function memSink(size) {                // → Uint8Array; biết trước kích thước thì cấp 1 lần, ghi thẳng vào (không ghép lần cuối)
+        var buf = size > 0 ? new Uint8Array(size) : null, off = 0, list = [];
+        return {
+            write: function (u8) {
+                if (!buf) { list.push(u8); return; }
+                if (off + u8.length > buf.length) throw new Error('Kích thước giải mã vượt dự kiến.');
+                buf.set(u8, off); off += u8.length;
+            },
+            end: function () {
+                if (buf) return off === buf.length ? buf : buf.subarray(0, off);
+                var total = list.reduce(function (n, b) { return n + b.length; }, 0), out = new Uint8Array(total), o = 0;
+                list.forEach(function (b) { out.set(b, o); o += b.length; });
+                list = [];
+                return out;
+            }
+        };
+    }
+    function blobSink() {                   // → Blob (trình duyệt tự đẩy Blob lớn xuống đĩa khi cần)
+        var list = [];
+        return { write: function (u8) { list.push(u8); }, end: function () { var b = new Blob(list, { type: 'application/octet-stream' }); list = []; return b; } };
+    }
+    function fileSink(writable) {           // → ghi thẳng xuống đĩa (File System Access API)
+        return { write: function (u8) { return writable.write(u8); }, end: function () { return writable.close(); } };
+    }
+
+    function fetchBytesDirect(onProgress) { return directStream(onProgress, memSink(D.size)); }
+    function fetchBytes(onProgress) {
+        if (!D.direct || !window.crypto || !window.crypto.subtle || !window.fetch) return fetchBytesServer(onProgress);
+        return fetchBytesDirect(onProgress).catch(function (err) {
+            if (window.console) console.warn('[study] giải mã tại trình duyệt lỗi → dùng đường dự phòng qua máy chủ:', err && err.message);
+            return fetchBytesServer(onProgress);
+        });
+    }
+
     var bytesCache = null;
     function getBytes(onProgress) {
         if (bytesCache) return Promise.resolve(bytesCache);
-        return fetchBytes(onProgress).then(function (b) { bytesCache = b; return b; });
+        return fetchBytes(onProgress).then(function (b) { if (b.length <= KEEP_CACHE_MAX) bytesCache = b; return b; });   // file lớn: không giữ lại (tải xuống sẽ tải lại từ GitHub)
     }
 
     // ------------------------------------------------------------
@@ -72,18 +261,44 @@
     // ------------------------------------------------------------
     var dl = $('slDownload');
     dl.addEventListener('click', function (e) {
-        if (!D.size || D.size <= 4 * 1000 * 1000) return;       // nhỏ: tải trực tiếp qua ?download=1
+        var canDirect = !!(D.direct && window.crypto && window.crypto.subtle && window.fetch);
+        if (!canDirect && (!D.size || D.size <= 4 * 1000 * 1000)) return;       // không giải mã tại trình duyệt + file nhỏ: tải trực tiếp qua ?download=1
         e.preventDefault();
         var label = dl.querySelector('span'), old = label.textContent;
-        label.textContent = 'Đang chuẩn bị…';
-        getBytes(function (i, n) { label.textContent = 'Đang tải ' + (i + 1) + '/' + n + '…'; }).then(function (bytes) {
-            var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+        var progress = function (i, n) { label.textContent = 'Đang tải ' + (i + 1) + '/' + n + '…'; };
+        var done = function () { label.textContent = old; };
+        var fail = function (err) { label.textContent = old; alert('Không tải xuống được: ' + ((err && err.message) || err)); };
+        var saveBlob = function (blob) {
+            var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url; a.download = D.fileName || 'file';
             document.body.appendChild(a); a.click(); a.remove();
             setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-            label.textContent = old;
-        }).catch(function (err) { label.textContent = old; alert('Không tải xuống được: ' + (err.message || err)); });
+        };
+        var viaBytes = function () {                                              // đường cũ / dự phòng (qua RAM hoặc qua máy chủ)
+            return getBytes(progress).then(function (bytes) { saveBlob(new Blob([bytes], { type: 'application/octet-stream' })); });
+        };
+        label.textContent = 'Đang chuẩn bị…';
+
+        if (bytesCache) { viaBytes().then(done, fail); return; }                  // đã có sẵn bản giải mã trong RAM (file nhỏ)
+
+        if (canDirect && window.showSaveFilePicker) {
+            // Chrome/Edge máy tính: ghi thẳng từng khung xuống đĩa — gần như không tốn RAM. (Phải gọi ngay lúc bấm nút.)
+            window.showSaveFilePicker({ suggestedName: D.fileName || 'file' }).then(function (h) {
+                return h.createWritable().then(function (w) {
+                    return directStream(progress, fileSink(w)).catch(function (err) { try { w.abort(); } catch (_) { /* bỏ qua */ } throw err; });
+                });
+            }).then(done, function (err) {
+                if (err && err.name === 'AbortError') { done(); return; }          // người dùng bấm Huỷ ở hộp thoại lưu
+                viaBytes().then(done, fail);
+            });
+            return;
+        }
+        if (canDirect) {                                                           // trình duyệt khác: gom thành Blob (không ghép mảng lớn)
+            directStream(progress, blobSink()).then(saveBlob).then(done, function () { viaBytes().then(done, fail); });
+            return;
+        }
+        viaBytes().then(done, fail);
     });
 
     // ------------------------------------------------------------
@@ -129,8 +344,10 @@
     // ============================================================
     // 1) PDF dạng SLIDE: từng trang
     // ============================================================
+    /** Bản đang nằm trong bytesCache → sao chép (để còn dùng lại); file lớn không cache → đưa thẳng, khỏi nhân đôi RAM. */
+    function pdfData(bytes) { return bytes === bytesCache ? bytes.slice(0) : bytes; }
     function pdfPageMode(bytes) {
-        return loadPdfJs().then(function (lib) { return lib.getDocument({ data: bytes.slice(0) }).promise; }).then(function (pdf) {
+        return loadPdfJs().then(function (lib) { return lib.getDocument({ data: pdfData(bytes) }).promise; }).then(function (pdf) {
             pane.innerHTML = '';
             var bar = el('div', 'sl-bar'), stage = el('div', 'sl-stage'), canvas = el('canvas');
             var prev = btn('slPrev', '◀', 'Trang trước'), next = btn('slNext', '▶', 'Trang sau');
@@ -187,7 +404,7 @@
     // 2) PDF dạng TÀI LIỆU: cuộn dọc liên tục, zoom, đúng khổ ngang/dọc
     // ============================================================
     function pdfScrollMode(bytes) {
-        return loadPdfJs().then(function (lib) { return lib.getDocument({ data: bytes.slice(0) }).promise; }).then(function (pdf) {
+        return loadPdfJs().then(function (lib) { return lib.getDocument({ data: pdfData(bytes) }).promise; }).then(function (pdf) {
             pane.innerHTML = '';
             var bar = el('div', 'sl-bar'), stage = el('div', 'sl-stage sl-scroll'), pagesEl = el('div', 'sl-pages');
             var pageNo = el('input'); pageNo.type = 'number'; pageNo.min = '1'; pageNo.max = String(pdf.numPages); pageNo.value = '1'; pageNo.id = 'slPageNo'; pageNo.setAttribute('aria-label', 'Số trang');
@@ -315,7 +532,7 @@
     // ============================================================
     function pptxMode(bytes) {
         return Promise.all([loadScript(URLS.jszip, 'JSZip'), loadScript(URLS.pptx, 'PptxPlayer')]).then(function () {
-            return window.PptxPlayer.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), window.JSZip);
+            return window.PptxPlayer.load((bytes !== bytesCache && bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) ? bytes.buffer : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), window.JSZip);
         }).then(function (deck) {
             pane.innerHTML = '';
             var bar = el('div', 'sl-bar'), stage = el('div', 'sl-stage pp-stage');
@@ -386,7 +603,14 @@
             if (D.ext === 'pptx') return pptxMode(b);
             return D.viewer === 'document' ? pdfScrollMode(b) : pdfPageMode(b);
         }).catch(function (e) {
-            if (bytes && D.ext === 'pdf') { iframeFallback(bytes); return; }
+            if (bytes && D.ext === 'pdf') {
+                // PDF.js có thể đã nhận luôn bộ nhớ (file lớn, không cache) → tải lại để dùng khung nhúng của trình duyệt
+                (bytes.byteLength ? Promise.resolve(bytes) : fetchBytes()).then(iframeFallback).catch(function (e2) {
+                    if (!pane.contains(loading)) pane.appendChild(loading);
+                    setLoading('Không mở được: ' + ((e2 && e2.message) || e2), true);
+                });
+                return;
+            }
             if (!pane.contains(loading)) pane.appendChild(loading);
             setLoading('Không mở được: ' + (e.message || e), true);
         });

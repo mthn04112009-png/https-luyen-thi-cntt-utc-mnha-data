@@ -7,7 +7,9 @@
 //   GET  {base}                          2 nút: Dashboard (admin) + Môn học
 //   GET  {base}/subjects[/:id]           Chọn môn → danh sách file của môn
 //   GET  {base}/study/:sid               Xem (nhúng PDF / chạy PPTX)
-//   GET  {base}/file/:sid[?chunk=i|download=1]   Server GIẢI MÃ + NỐI các phần rồi trả về
+//   GET  {base}/file/:sid[?chunk=i|download=1]   Server GIẢI MÃ + NỐI các phần rồi trả về (đường dự phòng)
+//   POST {base}/keys/:sid                Cấp khoá từng khung (theo salt) + token 2 giờ → TRÌNH DUYỆT tải thẳng file mã hoá
+//                                        từ GitHub rồi tự giải mã bằng Web Crypto (không tốn băng thông Vercel)
 //   --- admin ---
 //   GET  {base}/dashboard, /dashboard/new, /dashboard/:sid/edit
 //   POST {base}/dashboard/upload-chunk   1 phần 2MB (base64) → mã hoá thành 1 khung, lưu tạm thành blob GitHub, trả sha
@@ -27,6 +29,7 @@ const Subject = require('../models/Subject');
 const githubService = require('../services/githubService');
 const githubSync = require('../services/githubSyncService');
 const slideCrypto = require('../services/slideCryptoService');
+const ghCfg = require('../config/github');
 const cfg = require('../config/studyFileConfig');
 const { getContentScope } = require('../services/userKeyService');
 const { paginateArray } = require('./pagination.controller');
@@ -176,6 +179,49 @@ function createController(app, Model) {
 
     const totalSize = (rec) => rec.fileSize || (rec.parts || []).reduce((n, p) => n + (p.plain || 0), 0);
 
+    // ------------------------------------------------------------
+    // GIẢI MÃ Ở TRÌNH DUYỆT: token xin khoá (HMAC, gắn tài khoản + file, hết hạn sau 2 giờ)
+    // Khoá gốc không rời server; trình duyệt chỉ nhận khoá riêng của từng khung.
+    // ------------------------------------------------------------
+    const KEY_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+    const uidOf = (req) => String(req.user._id || req.user.id);
+    const keyTokenFields = (req, rec, exp) => ['keytoken', app.key, uidOf(req), String(rec._id), String(exp)];
+
+    function makeKeyToken(req, rec) {
+        const exp = Date.now() + KEY_TOKEN_TTL_MS;
+        return { exp, token: `${exp}.${slideCrypto.metaSig(keyTokenFields(req, rec, exp))}` };
+    }
+    function checkKeyToken(req, rec, token) {
+        const m = /^(\d{10,16})\.([0-9a-f]{64})$/.exec(String(token || ''));
+        if (!m) return false;
+        const exp = Number(m[1]);
+        if (!(exp > Date.now()) || exp > Date.now() + KEY_TOKEN_TTL_MS + 60 * 1000) return false;
+        return slideCrypto.verifyMetaSig(keyTokenFields(req, rec, exp), m[2]);
+    }
+    /**
+     * Thông tin để trình duyệt tải thẳng file mã hoá từ GitHub (repo public). null → dùng cách cũ ?chunk=i
+     * ★ File nằm ở repo NÀO do nhóm repo (services/githubPool.js) quyết định: repo chính hoặc <repo>-1, -2… → hỏi repoFor() từng phần.
+     */
+    async function buildDirect(req, rec) {
+        if (!githubService.isConfigured || !slideCrypto.isConfigured()) return null;
+        const parts = [];
+        for (const p of rec.parts) {
+            let r = null;
+            try {
+                r = typeof githubService.repoFor === 'function'
+                    ? await githubService.repoFor(p.path)
+                    : { owner: ghCfg.owner, repo: ghCfg.repo, branch: ghCfg.branch };
+            } catch (_) { return null; }
+            if (!r || !r.owner || !r.repo || !r.branch) return null;
+            parts.push({
+                path: p.path, plain: p.plain || 0,
+                url: `https://raw.githubusercontent.com/${r.owner}/${r.repo}/${r.branch}/${String(p.path).split('/').map(encodeURIComponent).join('/')}`
+            });
+        }
+        const kt = makeKeyToken(req, rec);
+        return { token: kt.token, exp: kt.exp, frameBytes: L.FRAME_PLAIN_BYTES, keyUrl: `${app.base}/keys/${rec._id}`, parts };
+    }
+
     // ============================================================
     // HUB / MÔN HỌC / DANH SÁCH
     // ============================================================
@@ -253,6 +299,7 @@ function createController(app, Model) {
                 fileName: cleanName(rec.originalName, rec.slug, rec.fileExt),
                 fileUrl: `${app.base}/file/${rec._id}`, downloadUrl: `${app.base}/file/${rec._id}?download=1`,
                 chunkBytes: L.SERVE_CHUNK_BYTES,
+                direct: await buildDirect(req, rec),
                 subject: { id: String(subject._id), name: subject.name },
                 siblings: siblings.map((s) => ({ id: String(s._id), title: s.title }))
             };
@@ -293,6 +340,39 @@ function createController(app, Model) {
         }
         return Buffer.concat(out);
     }
+
+    /** POST {base}/keys/:sid  body { token, salts: [base64url(16 byte), …] } → { keys: [base64url(32 byte), …] } */
+    ctrl.keys = async (req, res) => {
+        res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+        try {
+            if (!(await canUse(req))) return fail(res, 403, 'Không có quyền.');
+            const scope = await getContentScope(req);
+            const found = await loadVisible(req, scope, req.params.sid);
+            if (!found || !found.rec.parts || !found.rec.parts.length) return fail(res, 404, 'Không tìm thấy.');
+            const { rec } = found;
+            const b = req.body || {};
+
+            let okToken = false;
+            try { okToken = checkKeyToken(req, rec, b.token); } catch (_) { okToken = false; }
+            if (!okToken) return fail(res, 401, 'Phiên xem đã hết hạn — hãy tải lại trang.', { expired: true });
+
+            // Số salt tối đa = số khung của file (+1 dự phòng); salt = 16 byte base64url = 22 ký tự
+            const per = L.FRAME_PLAIN_BYTES || 2 * cfg.MB;
+            const maxFrames = Math.max(1, Math.ceil(totalSize(rec) / per)) + 1;
+            const salts = Array.isArray(b.salts) ? b.salts : null;
+            if (!salts || !salts.length || salts.length > maxFrames
+                || !salts.every((s) => typeof s === 'string' && /^[A-Za-z0-9_-]{22}$/.test(s))) {
+                return fail(res, 400, 'Danh sách salt không hợp lệ.');
+            }
+
+            const keys = slideCrypto.deriveFrameKeys(salts);
+            console.log(`[${app.key}.keys] user=${uidOf(req)} file=${rec._id} frames=${salts.length}`);
+            return res.json({ success: true, keys });
+        } catch (e) {
+            console.error(`[${app.key}.keys]`, e.message);
+            return fail(res, 500, 'Không cấp được khoá.');
+        }
+    };
 
     ctrl.file = async (req, res) => {
         try {
