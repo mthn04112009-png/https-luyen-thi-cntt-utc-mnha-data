@@ -1,7 +1,7 @@
 // ============================================================
 // Biểu đồ điểm theo thời gian — trang /lessons/:id/history
 // SVG thuần (không cần thư viện). Dữ liệu lấy từ <script id="hcData" type="application/json">:
-//   { isAdmin, points: [{ t(ms), s(0–10), raw, max, q(1=trắc nghiệm), m(1=bài của chính mình),
+//   { isAdmin, points: [{ t(ms), s(0–10), raw, max, q(1=trắc nghiệm), m(1=bài của chính mình), md(model AI chấm tự luận, công khai),
 //                         id + n (chỉ có với admin hoặc bài của chính mình) }] }
 // Student thấy điểm cả lớp (ẩn danh): điểm của mình to + viền đen, điểm người khác mờ, không bấm được.
 // Mỗi điểm tô màu theo khoảng điểm: [0,1] [1,2] … [9,10]
@@ -240,6 +240,7 @@
         var score = 'Điểm: <b>' + fmtNum(p.raw) + '/' + p.max + '</b>';
         if (p.max !== 10) score += ' <span style="opacity:.75">(quy đổi ' + fmtNum(p.s) + '/10)</span>';
         lines.push(score);
+        if (p.md) lines.push('Chấm bởi: <b>' + esc(p.md) + '</b>');
         lines.push(fmtDateTime(p.t));
         if (isAdmin || p.m) lines.push('<span style="opacity:.75">Bấm để xem chi tiết</span>');
         tip.innerHTML = lines.join('<br>');

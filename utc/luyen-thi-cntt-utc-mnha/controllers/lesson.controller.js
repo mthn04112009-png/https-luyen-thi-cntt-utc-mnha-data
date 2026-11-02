@@ -484,7 +484,7 @@ exports.showLessonHistory = async (req, res, next) => {
 
         // ---- Thống kê (trên toàn bộ kết quả lọc, không phụ thuộc trang) ----
         let allRowsQuery = Submission.find(filter)
-            .select("userId score maxScore type submittedAt createdAt");
+            .select("userId score maxScore type model submittedAt createdAt");
         // Admin: lấy thêm tên sinh viên để hiện trong tooltip biểu đồ
         if (isAdmin) allRowsQuery = allRowsQuery.populate([{ path: "userId", select: "name" }]);
         const allRows = await allRowsQuery.lean();
@@ -519,7 +519,7 @@ exports.showLessonHistory = async (req, res, next) => {
         let chartRows = allRows;
         if (!isAdmin) {
             chartRows = await Submission.find({ lessonId: lesson._id })
-                .select("userId score maxScore type submittedAt createdAt")
+                .select("userId score maxScore type model submittedAt createdAt")
                 .lean();
         }
         const myId = String(user._id);
@@ -542,6 +542,8 @@ exports.showLessonHistory = async (req, res, next) => {
                 q: rowQuiz ? 1 : 0,
                 m: mine ? 1 : 0, // 1 = bài của chính người đang xem
             };
+            // ★ Model AI đã chấm bài tự luận — HIỆN CÔNG KHAI cho mọi tài khoản (chỉ tên model; KHÔNG gửi key/nhà cung cấp/tên key)
+            if (!rowQuiz && r.model) point.md = String(r.model).slice(0, 80);
             if (isAdmin || mine) {
                 point.id = String(r._id);
                 point.n = isAdmin ? ((r.userId && r.userId.name) || "") : "";
