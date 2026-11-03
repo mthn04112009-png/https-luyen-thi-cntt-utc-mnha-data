@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const Subject = require('../models/Subject');
 const Lesson = require('../models/Lesson');
+const Submission = require('../models/Submission');
 const { paginate, paginateArray } = require('./pagination.controller');
 const { sortNewestFirst } = require('../utils/lessonOrder');
 // ★ USER KEY: toàn bộ phạm vi xem/sửa môn học lấy từ đây
@@ -232,11 +233,33 @@ exports.getSubject = async (req, res, next) => {
         ]).lean();
         const { items: lessons, pagination } = paginateArray(sortNewestFirst(allLessons), req, { limit: 10 });
 
+        // ★ Điểm gần nhất của chính người dùng (giống trang /practice) — chỉ cho các bài đang hiện ở trang này
+        const submittedMap = {};
+        if (req.user && lessons.length) {
+            const subs = await Submission.find({
+                userId: req.user._id,
+                lessonId: { $in: lessons.map((l) => l._id) },
+            }).sort({ submittedAt: -1 }).lean();
+
+            subs.forEach((s) => {
+                const key = String(s.lessonId);
+                if (!submittedMap[key]) {                       // sort mới nhất trước → bản đầu tiên là gần nhất
+                    submittedMap[key] = {
+                        score: s.score,
+                        maxScore: (s.promptSnapshot && s.promptSnapshot.maxScore) || s.maxScore || 10,
+                        submittedAt: s.submittedAt,
+                        submissionId: s._id,
+                    };
+                }
+            });
+        }
+
         return res.render('student/subject', {
             title: subject.name,
             user: req.user,
             subject,
             lessons,
+            submittedMap,
             filters: { q },
             ...pagination,
         });
