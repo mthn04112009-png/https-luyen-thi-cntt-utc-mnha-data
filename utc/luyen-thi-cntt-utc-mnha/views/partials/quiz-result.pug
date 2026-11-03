@@ -15,7 +15,9 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
   - const restoreTags = function (s) { return String(s == null ? '' : s).replace(/&(?:amp;)*lt;(\/?)(b|i|u|strong|em|br|p|ul|ol|li|code|pre|sub|sup|span)(\s*\/?)&(?:amp;)*gt;/gi, '<$1$2$3>') }
   //- ★ Văn bản có công thức MathJax: "\n" (2 ký tự \ + n) = xuống dòng. KHÔNG đổi lệnh LaTeX bắt đầu bằng \n
   //-   (\neq, \nu, \notin… vì sau "\n" là chữ cái) và không đổi "\\n". Công thức được MathJax (layout) tự vẽ khi tải trang.
-  - const brk = function (s) { return String(s == null ? '' : s).replace(/(?<!\\)\\n(?![A-Za-z])/g, '\n') }
+  - const escH = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') }
+  - const brk = function (s) { return String(s == null ? '' : s).replace(/<br\s*\/?>/gi, '\n').replace(/(?<!\\)\\n(?![A-Za-z])/g, '\n') }
+  - const hl = function (s) { return escH(brk(s)).replace(/&lt;(b|strong)&gt;([\s\S]*?)&lt;\/\1&gt;/gi, '<span class="q-hl">$2</span>') }
   -
     const PART_KEYS = ['mcq', 'tf', 'fill']
     const PART_TITLE = { mcq: 'Phần 1 — Trắc nghiệm', tf: 'Phần 2 — Đúng/Sai', fill: 'Phần 3 — Điền đáp án' }
@@ -102,6 +104,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
     .qr-b-partial{background:#fef3c7;border-color:#d97706;color:#92400e}
     .qr-b-blank{background:#f3f4f6;border-color:#9ca3af;color:#4b5563}
     .qr-q-text{font-weight:500;margin-bottom:8px}
+    .q-hl{color:#dc2626;font-weight:700}
     .qr-img{max-height:220px;margin:6px 0;border-radius:6px}
     .qr-opt{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-top:6px}
     .qr-opt-key{font-weight:700;min-width:1.2em}
@@ -194,7 +197,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
               if m.points != null && m.earned != null
                 span.qr-q-pts #{fmt(m.earned)}/#{fmt(m.points)} điểm
             //- q.text là text thuần → render bằng `=` (tự escape), xuống dòng bằng CSS
-            .qr-q-text(style="white-space:pre-line")= brk(q.text)
+            .qr-q-text(style="white-space:pre-line")!= hl(q.text)
             if q.image
               img.qr-img(src=q.image, loading="lazy", referrerpolicy="no-referrer")
 
@@ -208,7 +211,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
                 - const isCorrect = (q.correct || []).indexOf(o.key) !== -1
                 .qr-opt(class=(isCorrect ? 'is-correct' : '') + (chosen && !isCorrect ? ' is-wrong' : ''))
                   span.qr-opt-key= o.key + '.'
-                  span.qr-opt-text= brk(o.text)
+                  span.qr-opt-text!= hl(o.text)
                   if chosen
                     span.qr-tag.qr-tag-you Bạn chọn
                   if isCorrect
@@ -226,7 +229,7 @@ mixin renderQuizResult(doc, formatAiLabel, opts)
                 .qr-st(class='qr-st-' + sStat, id='review-' + s.id)
                   .qr-st-main
                     span.qr-st-key= sLabel + ')'
-                    span.qr-st-text(style="white-space:pre-line")= brk(s.text)
+                    span.qr-st-text(style="white-space:pre-line")!= hl(s.text)
                     span.qr-badge(class='qr-b-' + sStat) #{ST[sStat].icon} #{ST[sStat].text}
                   .qr-st-ans Bạn chọn: <b>#{tfText(sit.studentAnswer)}</b> — Đáp án: <b class="qr-ok">#{tfText(s.correct)}</b>
                   if s.explanationHtml

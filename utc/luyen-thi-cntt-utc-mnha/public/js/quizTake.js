@@ -90,9 +90,13 @@
     //   - typesetMath(): vẽ công thức cho phần HTML vừa chèn (MathJax tự quét trang lúc tải, nhưng KHÔNG tự quét nội dung JS chèn sau).
     function brk(s) {
         // (không dùng lookbehind để chạy được trên Safari cũ): "\\n" (đã có \ đứng trước) được giữ nguyên
-        return String(s == null ? "" : s).replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
+        return String(s == null ? "" : s).replace(/<br\s*\/?>/gi, "\n").replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
     }
-    function etxt(s) { return esc(brk(s)); }
+    // ★ <b>…</b> (hoặc <strong>…</strong>) trong ĐỀ/đáp án → chữ ĐỎ đậm cho dễ phân biệt (từ cần chú ý).
+    //   Chạy SAU esc() nên an toàn: chỉ riêng cặp thẻ b/strong không thuộc tính được dựng lại thành <span>, mọi thẻ khác vẫn là chữ.
+    function etxt(s) {
+        return esc(brk(s)).replace(/&lt;(b|strong)&gt;([\s\S]*?)&lt;\/\1&gt;/gi, '<span class="q-hl">$2</span>');
+    }
     function typesetMath(root) {
         try {
             if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {

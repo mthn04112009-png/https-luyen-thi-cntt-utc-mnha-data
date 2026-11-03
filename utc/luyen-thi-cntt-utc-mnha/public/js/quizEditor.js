@@ -455,7 +455,7 @@
     var MATH_RE = /\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/;
     function breakLines(t) {
         // (không dùng lookbehind để chạy được trên Safari cũ): "\\n" (đã có \ đứng trước) được giữ nguyên
-        return String(t == null ? "" : t).replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
+        return String(t == null ? "" : t).replace(/<br\s*\/?>/gi, "\n").replace(/(\\)?\\n(?![A-Za-z])/g, function (m, pre) { return pre ? m : "\n"; });
     }
     function needsPreview(t) {
         t = String(t == null ? "" : t);
