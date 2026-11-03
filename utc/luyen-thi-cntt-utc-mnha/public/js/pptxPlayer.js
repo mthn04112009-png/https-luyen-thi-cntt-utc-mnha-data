@@ -162,7 +162,7 @@
         return this.xml(rp).then(function (root) {
             var out = {};
             kids(root, null, 'Relationship').forEach(function (r) {
-                out[r.getAttribute('Id')] = { type: (r.getAttribute('Type') || '').split('/').pop(), target: resolvePath(p, r.getAttribute('Target') || ''), mode: r.getAttribute('TargetMode') };
+                out[r.getAttribute('Id')] = { type: (r.getAttribute('Type') || '').split('/').pop(), target: (/^[a-z][a-z0-9+.\-]*:/i.test(r.getAttribute('Target') || '') || r.getAttribute('TargetMode') === 'External') ? (r.getAttribute('Target') || '') : resolvePath(p, r.getAttribute('Target') || ''), mode: r.getAttribute('TargetMode') };
             });
             return out;
         });
@@ -620,6 +620,13 @@
                 span.textContent = t; span.style.whiteSpace = 'pre-wrap';
                 runStyle(span, rp);
                 var hl = kid(kid(r, NS_A, 'rPr'), NS_A, 'hlinkClick');
+                if (hl) {                                           // ★ chữ có liên kết ngoài: bấm mở tab mới
+                    var hrel = self.slideRels && self.slideRels[hl.getAttributeNS(NS_R, 'id')];
+                    if (hrel && /^https?:\/\//i.test(hrel.target)) {
+                        span.style.cursor = 'pointer'; span.title = 'Mở liên kết: ' + hrel.target;
+                        span.addEventListener('click', function (e) { e.stopPropagation(); window.open(hrel.target, '_blank', 'noopener,noreferrer'); });
+                    }
+                }
                 div.appendChild(span); any = true;
             });
             if (!any) {                          // đoạn trống: giữ chiều cao theo endParaRPr
@@ -691,7 +698,7 @@
                 case 'solidFill': return { kind: 'solid', c: readColor(n, self.T()) };
                 case 'gradFill': return self.gradient(n, defs, null);
                 case 'pattFill': return { kind: 'solid', c: readColor(kid(n, NS_A, 'fgClr'), self.T()) };
-                case 'blipFill': return { kind: 'solid', c: { rgb: [200, 200, 200], a: 1 } };
+                case 'blipFill': return self.blipFill(n);       // ★ ảnh làm nền shape (Google Slides xuất ảnh dạng này) — trước đây bị vẽ thành ô xám
                 case 'grpFill': return null;
             }
             return null;
@@ -719,6 +726,32 @@
             return ph2 ? { kind: 'solid', c: ph2 } : null;
         }
         return { kind: 'none' };
+    };
+
+    /** Đọc <a:blipFill> của shape: ảnh (rel), phần cắt (srcRect) và độ trong (alphaModFix). Tìm rel theo phần chứa nút (slide/layout/master). */
+    Ctx.prototype.blipFill = function (n) {
+        var blip = kid(n, NS_A, 'blip'), rid = blip && blip.getAttributeNS(NS_R, 'embed');
+        var doc = n.ownerDocument, rels = null;
+        if (doc === this.slide.root.ownerDocument) rels = this.slideRels;
+        else if (doc === this.layout.root.ownerDocument) rels = this.layout.rels;
+        else if (doc === this.master.root.ownerDocument) rels = this.master.rels;
+        var sr = kid(n, NS_A, 'srcRect'), am = blip && kid(blip, NS_A, 'alphaModFix');
+        function g(a) { return sr ? attrNum(sr, a, 0) / 100000 : 0; }
+        return { kind: 'blip', rel: (rels && rid && rels[rid]) || null, l: g('l'), t: g('t'), r: g('r'), b: g('b'), alpha: am ? attrNum(am, 'amt', 100000) / 100000 : 1 };
+    };
+    /** Biến blipFill thành <pattern> SVG phủ đúng khung shape (stretch + cắt srcRect); ảnh nạp bất đồng bộ qua pending. */
+    Ctx.prototype.blipPattern = function (f, defs, w, h) {
+        if (!f.rel) return { kind: 'none' };
+        var id = 'ppi' + (++gradSeq);
+        var iw = Math.max(1 - f.l - f.r, 0.01), ih = Math.max(1 - f.t - f.b, 0.01);
+        var pat = svgEl('pattern', { id: id, patternUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h });
+        var im = svgEl('image', { x: -f.l / iw * w, y: -f.t / ih * h, width: w / iw, height: h / ih, preserveAspectRatio: 'none' });
+        if (f.alpha < 1) im.setAttribute('opacity', f.alpha);
+        pat.appendChild(im); defs.appendChild(pat);
+        this.pending.push(this.deck.zip.blobUrl(f.rel.target).then(function (u) {
+            if (u) { im.setAttribute('href', u); im.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', u); }
+        }));
+        return { kind: 'pat', id: id };
     };
 
     Ctx.prototype.gradient = function (n, defs, phClr) {
@@ -781,11 +814,12 @@
         svg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible';
         var defs = svgEl('defs', {}); svg.appendChild(defs);
         var fill = this.fillSpec(spPr, shape, ph, defs), line = this.lineSpec(spPr, shape, defs);
+        if (fill && fill.kind === 'blip') fill = this.blipPattern(fill, defs, w, h);
         var cg = spPr && kid(spPr, NS_A, 'custGeom'), pg = spPr && kid(spPr, NS_A, 'prstGeom');
         var prst = pg ? pg.getAttribute('prst') : (cg ? 'custom' : 'rect');
         var adjNode = pg && kid(kid(pg, NS_A, 'avLst'), NS_A, 'gd');
         var adj1 = adjNode ? num((adjNode.getAttribute('fmla') || '').replace(/[^0-9-]/g, ''), null) : null;
-        var fillAttr = fill && fill.kind === 'solid' ? 'rgb(' + fill.c.rgb.join(',') + ')' : fill && fill.kind === 'grad' ? 'url(#' + fill.id + ')' : 'none';
+        var fillAttr = fill && fill.kind === 'solid' ? 'rgb(' + fill.c.rgb.join(',') + ')' : fill && (fill.kind === 'grad' || fill.kind === 'pat') ? 'url(#' + fill.id + ')' : 'none';
         var fillOp = fill && fill.kind === 'solid' ? fill.c.a : 1;
         var common = { fill: fillAttr, 'fill-opacity': fillOp };
         if (line) { common.stroke = 'rgb(' + line.c.rgb.join(',') + ')'; common['stroke-opacity'] = line.c.a; common['stroke-width'] = line.w; if (line.dash && DASH[line.dash]) common['stroke-dasharray'] = DASH[line.dash]; common['stroke-linejoin'] = 'round'; }
@@ -888,6 +922,65 @@
         return outer;
     };
 
+    /** Địa chỉ YouTube (watch?v=, youtu.be/, /embed/, /shorts/, /live/) → { id, start(giây) } hoặc null. */
+    function parseYouTube(url) {
+        var u; try { u = new URL(String(url), 'https://x.invalid'); } catch (e) { return null; }
+        var h = u.hostname.replace(/^(www|m|music)\./, ''), id = null, m;
+        if (h === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+        else if (h === 'youtube.com' || h === 'youtube-nocookie.com') {
+            if (u.pathname === '/watch') id = u.searchParams.get('v');
+            else if ((m = /^\/(embed|shorts|live|v)\/([^/?#]+)/.exec(u.pathname))) id = m[2];
+        }
+        if (!id || !/^[A-Za-z0-9_-]{6,20}$/.test(id)) return null;
+        var t = u.searchParams.get('t') || u.searchParams.get('start') || '', start = 0, tm = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t);
+        if (tm) start = (+tm[1] || 0) * 3600 + (+tm[2] || 0) * 60 + (+tm[3] || 0);
+        return { id: id, start: start };
+    }
+    /** Ảnh có liên kết/nhúng YouTube (Google Slides xuất video thành ảnh + hlinkClick; PowerPoint dùng a:videoFile) → nút phát tại chỗ. */
+    Ctx.prototype.attachYouTube = function (pic, holder) {
+        var cNv = path(pic, 'p:nvPicPr', 'p:cNvPr'), nvPr = path(pic, 'p:nvPicPr', 'p:nvPr');
+        var hl = cNv && kid(cNv, NS_A, 'hlinkClick'), vf = nvPr && kid(nvPr, NS_A, 'videoFile');
+        var rels = this.slideRels || {}, url = '';
+        var rid1 = hl && hl.getAttributeNS(NS_R, 'id'), rid2 = vf && vf.getAttributeNS(NS_R, 'link');
+        if (rid1 && rels[rid1]) url = rels[rid1].target;
+        var yt = parseYouTube(url);
+        if (!yt && rid2 && rels[rid2]) { url = rels[rid2].target; yt = parseYouTube(url); }
+        if (!yt) {                                                   // ★ ảnh có liên kết thường (vd. biểu tượng loa → Google Drive): bấm mở tab mới
+            var link = rid1 && rels[rid1] ? rels[rid1].target : '';
+            if (/^https?:\/\//i.test(link)) {
+                holder.style.cursor = 'pointer'; holder.setAttribute('role', 'link');
+                holder.setAttribute('aria-label', 'Mở liên kết: ' + link); holder.title = 'Mở liên kết: ' + link;
+                holder.addEventListener('click', function (e) {
+                    e.stopPropagation(); e.preventDefault();         // không để thao tác "bấm = sang slide kế"
+                    window.open(link, '_blank', 'noopener,noreferrer');
+                });
+            }
+            return;
+        }
+        var title = (cNv && cNv.getAttribute('title')) || 'Video YouTube';
+        holder.style.cursor = 'pointer'; holder.setAttribute('role', 'button'); holder.setAttribute('aria-label', 'Phát video: ' + title); holder.title = 'Bấm để phát video';
+        var btn = document.createElement('div');
+        btn.style.cssText = 'position:absolute;left:50%;top:50%;width:68px;height:48px;margin:-24px 0 0 -34px;border-radius:12px;background:rgba(220,38,38,.92);box-shadow:0 2px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center';
+        btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#fff"/></svg>';
+        var open = document.createElement('a');
+        open.href = 'https://www.youtube.com/watch?v=' + yt.id + (yt.start ? '&t=' + yt.start + 's' : ''); open.target = '_blank'; open.rel = 'noopener noreferrer'; open.textContent = '↗ YouTube';
+        open.style.cssText = 'position:absolute;right:8px;bottom:8px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.6);color:#fff;font:600 12px/1.4 system-ui,sans-serif;text-decoration:none';
+        open.addEventListener('click', function (e) { e.stopPropagation(); });
+        holder.appendChild(btn); holder.appendChild(open);
+        holder.addEventListener('click', function (e) {
+            e.stopPropagation(); e.preventDefault();                 // không để thao tác "bấm = sang slide kế"
+            if (holder.querySelector('iframe')) return;
+            var ifr = document.createElement('iframe');
+            ifr.src = 'https://www.youtube.com/embed/' + yt.id + '?autoplay=1&rel=0&playsinline=1' + (yt.start ? '&start=' + yt.start : '');
+            ifr.title = title; ifr.setAttribute('allowfullscreen', '');
+            ifr.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+            ifr.referrerPolicy = 'strict-origin-when-cross-origin';
+            ifr.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;background:#000;z-index:2';
+            holder.innerHTML = ''; holder.appendChild(ifr);
+            holder.style.cursor = 'default'; holder.removeAttribute('title'); holder.removeAttribute('role');
+        });
+    };
+
     Ctx.prototype.renderPicture = function (pic, box, inner) {
         var self = this;
         var blip = path(pic, 'p:blipFill', 'a:blip');
@@ -912,6 +1005,7 @@
         if (rel) {
             this.pending.push(self.deck.zip.blobUrl(rel.target).then(function (u) { if (u) img.src = u; else holder.style.background = 'rgba(0,0,0,0.04)'; }));
         }
+        this.attachYouTube(pic, holder);
     };
 
     Ctx.prototype.renderFrame = function (gf, box, inner) {
