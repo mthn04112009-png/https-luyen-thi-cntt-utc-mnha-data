@@ -53,7 +53,14 @@ const A = {
 
   cleanHtml: (html) => sanitizeService.sanitizeExplanationHtml(html),
 
-  adminScope: async (actor) => (await userKeyService.getContentScope(actor)).query || {},
+  // ★ FIX: trước đây gọi getContentScope(actor) (hàm cần req = { user }) rồi đọc `.query` (scope chỉ có `.filter`)
+  //   → luôn ra {} → admin user_key thấy (và tạo được bài trong) TẤT CẢ các môn.
+  //   Nay: default admin → {} (mọi môn); admin user_key → { userKey, createdBy } (chỉ môn do chính họ tạo);
+  //   không xác định được phạm vi → { _id: null } (không môn nào) cho an toàn.
+  adminScope: async (actor) => {
+    const scope = await userKeyService.getContentScope({ user: actor });
+    return (scope && scope.filter) || { _id: null };
+  },
   // ★ FIX: userKeyService KHÔNG có hàm canAccess (chỉ export getContentScope…) → trước đây sinh viên nộp bài
   //   bị TypeError "canAccess is not a function" → 500. getContentScope nhận req ({ user }) và trả scope.canAccess(doc).
   studentCanAccess: async (user, lesson) => (await userKeyService.getContentScope({ user })).canAccess(lesson),
