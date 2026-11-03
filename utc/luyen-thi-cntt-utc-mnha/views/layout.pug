@@ -10,6 +10,7 @@ html(lang="vi")
         script(src="https://unpkg.com/lucide@latest")
         link(rel="stylesheet", href="/css/style.css")
         link(rel="stylesheet", href="/css/pagination.css")
+        link(rel="stylesheet", href="/css/subject-picker.css")
 
         //- ★ THÊM MATHJAX Ở ĐÂY
         script.
@@ -511,6 +512,9 @@ html(lang="vi")
                 | © #{new Date().getFullYear()} Luyện thi của MNHA. All rights reserved.
                 if b.footerText
                     |  - #{b.footerText}
+
+        //- Bộ chọn môn học có tìm kiếm (select[data-subject-picker])
+        script(src="/js/subjectPicker.js")
 
         //- JAVASCRIPT
         script.

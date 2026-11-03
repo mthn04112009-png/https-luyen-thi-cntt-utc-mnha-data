@@ -40,7 +40,7 @@ block content
             div(class="qf-grid")
                 div(class="qf-field")
                     label(for="fSubject") Môn học
-                    select(id="fSubject", disabled=isEdit)
+                    select(id="fSubject", disabled=isEdit, data-subject-picker)
                         option(value="") — Chọn môn —
                         each s in (subjects || [])
                             option(value=s._id, selected=(String(s._id) === String(subjectId)))= s.name

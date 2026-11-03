@@ -263,8 +263,6 @@
                 return {
                     path: p, root: root, rels: rels, layout: layout, master: layout.master, number: n,
                     hidden: root.getAttribute('show') === '0',
-                    // File xuất từ Google Slides: giãn dòng tính theo cỡ chữ (không nhân thêm 1.2 như PowerPoint)
-                    google: desc(root, 'cNvPr').some(function (c) { return /^Google Shape;/.test(c.getAttribute('name') || ''); }),
                     transition: parseTransition(root), timing: parseTiming(root), rendered: null
                 };
             });
@@ -551,7 +549,6 @@
             div.className = 'pp-p'; div.setAttribute('data-p', String(pi));
             var ds = div.style;
             ds.margin = '0'; ds.minHeight = '1em'; ds.wordBreak = 'break-word'; ds.overflowWrap = 'anywhere';
-            ds.flexShrink = '0';   // PowerPoint cho chữ tràn khung; không để flex ép các đoạn (nhất là đoạn trống) co lại
             var algn = pp.algn || 'l';
             ds.textAlign = algn === 'ctr' ? 'center' : algn === 'r' ? 'right' : algn === 'just' ? 'justify' : 'left';
             var marL = num(pp.marL, 0) / EMU, indent = num(pp.indent, 0) / EMU;
@@ -562,8 +559,7 @@
             var sb = spc(pp.spcBef), sa = spc(pp.spcAft), ls = spc(pp.lnSpc);
             ds.marginTop = pi === 0 ? '0' : (sb ? (sb.px !== undefined ? sb.px : sb.pct * baseSz * fs * PT * 1.2) : 0) + 'px';
             ds.marginBottom = (sa ? (sa.px !== undefined ? sa.px : sa.pct * baseSz * fs * PT * 1.2) : 0) + 'px';
-            if (self.slide.google) ds.lineHeight = ls ? (ls.px !== undefined ? ls.px + 'px' : Math.max(0.5, ls.pct)) : 1.2;   // Google Slides: pct × cỡ chữ, bỏ qua lnSpcReduction
-            else ds.lineHeight = ls ? (ls.px !== undefined ? ls.px + 'px' : Math.max(0.5, (ls.pct - lnRed)) * 1.2) : (1.2 - lnRed * 1.2);
+            ds.lineHeight = ls ? (ls.px !== undefined ? ls.px + 'px' : Math.max(0.5, (ls.pct - lnRed)) * 1.2) : (1.2 - lnRed * 1.2);
 
             // bullet
             var buNode = pp.bu, hasText = false, bulletText = '';
@@ -633,8 +629,7 @@
                 }
                 div.appendChild(span); any = true;
             });
-            var hasContent = runs.some(function (r) { return r.localName === 'br' || ((path(r, 'a:t') || {}).textContent || '').length > 0; });
-            if (!hasContent) {                   // đoạn trống (kể cả <a:r> rỗng): giữ chiều cao theo endParaRPr
+            if (!any) {                          // đoạn trống: giữ chiều cao theo endParaRPr
                 var rp2 = {}; for (var k2 in pp.r) rp2[k2] = pp.r[k2];
                 mergeRPr(rp2, kid(p, NS_A, 'endParaRPr'));
                 var sp = document.createElement('span'); sp.innerHTML = '&nbsp;'; runStyle(sp, rp2); div.appendChild(sp);
@@ -884,10 +879,6 @@
         var spid = cNvPr ? cNvPr.getAttribute('id') : null;
         var ph = phInfo(shape);
         var box = this.resolveBox(shape);
-        if (this._gm) {
-            var gm = this._gm;
-            box = Object.assign({}, box, { x: (box.x - gm.cx) * gm.sx, y: (box.y - gm.cy) * gm.sy, w: box.w * gm.sx, h: box.h * gm.sy });
-        }
 
         var outer = document.createElement('div');
         outer.className = 'pp-sh';
@@ -904,17 +895,12 @@
         outer.appendChild(inner);
 
         if (ln === 'grpSp') {
-            // Group: PowerPoint chỉ đổi VỊ TRÍ/KÍCH THƯỚC của con (chOff/chExt → off/ext), KHÔNG phóng cỡ chữ.
-            // Vì vậy không dùng CSS scale (sẽ phóng cả chữ, nét viền) mà ánh xạ lại toạ độ từng con.
             var g = document.createElement('div');
-            g.style.cssText = 'position:absolute;left:0;top:0;width:' + box.w + 'px;height:' + box.h + 'px';
-            var prevGm = this._gm;
-            this._gm = {
-                sx: box.chW ? box.w / box.chW : 1, sy: box.chH ? box.h / box.chH : 1,
-                cx: box.chX || 0, cy: box.chY || 0
-            };
+            var gw = box.chW || box.w, gh = box.chH || box.h;
+            g.style.cssText = 'position:absolute;left:0;top:0;width:' + gw + 'px;height:' + gh + 'px;transform-origin:0 0;transform:scale(' + (gw ? box.w / gw : 1) + ',' + (gh ? box.h / gh : 1) + ') translate(' + (-(box.chX || 0)) + 'px,' + (-(box.chY || 0)) + 'px)';
             kids(shape).forEach(function (c) { if (c.namespaceURI === NS_P && /^(sp|pic|grpSp|graphicFrame|cxnSp)$/.test(c.localName)) self.renderShape(c, g); });
-            this._gm = prevGm;
+            // group: tọa độ con nằm trong không gian chOff → dời về 0 rồi scale
+            g.style.transform = 'scale(' + (gw ? box.w / gw : 1) + ',' + (gh ? box.h / gh : 1) + ') translate(' + (-(box.chX || 0)) + 'px,' + (-(box.chY || 0)) + 'px)';
             inner.appendChild(g);
         } else if (ln === 'pic') {
             this.renderPicture(shape, box, inner);
