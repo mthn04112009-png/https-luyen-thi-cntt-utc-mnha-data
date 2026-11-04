@@ -54,3 +54,14 @@
 .sp-item mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 .sp-empty { padding: 14px 12px; text-align: center; color: #6b7280; font-size: 13px; }
 .sp-count { padding: 6px 12px; font-size: 11.5px; color: #6b7280; border-top: 1px solid #e5e7eb; background: #f9fafb; }
+
+/* Kiểu gọn cho thanh "Trạng thái AI" (AI Key / Model): [data-sp-compact] */
+.sp.sp-compact { font-size: 13px; width: 15rem; flex-shrink: 1; }
+.sp.sp-compact.sp-row { width: 15rem; }
+.sp.sp-compact .sp-btn { padding: 6px 10px; border-radius: 6px; border-color: #e3e3e3; }
+.sp.sp-compact .sp-btn:hover { border-color: #9ca3af; }
+.sp.sp-compact .sp-panel { min-width: 16rem; }
+.sp.sp-compact .sp-item { height: 36px; }
+.sp.sp-compact .sp-list { max-height: 180px; }      /* 5 dòng x 36px, nhiều hơn thì kéo thanh cuộn */
+.sp.sp-compact .sp-btn[disabled] { opacity: .7; }
+@media (max-width: 700px) { .sp.sp-compact { width: auto; flex: 1; min-width: 0; } }

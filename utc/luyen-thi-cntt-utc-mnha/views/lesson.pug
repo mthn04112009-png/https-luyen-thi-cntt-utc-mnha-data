@@ -326,12 +326,12 @@ block content
             div(class="ai-selectors")
                 div(class="field")
                     label(for="aiKeySelect") 🔑 AI Key:
-                    select(id="aiKeySelect")
+                    select(id="aiKeySelect", data-subject-picker, data-sp-compact, data-sp-placeholder="— Mặc định hệ thống —", data-sp-search="Tìm AI Key (tên, email, nhà cung cấp)...", data-sp-empty="Không tìm thấy AI Key nào", data-sp-unit="AI Key", data-sp-unit-short="key")
                         option(value="") — Mặc định hệ thống —
 
                 div(class="field")
                     label(for="modelSelect") 🤖 Model:
-                    select(id="modelSelect", disabled)
+                    select(id="modelSelect", disabled, data-subject-picker, data-sp-compact, data-sp-placeholder="— Chọn AI Key trước —", data-sp-search="Tìm model...", data-sp-empty="Không tìm thấy model nào", data-sp-unit="model", data-sp-unit-short="model")
                         option(value="") — Chọn AI Key trước —
 
                 button(

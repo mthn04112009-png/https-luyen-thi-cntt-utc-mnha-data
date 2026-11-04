@@ -86,11 +86,39 @@ function createPool(deps) {
         return _clients.get(rec.repo);
     }
 
+    const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    /** Chạy fn, thử lại khi lỗi mạng / 5xx / rate limit (không thử lại 404, 401…). */
+    async function retrying(fn, tries = 3) {
+        let last;
+        for (let i = 0; i < tries; i++) {
+            try { return await fn(); } catch (e) {
+                last = e;
+                const st = e.status || (e.response && e.response.status) || 0;
+                const transient = !st || st >= 500 || st === 429 || st === 408 || (st === 403 && /rate limit|abuse|secondary/i.test(String(e.message)));
+                if (!transient || i === tries - 1) break;
+                await sleep(250 * Math.pow(2, i));
+            }
+        }
+        throw last;
+    }
+
     async function loadDoc({ force = false } = {}) {
         if (!force && _doc && now() - _docAt < DOC_TTL_MS) return _doc;
         if (_docPromise) return _docPromise;
         _docPromise = (async () => {
-            const raw = await base().readJsonFile(INDEX_PATH()).catch(() => null);
+            // Đọc lỗi (mạng/GitHub tạm trục trặc) KHÔNG được coi là "chưa có repo phụ nào": trước đây lỗi bị nuốt → sổ rỗng
+            // được cache → mọi file ở repo -1, -2… biến mất một lúc ("lúc đủ lúc thiếu"). Giờ: thử lại → dùng bản cũ → mới báo lỗi.
+            let raw;
+            try {
+                raw = await retrying(() => base().readJsonFile(INDEX_PATH()));
+            } catch (e) {
+                if (_doc) {
+                    console.warn('[githubPool] không đọc được sổ repo (' + e.message + ') — dùng bản đang có.');
+                    _docAt = now() - DOC_TTL_MS + 2000;                 // thử lại sau ~2s
+                    return _doc;
+                }
+                throw e;
+            }
             _doc = normalize(raw);
             _docAt = now();
             return _doc;
@@ -222,27 +250,63 @@ function createPool(deps) {
     }
 
     // ------------------------------------------------------------------ cây thư mục gộp
-    async function mergedTree({ force = false } = {}) {
-        if (!force && _tree && now() - _treeAt < TREE_TTL_MS) return _tree;
+    const TREE_STALE_MAX_MS = 5 * 60 * 1000;        // cây cũ hơn mức này mới bắt buộc phải đợi nạp lại
+    const TREE_REPO_TIMEOUT_MS = Number(env.GITHUB_TREE_TIMEOUT_MS || 12000);
+    const lastGood = new Map();                     // tên repo → cây tốt gần nhất (dùng tạm khi repo đó chậm/lỗi)
+    const withTimeout = (p, ms) => new Promise((ok, no) => {
+        const t = setTimeout(() => no(Object.assign(new Error('hết thời gian chờ ' + ms + 'ms'), { code: 'ETIMEDOUT' })), ms);
+        p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); });
+    });
+
+    async function buildTree(force) {
+        const recs = await allRecs();
+        let partial = false;
+        // Mỗi repo: có hạn chờ + thử lại; repo nào lỗi → dùng cây tốt gần nhất của chính repo đó (không làm sập/khựng cả nhóm)
+        const trees = await Promise.all(recs.map(async (r) => {
+            try {
+                const t = await retrying(() => withTimeout(Promise.resolve(clientFor(r).getRepoTree({ force })), TREE_REPO_TIMEOUT_MS), 2);
+                lastGood.set(r.repo, t);
+                return t;
+            } catch (e) {
+                const old = lastGood.get(r.repo);
+                console.warn('[githubPool] cây thư mục ' + r.repo + ' lỗi: ' + e.message + (old ? ' — dùng bản trước đó.' : ''));
+                if (!old) throw e;                  // chưa có gì để dùng tạm → báo lỗi thật, đừng giả vờ repo trống
+                partial = true;
+                return old;
+            }
+        }));
+        const files = new Map(), ownerOf = new Map(), shaOf = new Map();
+        let truncated = false;
+        trees.forEach((t, i) => {
+            const rec = recs[i];
+            if (t.truncated) truncated = true;
+            for (const [p, sha] of t.files) {
+                if (!files.has(p)) { files.set(p, sha); ownerOf.set(p, rec); }      // trùng đường dẫn: repo cũ hơn thắng
+                if (!shaOf.has(sha)) shaOf.set(sha, rec);
+            }
+        });
+        // partial → đặt `at` lùi lại để lần sau nạp lại sớm (~3s), không giữ bản thiếu cả 15s
+        const at = partial ? now() - TREE_TTL_MS + 3000 : now();
+        return { at, files, owner: ownerOf, shaRepo: shaOf, truncated, repos: recs.length, partial };
+    }
+
+    function refreshTree(force) {
         if (_treePromise) return _treePromise;
-        _treePromise = (async () => {
-            const recs = await allRecs();
-            const trees = await Promise.all(recs.map((r) => clientFor(r).getRepoTree({ force })));
-            const files = new Map(), ownerOf = new Map(), shaOf = new Map();
-            let truncated = false;
-            trees.forEach((t, i) => {
-                const rec = recs[i];
-                if (t.truncated) truncated = true;
-                for (const [p, sha] of t.files) {
-                    if (!files.has(p)) { files.set(p, sha); ownerOf.set(p, rec); }      // trùng đường dẫn: repo cũ hơn thắng
-                    if (!shaOf.has(sha)) shaOf.set(sha, rec);
-                }
-            });
-            _tree = { at: now(), files, owner: ownerOf, shaRepo: shaOf, truncated, repos: recs.length };
-            _treeAt = now();
+        _treePromise = buildTree(force).then((t) => { _tree = t; _treeAt = t.at; return t; });
+        const done = () => { _treePromise = null; };
+        _treePromise.then(done, done);
+        return _treePromise;
+    }
+
+    async function mergedTree({ force = false } = {}) {
+        const age = _tree ? now() - _treeAt : Infinity;
+        if (!force && _tree && age < TREE_TTL_MS) return _tree;
+        // Stale-while-revalidate: có cây cũ (< 5 phút) → trả NGAY, nạp lại ở nền → người dùng không bị khựng chờ GitHub
+        if (!force && _tree && age < TREE_STALE_MAX_MS) {
+            refreshTree(false).catch((e) => console.warn('[githubPool] nạp lại cây nền lỗi:', e.message));
             return _tree;
-        })();
-        try { return await _treePromise; } finally { _treePromise = null; }
+        }
+        return refreshTree(force);
     }
     function invalidateTree() {
         _tree = null; _treeAt = 0;

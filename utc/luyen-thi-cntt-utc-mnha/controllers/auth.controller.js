@@ -956,6 +956,64 @@ const resetPassword = async (req, res) => {
 };
 
 // ============================================================
+// ★ ĐỔI MẬT KHẨU KHI ĐANG ĐĂNG NHẬP (không OTP, không xác minh lại)
+// ------------------------------------------------------------
+// Chỉ cần đang có phiên đăng nhập hợp lệ. Giữ nguyên phiên hiện tại sau khi đổi.
+// ============================================================
+function currentUserId(req) {
+    const u = req.user || (req.session && req.session.user) || null;
+    return u ? String(u._id || u.id || '') : '';
+}
+
+const showChangePassword = (req, res) => {
+    if (!currentUserId(req)) {
+        if (req.session) req.session.returnTo = req.originalUrl;
+        return res.redirect('/auth/login');
+    }
+    return res.render('auth/change-password', {
+        title: 'Đổi mật khẩu',
+        error: null,
+        success: req.query.ok === '1'
+    });
+};
+
+const changePassword = async (req, res) => {
+    const userId = currentUserId(req);
+    if (!userId) return res.redirect('/auth/login');
+
+    const fail = (status, error) =>
+        res.status(status).render('auth/change-password', { title: 'Đổi mật khẩu', error, success: false });
+
+    try {
+        const { password, confirmPassword } = req.body || {};
+        if (!password || !confirmPassword) return fail(400, 'Vui lòng nhập đầy đủ thông tin.');
+        if (password !== confirmPassword) return fail(400, 'Mật khẩu xác nhận không khớp.');
+        if (password.length < 8) return fail(400, 'Mật khẩu phải có ít nhất 8 ký tự.');
+        if (password.length > 128) return fail(400, 'Mật khẩu quá dài (tối đa 128 ký tự).');
+
+        const user = await User.findById(userId).select('+password');
+        if (!user) return fail(404, 'Không tìm thấy tài khoản.');
+
+        // Mật khẩu mới trùng mật khẩu đang dùng → báo, không ghi lại
+        if (user.password && await bcrypt.compare(password, user.password)) {
+            return fail(400, 'Mật khẩu mới phải khác mật khẩu hiện tại.');
+        }
+
+        user.password = await bcrypt.hash(password, 12);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        await user.save({ validateBeforeSave: false });
+
+        await saveSession(req);
+        console.log(`[changePassword] ✅ ${user.email} đã đổi mật khẩu (đang đăng nhập)`);
+        return res.redirect('/auth/change-password?ok=1');
+    } catch (error) {
+        console.error('Change password error:', error);
+        return fail(500, 'Đã xảy ra lỗi. Vui lòng thử lại sau.');
+    }
+};
+
+// ============================================================
 // ĐĂNG XUẤT
 // ============================================================
 const logout = (req, res) => {
@@ -990,6 +1048,10 @@ module.exports = {
     resendResetOtp,
     showResetPassword,
     resetPassword,
+
+    // ★ ĐỔI MẬT KHẨU (đang đăng nhập)
+    showChangePassword,
+    changePassword,
 
     logout
 };

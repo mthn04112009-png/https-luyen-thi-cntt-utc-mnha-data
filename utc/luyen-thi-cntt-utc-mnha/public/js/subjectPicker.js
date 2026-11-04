@@ -4,6 +4,14 @@
  *  - Gõ chữ nào lọc môn theo chữ đó (không phân biệt hoa/thường, có/không dấu tiếng Việt).
  *  - <select> gốc vẫn giữ nguyên trong form: submit, required, .value, sự kiện "change" đều hoạt động như cũ.
  * Dùng: select(data-subject-picker) – script được nạp trong layout.pug.
+ * Tuỳ chỉnh chữ / kiểu bằng thuộc tính (mặc định = bộ chọn môn học):
+ *   data-sp-placeholder  chữ trên nút khi chưa chọn       (— Chọn môn học —)
+ *   data-sp-search       gợi ý trong ô tìm                 (Tìm kiếm môn học...)
+ *   data-sp-empty        chữ khi không khớp mục nào        (Không tìm thấy môn học nào)
+ *   data-sp-unit         đơn vị khi đếm tổng               (môn học)
+ *   data-sp-unit-short   đơn vị khi đếm số khớp            (môn)
+ *   data-sp-compact      kiểu gọn cho thanh AI (chữ 13px, rộng vừa)
+ * Select được nạp lại option bằng code (innerHTML / appendChild / selectedIndex / value) vẫn đồng bộ với nút.
  */
 (function () {
     "use strict";
@@ -50,6 +58,16 @@
         var inRow = pcs && pcs.display.indexOf("flex") !== -1 && pcs.flexDirection.indexOf("row") === 0 && !select.classList.contains("w-full");
         wrap.className = "sp" + (inRow ? " sp-row" : "");
 
+        var ds = select.dataset;
+        var T = {
+            placeholder: ds.spPlaceholder || "— Chọn môn học —",
+            search: ds.spSearch || "Tìm kiếm môn học...",
+            empty: ds.spEmpty || "Không tìm thấy môn học nào",
+            unit: ds.spUnit || "môn học",
+            unitShort: ds.spUnitShort || "môn"
+        };
+        if ("spCompact" in ds) wrap.className += " sp-compact";
+
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "sp-btn";
@@ -62,12 +80,14 @@
         panel.className = "sp-panel";
         panel.innerHTML =
             '<div class="sp-search-wrap">' + SEARCH +
-            '<input type="text" class="sp-search" placeholder="Tìm kiếm môn học..." autocomplete="off" spellcheck="false" aria-label="Tìm môn học"></div>' +
+            '<input type="text" class="sp-search" autocomplete="off" spellcheck="false"></div>' +
             '<ul class="sp-list" role="listbox" id="sp-list-' + uid + '"></ul>' +
             '<div class="sp-count"></div>';
         var search = panel.querySelector(".sp-search");
         var list = panel.querySelector(".sp-list");
         var count = panel.querySelector(".sp-count");
+        search.placeholder = T.search;
+        search.setAttribute("aria-label", T.search.replace(/\.+$/, ""));
         btn.setAttribute("aria-controls", "sp-list-" + uid);
 
         // đưa select gốc vào wrapper
@@ -97,7 +117,7 @@
         function syncButton() {
             var o = select.options[select.selectedIndex];
             var label = o ? o.textContent.trim() : "";
-            btnText.textContent = label || "— Chọn môn học —";
+            btnText.textContent = label || T.placeholder;
             btnText.classList.toggle("sp-placeholder", !o || o.value === "");
             btn.title = label;
             btn.disabled = select.disabled;
@@ -116,11 +136,11 @@
                     '" aria-selected="' + sel + '" title="' + esc(it.label) + '"><span class="sp-item-text">' +
                     highlight(it.label, q) + "</span>" + CHECK + "</li>";
             });
-            if (!shown.length) html = '<li class="sp-empty">Không tìm thấy môn học nào</li>';
+            if (!shown.length) html = '<li class="sp-empty">' + esc(T.empty) + '</li>';
             list.innerHTML = html;
             var real = shown.filter(function (s) { return !s.placeholder; }).length;
             var total = items.filter(function (s) { return !s.placeholder; }).length;
-            count.textContent = q ? real + " / " + total + " môn khớp" : total + " môn học";
+            count.textContent = q ? real + " / " + total + " " + T.unitShort + " khớp" : total + " " + T.unit;
             // mục đang chọn (nếu có) làm mục active, không thì mục đầu tiên
             var selIdx = -1;
             shown.forEach(function (s, i) { if (s.value === select.value) selIdx = i; });
@@ -211,7 +231,22 @@
 
         // select gốc đổi từ code khác (vd. quizEditor) → cập nhật nút
         select.addEventListener("change", syncButton);
-        new MutationObserver(syncButton).observe(select, { attributes: true, attributeFilter: ["disabled"] });
+        // Code khác gán select.selectedIndex / select.value (không phát sự kiện change) → vẫn cập nhật nút
+        ["selectedIndex", "value"].forEach(function (prop) {
+            var d = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, prop);
+            if (!d || !d.set) return;
+            Object.defineProperty(select, prop, {
+                configurable: true,
+                get: function () { return d.get.call(this); },
+                set: function (v) { d.set.call(this, v); syncButton(); if (wrap.classList.contains("sp-open")) { readOptions(); render(); } }
+            });
+        });
+        // option bị nạp lại (innerHTML / appendChild) hoặc select bị bật/tắt → cập nhật nút + danh sách
+        new MutationObserver(function () {
+            readOptions();
+            syncButton();
+            if (wrap.classList.contains("sp-open")) render();
+        }).observe(select, { attributes: true, attributeFilter: ["disabled"], childList: true });
         var form = select.form;
         if (form) form.addEventListener("reset", function () { setTimeout(syncButton, 0); });
 

@@ -44,6 +44,12 @@ router.get("/reset-password", authController.showResetPassword);
 router.post("/reset-password", authController.resetPassword);
 
 // ============================================================
+// ★ ĐỔI MẬT KHẨU khi đang đăng nhập (không OTP / không xác minh lại)
+// ============================================================
+router.get("/change-password", authController.showChangePassword);
+router.post("/change-password", authController.changePassword);
+
+// ============================================================
 // ĐĂNG XUẤT
 // ============================================================
 router.post("/logout", authController.logout);

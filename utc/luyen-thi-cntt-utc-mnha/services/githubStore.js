@@ -443,6 +443,8 @@ const S = {
     headSha: null,
     etag: null,
     checkedAt: 0,
+    needRetry: false,         // có file trong cây thư mục nhưng đọc hụt → thử đọc lại ở lần kiểm tra kế (không chờ commit mới)
+    subjectsSig: '',          // chữ ký danh sách môn: đổi → bỏ nhớ các file từng bị bỏ qua vì "chưa có môn"
     recs: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },   // id(hex) → record
     paths: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },  // path → id(hex)
     shas: { lessons: new Map(), flashcards: new Map(), slides: new Map(), documents: new Map(), videos: new Map(), prompts: new Map(), submissions: new Map() },   // path → blob sha
@@ -478,25 +480,36 @@ async function readMany(paths) {
         const fields = chunk.map((p, j) =>
             `f${j}: object(expression: ${JSON.stringify(`${cfg.branch}:${p}`)}) { ... on Blob { oid text isTruncated } }`).join('\n');
         const query = `query { repository(owner: ${JSON.stringify(cfg.owner)}, name: ${JSON.stringify(cfg.repo)}) { ${fields} } }`;
-        try {
-            const res = await cfg.octokit.request('POST /graphql', { query });
-            const repo = res.data && res.data.data && res.data.data.repository;
-            if (!repo) throw new Error('GraphQL không trả repository');
-            chunk.forEach((p, j) => {
-                const o = repo[`f${j}`];
-                if (!o) { out.set(p, null); return; }
-                if (o.isTruncated || typeof o.text !== 'string') { rest.push(p); return; }
-                try { out.set(p, { data: JSON.parse(o.text), sha: o.oid }); }
-                catch (_) { out.set(p, { data: null, sha: o.oid }); }
-            });
-        } catch (e) {
-            console.warn(`[githubStore] GraphQL lỗi (${e.message}) → đọc từng file qua REST.`);
-            rest.push(...chunk.filter((p) => !out.has(p)));
+        let done = false;
+        for (let attempt = 0; attempt < 2 && !done; attempt++) {
+            try {
+                const res = await cfg.octokit.request('POST /graphql', { query });
+                const repo = res.data && res.data.data && res.data.data.repository;
+                if (!repo) throw new Error('GraphQL không trả repository');
+                chunk.forEach((p, j) => {
+                    const o = repo[`f${j}`];
+                    if (!o) { rest.push(p); return; }       // GraphQL báo "không có" → hỏi lại bằng REST cho chắc (tránh hụt do trễ đồng bộ)
+                    if (o.isTruncated || typeof o.text !== 'string') { rest.push(p); return; }
+                    try { out.set(p, { data: JSON.parse(o.text), sha: o.oid }); }
+                    catch (_) { out.set(p, { data: null, sha: o.oid }); }
+                });
+                done = true;
+            } catch (e) {
+                if (attempt === 0) { await new Promise((ok) => setTimeout(ok, 400)); continue; }
+                console.warn(`[githubStore] GraphQL lỗi (${e.message}) → đọc từng file qua REST.`);
+                rest.push(...chunk.filter((p) => !out.has(p) && !rest.includes(p)));
+            }
         }
     }
 
     await pool(rest, CONCURRENCY, async (p) => {
-        out.set(p, await githubService.readJsonFileWithSha(p));
+        try {
+            out.set(p, await githubService.readJsonFileWithSha(p));
+        } catch (e) {
+            // Lỗi mạng/GitHub tạm thời: KHÔNG làm hỏng cả đợt đồng bộ; đánh dấu để đọc lại ở lần kiểm tra kế
+            console.warn(`[githubStore] Không đọc được ${p}: ${e.message}`);
+            out.set(p, undefined);
+        }
     });
     return out;
 }
@@ -513,6 +526,12 @@ async function loadSubjects() {
         catch (e) { console.warn(`[githubStore] Không làm mới được danh sách môn: ${e.message}`); }
     }
     const rows = await Subject.find({ deletedForever: { $ne: true } }).select('_id slug userKey').lean();
+    // Danh sách môn đổi (vd môn mới xuất hiện) → các file từng bị bỏ qua vì "chưa có môn" được thử lại
+    const sig = rows.map((r) => `${r.slug}:${hex(r._id)}`).sort().join('|');
+    if (sig !== S.subjectsSig) {
+        S.subjectsSig = sig;
+        for (const k of Object.keys(S.skipShas)) S.skipShas[k].clear();
+    }
     return new Map(rows.map((s) => [s.slug, s]));
 }
 
@@ -592,7 +611,10 @@ function dropPath(kind, path) {
 async function syncFromTree({ force = false } = {}) {
     const service = gh();
     // JSON luôn ở repo CHÍNH (githubPool) → chỉ cần cây thư mục của repo chính, không gộp các repo -1, -2… chứa file nhị phân.
+    // Lấy đầu nhánh TRƯỚC khi lấy cây: commit chen vào giữa hai bước sẽ bị phát hiện ở lần kiểm tra kế (không bị nuốt mất)
+    const headBefore = await fetchHead({ noEtag: true }).catch(() => null);
     const tree = await (service.base || service).getRepoTree({ force: true });
+    let incomplete = false;
     const canDelete = !tree.truncated && tree.files.size > 0;
     const subjects = await loadSubjects();
     const stats = {};
@@ -617,7 +639,7 @@ async function syncFromTree({ force = false } = {}) {
         const ctx = makeCtx(subjects);
         for (const r of todo) {
             const f = files.get(r.path);
-            if (!f) { stat.skipped++; continue; }
+            if (!f) { stat.skipped++; incomplete = true; continue; }     // file CÓ trong cây mà đọc hụt → phải đọc lại, không được coi là xong
             const out = applyFile(kind, r.path, r.m, f, ctx);
             if (out === 'skipped') stat.skipped++; else stat[out]++;
         }
@@ -635,7 +657,10 @@ async function syncFromTree({ force = false } = {}) {
         stats[kind] = stat;
         if (stat.skipped > 0 && process.env.GITHUB_STORE_VERBOSE === '1') console.warn(`[githubStore] ${kind}: bỏ qua ${stat.skipped} file không hợp lệ/mồ côi (đặt GITHUB_STORE_VERBOSE=1 để xem từng file).`);
     }
-    S.headSha = null;       // buộc kiểm tra lại đầu nhánh lần tới
+    S.headSha = headBefore;     // đầu nhánh đã thấy TRƯỚC khi lấy cây (null → lần kiểm tra kế sẽ đồng bộ lại cho chắc)
+    // đọc hụt → thử lại tối đa 6 lần liên tiếp (tránh vòng lặp vô hạn với file hỏng thật sự)
+    S.retryCount = incomplete ? (S.retryCount || 0) + 1 : 0;
+    S.needRetry = incomplete && S.retryCount <= 6;
     S.checkedAt = Date.now();
     return stats;
 }
@@ -643,12 +668,12 @@ async function syncFromTree({ force = false } = {}) {
 // ------------------------------------------------------------
 // Đầu nhánh (ETag → 304 không tốn quota)
 // ------------------------------------------------------------
-async function fetchHead() {
+async function fetchHead({ noEtag = false } = {}) {
     gh();
     try {
         const res = await cfg.octokit.request('GET /repos/{owner}/{repo}/git/ref/heads/{branch}', {
             owner: cfg.owner, repo: cfg.repo, branch: cfg.branch,
-            headers: S.etag ? { 'if-none-match': S.etag } : {}
+            headers: (S.etag && !noEtag && S.headSha) ? { 'if-none-match': S.etag } : {}
         });
         S.etag = res.headers && res.headers.etag ? res.headers.etag : null;
         return res.data && res.data.object ? res.data.object.sha : null;
@@ -669,16 +694,13 @@ async function ensureFresh({ force = false } = {}) {
             if (!S.loaded || force) {
                 const stats = await syncFromTree({ force });
                 S.loaded = true;
-                try { S.headSha = await fetchHead(); } catch (_) { /* bỏ qua */ }
                 return stats;
             }
             const head = await fetchHead();
             S.checkedAt = Date.now();
-            if (head && head !== S.headSha) {
-                const hadHead = Boolean(S.headSha);
-                const stats = hadHead ? await syncFromTree() : null;
-                S.headSha = head;
-                return stats;
+            // Đổi đầu nhánh, CHƯA biết đầu nhánh, hoặc lần trước đọc hụt file → đồng bộ theo cây (chỉ đọc file mới/đổi, rẻ)
+            if (S.needRetry || !S.headSha || (head && head !== S.headSha)) {
+                return await syncFromTree();
             }
             return null;
         } catch (e) {
@@ -703,6 +725,7 @@ async function applyPush(payload) {
     // Danh sách môn học (subjects/index.json) — nạp lại trước khi đọc bài học
     try { await require('./subjectStore').onPush(payload); }
     catch (e) { console.warn(`[githubStore] subjectStore.onPush lỗi: ${e.message}`); }
+    if (S.loading) { try { await S.loading; } catch (_) { /* lỗi đã được xử lý ở nơi gọi */ } }   // không chạy chồng lên lần đồng bộ đang diễn ra
     if (!S.loaded) return { ok: true, ignored: 'chưa nạp dữ liệu — lần nạp đầu sẽ thấy mọi thay đổi' };
 
     const commits = Array.isArray(payload.commits) ? payload.commits : [];
@@ -714,10 +737,13 @@ async function applyPush(payload) {
         (c.removed || []).forEach((p) => final.set(p, 'remove'));
     }
 
-    // Quá nhiều commit (GitHub chỉ liệt kê tối đa 20) → so cây thư mục cho chắc
-    if (commits.length >= 20 || payload.forced) {
+    // ★ Chỉ áp từng file khi push này NỐI TIẾP đúng đầu nhánh instance đang biết (before === headSha).
+    //   Nếu không (instance này lỡ webhook của commit trước — rất hay gặp trên Vercel nhiều instance) mà cứ áp riêng
+    //   file của push này rồi đặt headSha = after thì các file của commit bị lỡ sẽ THIẾU MÃI → so cây thư mục cho chắc.
+    const contiguous = Boolean(S.headSha && payload.before && payload.before === S.headSha);
+    // Quá nhiều commit (GitHub chỉ liệt kê tối đa 20) → cũng so cây thư mục
+    if (!contiguous || commits.length >= 20 || payload.forced) {
         const stats = await syncFromTree();
-        S.headSha = payload.after || S.headSha;
         return { ok: true, mode: 'tree-diff', stats };
     }
 
@@ -732,10 +758,12 @@ async function applyPush(payload) {
     }
 
     const files = await readMany(upserts.map((u) => u.path));
+    if (upserts.some((u) => u.kind === 'lessons')) S.skipShas.submissions.clear();     // bài học mới/đổi → bài nộp từng bị bỏ qua được thử lại
     for (const kind of KIND_NAMES) {          // lessons → prompts → submissions
         const ctx = makeCtx(subjects);
         for (const u of upserts.filter((x) => x.kind === kind)) {
             const f = files.get(u.path);
+            if (f === undefined) { S.needRetry = true; result.skipped++; continue; }      // đọc lỗi tạm thời → KHÔNG xoá, đồng bộ lại sau
             if (!f) { if (dropPath(kind, u.path)) result.removed++; continue; }
             const out = applyFile(kind, u.path, u.m, f, ctx);
             if (out === 'skipped') result.skipped++; else result[out]++;
@@ -827,7 +855,7 @@ async function refresh(kinds, opts = {}) {
 }
 
 function _reset() {      // chỉ cho test
-    S.loaded = false; S.loading = null; S.headSha = null; S.etag = null; S.checkedAt = 0;
+    S.needRetry = false; S.retryCount = 0; S.subjectsSig = ''; S.loaded = false; S.loading = null; S.headSha = null; S.etag = null; S.checkedAt = 0;
     for (const k of KIND_NAMES) { S.recs[k].clear(); S.paths[k].clear(); S.shas[k].clear(); S.skipShas[k].clear(); }
     S.lastPatch.clear(); S.persistChain.clear(); S.confirmed.clear(); S.localAt.clear();
 }

@@ -540,7 +540,7 @@ try {
 //   (Chặn ở tầng route, không chỉ ẩn link trong view.)
 if (DATA_NODE) {
     app.use("/auth", (req, res, next) => {
-        if (/^\/(login|logout)\/?$/.test(req.path)) return next();
+        if (/^\/(login|logout|change-password)\/?$/.test(req.path)) return next();
         return res.status(403).render("error", {
             title: "Web dữ liệu",
             message:
