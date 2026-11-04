@@ -231,8 +231,12 @@ const KINDS = {
             };
             if (typeof json.description === 'string') r.description = json.description;
             if (typeof json.sampleSolution === 'string') r.sampleSolution = json.sampleSolution;
-            const dur = Number(json.duration);
-            if (dur > 0) r.duration = Math.min(Math.max(Math.round(dur), 1), 600);
+            // "duration": null → KHÔNG đếm giờ; số > 0 → đếm giờ (phút); thiếu field → mặc định 20
+            if (json.duration === null) r.duration = null;
+            else {
+                const dur = Number(json.duration);
+                if (dur > 0) r.duration = Math.min(Math.max(Math.round(dur), 1), 600);
+            }
             if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
             if (json.model !== undefined) r.model = json.model ? String(json.model) : null;
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;

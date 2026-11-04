@@ -19,6 +19,17 @@
     var HOSTS = CFG.allowedImageHosts || ["raw.githubusercontent.com"];
     var MAX_OPT = CFG.maxOptions || 10;
     var DUR = CFG.durationLimits || { min: 1, max: 600 };
+    // ★ Đếm giờ / Không đếm giờ (radio fTimerMode). Không đếm giờ → duration = null, ô số phút bị khoá.
+    function isUntimed() {
+        var r = document.querySelector('input[name="fTimerMode"]:checked');
+        return !!r && r.value === "untimed";
+    }
+    function syncTimerMode() {
+        var d = document.getElementById("fDuration");
+        if (d) d.disabled = isUntimed();
+    }
+    document.querySelectorAll('input[name="fTimerMode"]').forEach(function (r) { r.addEventListener("change", syncTimerMode); });
+    syncTimerMode();
     var AUDIO_HOSTS = CFG.allowedAudioHosts || ["raw.githubusercontent.com", "media.githubusercontent.com"];
     var AUDIO_EXT = /\.(mp3|wav|ogg|oga|m4a|aac|opus)$/i;
     var STMT_LABELS = "abcdefghij";
@@ -913,7 +924,7 @@
         if (!(max > 0)) errs.push({ msg: "Thang điểm tối đa phải là số lớn hơn 0 (VD 10 hoặc 2.5)." });
 
         var dur = toNum($("fDuration").value, NaN);
-        if (!(Number.isInteger(dur) && dur >= DUR.min && dur <= DUR.max)) {
+        if (!isUntimed() && !(Number.isInteger(dur) && dur >= DUR.min && dur <= DUR.max)) {
             errs.push({ msg: "Thời gian làm bài phải là số phút nguyên từ " + DUR.min + " đến " + DUR.max + "." });
         }
 
@@ -988,7 +999,8 @@
             title: $("fTitle").value.trim(),
             slug: $("fSlug") ? $("fSlug").value.trim() : "",
             maxScore: toNum($("fMax").value, 10),
-            duration: toNum($("fDuration").value, 20),
+            duration: isUntimed() ? null : toNum($("fDuration").value, 20),
+            timerMode: isUntimed() ? "untimed" : "timed",
             promptId: $("fPrompt").value,
             contentHtml: $("fDesc").value,
             audioUrl: $("fAudio") ? normalizeAudio($("fAudio").value).url : "",

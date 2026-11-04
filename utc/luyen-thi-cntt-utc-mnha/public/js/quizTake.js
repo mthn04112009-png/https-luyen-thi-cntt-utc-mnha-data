@@ -49,7 +49,9 @@
 
     // ---------- State ----------
     var DRAFT_KEY = "quiz-draft:" + CFG.lessonId;
-    var TOTAL_SECONDS = CFG.duration * 60;
+    // ★ CFG.duration = null → bài KHÔNG ĐẾM GIỜ: không đếm ngược, không bao giờ hết giờ
+    var NO_TIMER = CFG.duration === null || CFG.duration === undefined;
+    var TOTAL_SECONDS = NO_TIMER ? 0 : CFG.duration * 60;
     var state = {
         current: 0,
         answers: {},          // id → mcq: ["A"] | tf: true/false | fill: "text"
@@ -178,7 +180,13 @@
     function loadDraft() {
         try {
             var d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
-            if (!d || !d.endAt) return null;
+            if (!d) return null;
+            if (NO_TIMER) {
+                // Không đếm giờ: giữ nháp tối đa 7 ngày kể từ lần lưu cuối
+                if (d.savedAt && Date.now() > d.savedAt + 7 * 24 * 3600 * 1000) { localStorage.removeItem(DRAFT_KEY); return null; }
+                return d;
+            }
+            if (!d.endAt) return null;
             // Nháp bỏ dở quá 30 phút sau khi hết giờ → coi như lần làm mới
             if (Date.now() > d.endAt + 30 * 60 * 1000) { localStorage.removeItem(DRAFT_KEY); return null; }
             return d;
@@ -282,6 +290,12 @@
     // ĐỒNG HỒ
     // ============================================================
     function paintTimer() {
+        if (NO_TIMER) {
+            // Không đếm giờ: chữ "Không đếm giờ" đã render sẵn từ server, chỉ giữ trạng thái class sạch
+            el.timer.classList.remove("warning", "danger");
+            el.timerWrap.classList.remove("finished");
+            return;
+        }
         el.timer.textContent = fmtTime(Math.max(0, state.remaining));
         el.timer.classList.remove("warning", "danger");
         el.timerWrap.classList.toggle("finished", state.timeUp && !state.submitted);
@@ -303,6 +317,7 @@
         }
     }
     function startTimer() {
+        if (NO_TIMER) return;   // không đếm giờ: không chạy interval, không hết giờ
         if (CFG.readOnly || state.timerId || state.submitted) return;
         if (!state.endAt) state.endAt = Date.now() + TOTAL_SECONDS * 1000;
         tick();
@@ -830,7 +845,7 @@
         state.answers = draft.answers || {};
         state.flagged = draft.flagged || {};
         // Admin vừa đổi thời gian làm bài → giữ đáp án nhưng bắt đầu đồng hồ mới
-        state.endAt = (draft.dur != null && draft.dur !== CFG.duration) ? null : draft.endAt;
+        state.endAt = NO_TIMER ? null : ((draft.dur != null && draft.dur !== CFG.duration) ? null : draft.endAt);
         el.saveHint.textContent = "↺ Đã khôi phục bài làm nháp";
     }
 

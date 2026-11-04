@@ -181,3 +181,11 @@ body.dp-no-scroll { overflow: hidden; }
 .photo-cloud { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #1e3a8a; }
 .photo-cloud[hidden] { display: none; }
 .photo-cloud select { height: 36px; max-width: 220px; padding: 0 8px; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; }
+
+/* ---------- tải PDF bài làm (pdfToImage.js) ---------- */
+.pdf-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+.pdf-bar[hidden] { display: none; }
+.pdf-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; background: #f8fafc; border: 1px solid #cfd5de; border-radius: 8px; font-size: 12.5px; color: #1e293b; max-width: 100%; }
+.pdf-chip img { height: 44px; width: auto; max-width: 60px; object-fit: cover; object-position: top; border: 1px solid #e2e8f0; border-radius: 4px; background: #fff; }
+.pdf-chip button { border: 0; background: transparent; color: #b91c1c; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.pdf-chip button:hover { background: #fee2e2; }

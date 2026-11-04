@@ -22,7 +22,8 @@ block content
     - var PART_TITLES = { mcq: 'Trắc nghiệm nhiều đáp án', tf: 'Đúng / Sai', fill: 'Điền số liệu / đáp án' }
     - var PART_KEYS = ['mcq', 'tf', 'fill'].filter(function (k) { return qparts[k] && qparts[k].questions && qparts[k].questions.length })
     - var totalQuestions = PART_KEYS.reduce(function (n, k) { return n + qparts[k].questions.length }, 0)
-    - var duration = lesson.duration || 20
+    - var untimed = lesson.duration === null
+    - var duration = untimed ? null : (lesson.duration || 20)
     - var audioUrl = (typeof qz.audioUrl === 'string' && /^https:\/\//.test(qz.audioUrl)) ? qz.audioUrl : ''
     - var maxScore = qz.maxScore || 10
     - var studentName = (typeof user !== 'undefined' && user && user.name) ? user.name : 'THÍ SINH'
@@ -52,8 +53,12 @@ block content
                             strong= totalQuestions
                             span câu hỏi
                         div
-                            strong= duration
-                            span phút
+                            if untimed
+                                strong ∞
+                                span không giới hạn
+                            else
+                                strong= duration
+                                span phút
                         div
                             strong= maxScore
                             span thang điểm
@@ -92,7 +97,10 @@ block content
                 div(class="exam-status")
                     div(id="timerWrap", class="timer-wrap")
                         span(class="timer-icon") ◷
-                        span(id="timer")= String(duration).padStart(2, '0') + ':00'
+                        if untimed
+                            span(id="timer") Không đếm giờ
+                        else
+                            span(id="timer")= String(duration).padStart(2, '0') + ':00'
                     span(id="connectionDot", class="connection-dot")
                     span(id="statusText", class="connection-text") Đang làm bài
                     button(type="button", class="submit-top", id="submitTop") NỘP BÀI
@@ -127,7 +135,7 @@ block content
                 aside(class="chapter-panel")
                     div(class="panel-heading")
                         span= lesson.title
-                        small= (subjectName ? subjectName.toUpperCase() + ' • ' : '') + totalQuestions + ' CÂU • ' + duration + ' PHÚT • THANG ' + maxScore
+                        small= (subjectName ? subjectName.toUpperCase() + ' • ' : '') + totalQuestions + ' CÂU • ' + (untimed ? 'KHÔNG ĐẾM GIỜ' : duration + ' PHÚT') + ' • THANG ' + maxScore
 
                     div(class="chapter-summary")
                         h3 Cấu trúc đề
@@ -145,7 +153,10 @@ block content
                     div(class="exam-note")
                         h3 Hướng dẫn
                         ul
-                            li= 'Thời gian làm bài: ' + duration + ' phút (đồng hồ đếm ngược ở góc trên).'
+                            if untimed
+                                li Bài này <b>không đếm giờ</b>: bạn làm bài không giới hạn thời gian, nộp khi nào xong thì bấm "NỘP BÀI".
+                            else
+                                li= 'Thời gian làm bài: ' + duration + ' phút (đồng hồ đếm ngược ở góc trên).'
                             li Câu có ô vuông: chọn <b>tất cả</b> đáp án đúng. Câu có ô tròn: chọn <b>một</b> đáp án.
                             li Chuyển câu bằng nút, phím ← → hoặc bấm số câu phía dưới.
                             li Hết giờ chuông sẽ reo lặp cho tới khi bạn nộp bài.

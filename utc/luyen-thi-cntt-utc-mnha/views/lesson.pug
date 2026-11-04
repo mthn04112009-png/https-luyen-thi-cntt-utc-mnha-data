@@ -367,7 +367,10 @@ block content
             div(class="panel")
                 div(class="panel-head")
                     h3 Đề bài
-                    span #{lesson.duration || 20} phút
+                    if lesson.duration === null
+                        span Không đếm giờ
+                    else
+                        span #{lesson.duration || 20} phút
 
                 div(class="panel-body")
                     if lesson.contentHtml
@@ -380,12 +383,20 @@ block content
             div(class="panel writing-panel")
                 div(class="panel-head")
                     h3 ✍️ Bài viết của bạn
-                    div(id="timer", class="timer waiting")
-                        = String(lesson.duration || 20).padStart(2, '0') + ':00'
+                    if lesson.duration === null
+                        //- ★ Không đếm giờ: không hiện đồng hồ
+                        div(id="timer", class="timer waiting", style="display:none")
+                        span(class="text-xs font-semibold text-slate-500") ∞ Không giới hạn thời gian
+                    else
+                        div(id="timer", class="timer waiting")
+                            = String(lesson.duration || 20).padStart(2, '0') + ':00'
 
                 div(class="panel-body")
                     div(id="lockMessage", class="lock-msg show")
-                        | 🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.
+                        if lesson.duration === null
+                            | 🔒 Hãy kết nối AI thành công để bắt đầu làm bài.
+                        else
+                            | 🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.
 
                     textarea(
                         id="writingInput"
@@ -486,7 +497,9 @@ block content
             let submitting = false;
             let submitted = false;
 
-            const TIMER_TOTAL = (!{lesson.duration || 20}) * 60;
+            // ★ NO_TIMER = bài "không đếm giờ" (duration: null): không đếm ngược, không hết giờ
+            const NO_TIMER = !{lesson.duration === null ? 'true' : 'false'};
+            const TIMER_TOTAL = NO_TIMER ? Infinity : (!{lesson.duration || 20}) * 60;
             let timeLeft = TIMER_TOTAL;
             let timerInterval = null;
 
@@ -538,6 +551,7 @@ block content
             }
 
             function updateTimer() {
+                if (NO_TIMER) return;   // không đếm giờ: không vẽ đồng hồ
                 timerEl.textContent = fmtTime(timeLeft);
                 timerEl.classList.remove("waiting", "warning", "danger", "finished");
                 if (!aiConnected) { timerEl.classList.add("waiting"); return; }
@@ -548,6 +562,7 @@ block content
             }
 
             function startTimer() {
+                if (NO_TIMER) return;   // không đếm giờ: không chạy interval
                 if (timerInterval || !aiConnected || submitted) return;
                 timerInterval = setInterval(() => {
                     if (!aiConnected || submitted || timeLeft <= 0) {
@@ -582,7 +597,7 @@ block content
                     return;
                 }
                 if (!aiConnected) {
-                    lockMsg.textContent = "🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.";
+                    lockMsg.textContent = NO_TIMER ? "🔒 Hãy kết nối AI thành công để bắt đầu làm bài." : "🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.";
                     lockMsg.classList.add("show");
                     textarea.disabled = true;
                     submitBtn.disabled = true;

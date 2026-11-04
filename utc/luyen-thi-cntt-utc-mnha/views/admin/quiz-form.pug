@@ -15,7 +15,7 @@ block content
     - var q0 = (quiz && quiz.quiz) ? quiz.quiz : {}
     - var cfgq = (typeof quizConfig !== 'undefined' && quizConfig) ? quizConfig : {}
     - var chosenAi = (lesson && lesson.analysisAiKeyIds ? lesson.analysisAiKeyIds : []).map(String)
-    - var payload = { mode: isEdit ? 'edit' : 'create', lessonId: lesson ? String(lesson._id) : null, sha: (typeof sha !== 'undefined' && sha) ? sha : null, parts: q0.parts || {}, raw: rawTexts || { mcq: '', tf: '', fill: '' }, authoringPrompt: cfgq.QUIZ_AUTHORING_PROMPT || null, allowedImageHosts: cfgq.ALLOWED_IMAGE_HOSTS || ['raw.githubusercontent.com'], audioUrl: q0.audioUrl || '', allowedAudioHosts: cfgq.ALLOWED_AUDIO_HOSTS || ['raw.githubusercontent.com', 'media.githubusercontent.com'], maxOptions: cfgq.MAX_OPTIONS_PER_QUESTION || 10, tfScoring: ((q0.parts && q0.parts.tf && q0.parts.tf.scoring) || cfgq.TF_DEFAULT_SCORING || 'equal'), tfMinStatements: (cfgq.LIMITS && cfgq.LIMITS.MIN_STATEMENTS_TF) || 1, tfMaxStatements: (cfgq.LIMITS && cfgq.LIMITS.MAX_STATEMENTS_TF) || 10, tfThptqgStatements: cfgq.TF_THPTQG_STATEMENTS || 4, defaults: { ppq: cfgq.DEFAULT_POINTS_PER_QUESTION || 1, maxScore: cfgq.DEFAULT_MAX_SCORE || 10, duration: (lesson && lesson.duration) || cfgq.DEFAULT_DURATION || 20 }, durationLimits: { min: 1, max: 600 } }
+    - var payload = { mode: isEdit ? 'edit' : 'create', lessonId: lesson ? String(lesson._id) : null, sha: (typeof sha !== 'undefined' && sha) ? sha : null, parts: q0.parts || {}, raw: rawTexts || { mcq: '', tf: '', fill: '' }, authoringPrompt: cfgq.QUIZ_AUTHORING_PROMPT || null, allowedImageHosts: cfgq.ALLOWED_IMAGE_HOSTS || ['raw.githubusercontent.com'], audioUrl: q0.audioUrl || '', allowedAudioHosts: cfgq.ALLOWED_AUDIO_HOSTS || ['raw.githubusercontent.com', 'media.githubusercontent.com'], maxOptions: cfgq.MAX_OPTIONS_PER_QUESTION || 10, tfScoring: ((q0.parts && q0.parts.tf && q0.parts.tf.scoring) || cfgq.TF_DEFAULT_SCORING || 'equal'), tfMinStatements: (cfgq.LIMITS && cfgq.LIMITS.MIN_STATEMENTS_TF) || 1, tfMaxStatements: (cfgq.LIMITS && cfgq.LIMITS.MAX_STATEMENTS_TF) || 10, tfThptqgStatements: cfgq.TF_THPTQG_STATEMENTS || 4, defaults: { ppq: cfgq.DEFAULT_POINTS_PER_QUESTION || 1, maxScore: cfgq.DEFAULT_MAX_SCORE || 10, duration: (lesson && lesson.duration === null) ? null : ((lesson && lesson.duration) || cfgq.DEFAULT_DURATION || 20) }, durationLimits: { min: 1, max: 600 } }
     - var safeJson = JSON.stringify(payload).replace(/</g, '\\u003c')
 
     link(rel="stylesheet", href="/css/quiz-form.css")
@@ -57,10 +57,19 @@ block content
                     label(for="fMax") Thang điểm tối đa
                     input(id="fMax", type="text", inputmode="decimal", autocomplete="off", value=(q0.maxScore || cfgq.DEFAULT_MAX_SCORE || 10), placeholder="VD: 10 hoặc 2.5")
                     small Có thể nhập số thập phân (VD 10, 2.5, 0.5).
+                //- ★ Thời gian: chọn 1 trong 2 — đếm giờ ("duration": 75) / không đếm giờ ("duration": null)
+                - var qUntimed = !!(lesson && lesson.duration === null)
                 div(class="qf-field")
-                    label(for="fDuration") ⏱ Thời gian làm bài (phút)
-                    input(id="fDuration", type="number", min="1", max="600", step="1", value=(lesson && lesson.duration) || cfgq.DEFAULT_DURATION || 20, placeholder="20")
-                    small Số phút dùng để đếm ngược ở trang làm bài. Mặc định 20.
+                    label ⏱ Thời gian làm bài
+                    div(style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px")
+                        label(style="display:inline-flex;align-items:center;gap:6px;cursor:pointer")
+                            input(type="radio", name="fTimerMode", value="timed", checked=!qUntimed)
+                            span Đếm giờ
+                        label(style="display:inline-flex;align-items:center;gap:6px;cursor:pointer")
+                            input(type="radio", name="fTimerMode", value="untimed", checked=qUntimed)
+                            span Không đếm giờ
+                    input(id="fDuration", type="number", min="1", max="600", step="1", value=(lesson && lesson.duration) || cfgq.DEFAULT_DURATION || 20, placeholder="20", disabled=qUntimed)
+                    small Đếm giờ: số phút dùng để đếm ngược ở trang làm bài (mặc định 20). Không đếm giờ: làm bài không giới hạn thời gian.
                 div(class="qf-field")
                     label(for="fPrompt") Prompt phân tích AI
                     select(id="fPrompt")

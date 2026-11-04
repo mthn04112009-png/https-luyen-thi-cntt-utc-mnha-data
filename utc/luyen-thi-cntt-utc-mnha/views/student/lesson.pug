@@ -489,7 +489,10 @@ block content
             div(class="panel")
                 div(class="panel-head")
                     h3 Đề bài
-                    span #{lesson.duration || 20} phút
+                    if lesson.duration === null
+                        span Không đếm giờ
+                    else
+                        span #{lesson.duration || 20} phút
 
                 div(class="panel-body")
                     if lesson.contentHtml
@@ -502,12 +505,20 @@ block content
             div(class="panel writing-panel")
                 div(class="panel-head")
                     h3 ✍️ Bài viết của bạn
-                    div(id="timer", class="timer waiting")
-                        = String(lesson.duration || 20).padStart(2, '0') + ':00'
+                    if lesson.duration === null
+                        //- ★ Không đếm giờ: không hiện đồng hồ
+                        div(id="timer", class="timer waiting", style="display:none")
+                        span(class="text-xs font-semibold text-slate-500") ∞ Không giới hạn thời gian
+                    else
+                        div(id="timer", class="timer waiting")
+                            = String(lesson.duration || 20).padStart(2, '0') + ':00'
 
                 div(class="panel-body")
                     div(id="lockMessage", class="lock-msg show")
-                        | 🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.
+                        if lesson.duration === null
+                            | 🔒 Hãy kết nối AI thành công để bắt đầu làm bài.
+                        else
+                            | 🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.
 
                     //- ★ Hai phần bài làm: nhập chữ + vẽ tay (JS Paint). Có phần nào thì chấm phần đó;
                     //-   có cả hai thì AI chấm cả hai (bản vẽ được AI đọc/phân tích ảnh trước).
@@ -538,6 +549,16 @@ block content
                             button(type="button", id="photoBtn", class="photo-btn", disabled)
                                 | 📷 Tải ảnh viết tay lên
                             span(id="photoStatus", class="photo-status")
+                            //- ★ Tải PDF bài làm: trình duyệt đổi trang PDF → ảnh (nén vừa phải) → kiểm duyệt → AI đọc như hình vẽ
+                            input(type="file", id="pdfInput", accept="application/pdf,.pdf", hidden)
+                            button(type="button", id="pdfBtn", class="photo-btn", disabled)
+                                | 📄 Tải PDF bài làm lên
+                            span(id="pdfStatus", class="photo-status")
+                            div(id="pdfBar", class="pdf-bar", hidden)
+                                div(class="pdf-chip")
+                                    img(id="pdfThumb", alt="Trang đầu PDF")
+                                    span(id="pdfInfo")
+                                    button(type="button", id="pdfRemove", title="Gỡ PDF khỏi bài làm") ✕ Gỡ
                             //- ★ Chọn CLOUDINARY_CLOUD_NAME dùng để kiểm duyệt ảnh (ảnh phải qua tất cả tài khoản đã tick)
                             div(id="photoCloud", class="photo-cloud", hidden)
                                 label(for="photoCloudSelect") 🛡 Kiểm duyệt ảnh bằng:
@@ -617,6 +638,7 @@ block content
 
     script(src="/js/drawingPad.js")
     script(src="/js/photoToPaint.js")
+    script(src="/js/pdfToImage.js")
 
     script.
         (function () {
@@ -630,7 +652,9 @@ block content
             let submitting = false;
             let submitted = false;
 
-            const TIMER_TOTAL = (!{lesson.duration || 20}) * 60;
+            // ★ NO_TIMER = bài "không đếm giờ" (duration: null): không đếm ngược, không hết giờ
+            const NO_TIMER = !{lesson.duration === null ? 'true' : 'false'};
+            const TIMER_TOTAL = NO_TIMER ? Infinity : (!{lesson.duration || 20}) * 60;
             let timeLeft = TIMER_TOTAL;
             let timerInterval = null;
 
@@ -695,11 +719,21 @@ block content
             let photoCfg = { enabled: false, maxBytes: 10 * 1024 * 1024, accounts: [], maxSelected: 5 };
             let photoBusy = false;
             let photoToken = null; // token Cloudinary đã duyệt ảnh đang dùng (server kiểm lại khi nộp)
+            let pdfImage = null;   // kết quả PdfToImage.convert (các trang PDF đã xếp thành 1 ảnh)
+            let pdfToken = null;   // token kiểm duyệt của ảnh PDF
+            let pdfBusy = false;
 
             function syncPhotoBtn() {
                 if (!photoBtn) return;
                 const locked = !drawPad || drawPad.isDisabled();
-                photoBtn.disabled = photoBusy || !photoCfg.enabled || locked;
+                photoBtn.disabled = photoBusy || pdfBusy || !photoCfg.enabled || locked;
+                const pb = document.getElementById("pdfBtn");
+                if (pb) {
+                    pb.disabled = photoBusy || pdfBusy || !photoCfg.enabled || locked;
+                    pb.title = !photoCfg.enabled
+                        ? "Máy chủ chưa bật tính năng tải ảnh/PDF"
+                        : (locked ? "Hãy kết nối AI để mở khoá phần làm bài" : "Chọn file PDF bài làm (tối đa 30MB, tự nén nhẹ nếu nặng)");
+                }
                 photoBtn.title = !photoCfg.enabled
                     ? "Máy chủ chưa bật tính năng tải ảnh"
                     : (locked ? "Hãy kết nối AI để mở khoá phần làm bài" : "Chọn ảnh chụp bài viết tay");
@@ -711,7 +745,7 @@ block content
 
             function updateBadges() {
                 textBadge.classList.toggle("show", !!textarea.value.trim());
-                drawBadge.classList.toggle("show", !!(drawPad && drawPad.hasContent()));
+                drawBadge.classList.toggle("show", !!((drawPad && drawPad.hasContent()) || pdfImage));
                 syncPhotoBtn();
             }
 
@@ -803,6 +837,88 @@ block content
             }
             photoBtn.addEventListener("click", function () { photoInput.click(); });
             photoInput.addEventListener("change", function () { handlePhoto(photoInput.files && photoInput.files[0]); });
+
+            // ============================================
+            // ★ PDF BÀI LÀM → ảnh (nén vừa phải) → kiểm duyệt → nộp như hình vẽ
+            // ============================================
+            const pdfInput = document.getElementById("pdfInput");
+            const pdfBtn = document.getElementById("pdfBtn");
+            const pdfStatus = document.getElementById("pdfStatus");
+            const pdfBar = document.getElementById("pdfBar");
+            const pdfThumb = document.getElementById("pdfThumb");
+            const pdfInfo = document.getElementById("pdfInfo");
+            function setPdfStatus(kind, text) {
+                pdfStatus.className = "photo-status" + (kind ? " ps-" + kind : "");
+                pdfStatus.textContent = text || "";
+            }
+            function clearPdf() {
+                pdfImage = null; pdfToken = null;
+                pdfBar.hidden = true;
+                pdfThumb.removeAttribute("src");
+                pdfInfo.textContent = "";
+                setPdfStatus("", "");
+                updateBadges();
+            }
+            async function handlePdf(file) {
+                if (!file || pdfBusy) return;
+                if (drawPad.isDisabled()) { alert("Hãy kết nối AI trước khi tải PDF."); return; }
+                if (!(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) {
+                    setPdfStatus("error", "Chỉ nhận file PDF.");
+                    return;
+                }
+                const cloudName = photoCloudSelect ? photoCloudSelect.value : "";
+                if (!cloudName) {
+                    setPdfStatus("error", "Hãy chọn CLOUDINARY_CLOUD_NAME để kiểm duyệt trước khi tải PDF.");
+                    return;
+                }
+                if (pdfImage && !confirm("Đã có PDF trong bài làm. Thay bằng file mới?")) return;
+
+                pdfBusy = true;
+                syncPhotoBtn();
+                try {
+                    const r = await PdfToImage.convert(file, { onProgress: function (t) { setPdfStatus("busy", "⏳ " + t); } });
+                    if (r.truncated && !confirm("PDF có " + r.totalPages + " trang nhưng chỉ đưa được " + r.pages + " trang đầu vào bài (giới hạn dung lượng/độ rõ). Tiếp tục với " + r.pages + " trang?")) {
+                        setPdfStatus("", "");
+                        return;
+                    }
+                    if (r.totalPages > PdfToImage.MAX_PAGES && !r.truncated && r.pages === PdfToImage.MAX_PAGES &&
+                        !confirm("PDF có " + r.totalPages + " trang, mỗi lần chỉ lấy tối đa " + PdfToImage.MAX_PAGES + " trang đầu. Tiếp tục?")) {
+                        setPdfStatus("", "");
+                        return;
+                    }
+
+                    setPdfStatus("busy", "⏳ Đang kiểm duyệt ảnh (" + cloudName + ")...");
+                    const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
+                        method: "POST",
+                        headers: { "Content-Type": "image/jpeg", "Accept": "application/json", "X-Cloudinary-Names": cloudName },
+                        body: r.blob
+                    });
+                    let data = null;
+                    try { data = await res.json(); } catch (e) { /* server không trả JSON */ }
+                    if (!res.ok || !data || !data.success) {
+                        throw new Error((data && data.message) || "Không tải được PDF (HTTP " + res.status + ").");
+                    }
+
+                    pdfImage = r;
+                    pdfToken = data.token;
+                    pdfThumb.src = r.dataUrl;
+                    const shown = r.pages < r.totalPages ? (r.pages + "/" + r.totalPages + " trang") : (r.pages + " trang");
+                    pdfInfo.textContent = file.name + " — " + shown + ", " + Math.round(r.bytes / 1024) + "KB" +
+                        (r.originalBytes > r.bytes * 1.15 ? " (nén từ " + fmtMB(r.originalBytes) + ")" : "");
+                    pdfBar.hidden = false;
+                    setPdfStatus("ok", "✅ Đã thêm PDF vào bài làm. AI sẽ đọc các trang PDF cùng phần chữ/vẽ tay.");
+                    updateBadges();
+                } catch (e) {
+                    setPdfStatus("error", "❌ " + e.message);
+                } finally {
+                    pdfBusy = false;
+                    pdfInput.value = "";
+                    syncPhotoBtn();
+                }
+            }
+            pdfBtn.addEventListener("click", function () { pdfInput.click(); });
+            pdfInput.addEventListener("change", function () { handlePdf(pdfInput.files && pdfInput.files[0]); });
+            document.getElementById("pdfRemove").addEventListener("click", clearPdf);
 
             function showTab(which) {
                 const isDraw = which === "draw";
@@ -948,6 +1064,7 @@ block content
             }
 
             function updateTimer() {
+                if (NO_TIMER) return;   // không đếm giờ: không vẽ đồng hồ
                 timerEl.textContent = fmtTime(Math.max(0, timeLeft));
                 timerEl.classList.remove("waiting", "warning", "danger", "finished");
                 if (!aiConnected) { timerEl.classList.add("waiting"); return; }
@@ -958,6 +1075,7 @@ block content
             }
 
             function startTimer() {
+                if (NO_TIMER) return;   // không đếm giờ: không chạy interval
                 if (timerInterval || !aiConnected || submitted) return;
                 timerInterval = setInterval(() => {
                     if (!aiConnected || submitted) {
@@ -1014,7 +1132,7 @@ block content
                     return;
                 }
                 if (!aiConnected) {
-                    lockMsg.textContent = "🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.";
+                    lockMsg.textContent = NO_TIMER ? "🔒 Hãy kết nối AI thành công để bắt đầu làm bài." : "🔒 Hãy kết nối AI thành công để bắt đầu tính giờ.";
                     lockMsg.classList.add("show");
                     lockMsg.classList.remove("timeup");
                     textarea.disabled = true;
@@ -1280,11 +1398,13 @@ block content
 
                 // ★ Xuất ảnh bản vẽ (null = không vẽ gì → bỏ qua phần vẽ tay)
                 let drawing = null;
-                if (drawPad.hasContent()) {
+                if (drawPad.hasContent() || pdfImage) {
                     submitBtn.disabled = true;
                     submitBtn.textContent = "🖼️ Đang nén bản vẽ...";
                     try {
-                        drawing = await drawPad.exportImage();
+                        const padImg = drawPad.hasContent() ? await drawPad.exportImage() : null;
+                        // Có PDF → ảnh các trang PDF (+ bản vẽ tay xếp bên dưới nếu có), nén lại ≤ 800KB
+                        drawing = pdfImage ? await PdfToImage.merge(pdfImage, padImg) : padImg;
                     } catch (e) {
                         alert("❌ " + e.message);
                         submitBtn.disabled = false;
@@ -1333,9 +1453,10 @@ block content
                     body.append("answerHtml", text);
                     if (drawing) {
                         body.append("drawingData", drawing.dataUrl);
-                        if (photoToken) {
+                        const modToken = pdfImage ? pdfToken : photoToken;   // ảnh phải qua kiểm duyệt Cloudinary
+                        if (modToken) {
                             body.append("drawingSource", "photo");
-                            body.append("drawingUploadToken", photoToken);
+                            body.append("drawingUploadToken", modToken);
                         }
                     }
                     body.append("model", modelSelect.value || "");
@@ -1365,6 +1486,7 @@ block content
 
                     submitted = true;
                     photoToken = null;
+                    clearPdf();
                     lastSubmittedHadDrawing = !!drawing;
                     stopTimer();
                     stopTimeUpAudio();
@@ -1406,7 +1528,7 @@ block content
                 const hadText = words > 0;
                 const parts = [];
                 if (hadText) parts.push("⌨️ chữ");
-                if (lastSubmittedHadDrawing) parts.push("🎨 vẽ tay");
+                if (lastSubmittedHadDrawing) parts.push("🎨 vẽ tay / PDF");
                 const graded = parts.length ? "Đã chấm: " + parts.join(" + ") : "";
 
                 let meta = "";

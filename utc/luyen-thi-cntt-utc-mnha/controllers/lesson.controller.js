@@ -17,6 +17,7 @@ const { getContentScope } = require("../services/userKeyService");
 const { formatAiLabel } = require("../utils/aiLabel");
 const { paginate, paginateArray } = require("./pagination.controller");
 const { sortNewestFirst } = require("../utils/lessonOrder");
+const lessonDuration = require("../utils/lessonDuration");
 
 /* ============================================================
  * HELPERS
@@ -679,7 +680,7 @@ async function renderQuizLessonPage(req, res, lesson, subject) {
             _id: lesson._id,
             title: json.title || lesson.title,
             contentHtml: sanitizeExplanationHtml(json.contentHtml || ""),
-            duration: Number(lesson.duration) || 20,
+            duration: lessonDuration.fromStored(lesson.duration),   // null = không đếm giờ
             type: "quiz",
         },
         quiz: quizView,
@@ -747,8 +748,8 @@ async function renderLessonPage(req, res, lesson) {
     const canSeeSample = !!lastSubmission;
     const sampleSolution = canSeeSample ? finalSampleSolution : "";
 
-    // ★ duration từ DB — fallback 20 phút
-    const duration = Number(lesson.duration) || 20;
+    // ★ duration từ DB — số phút (đếm giờ) hoặc null (không đếm giờ); thiếu field → 20 phút
+    const duration = lessonDuration.fromStored(lesson.duration);
 
     // ★ vilao.ai: nhãn AI chấm bài
     const aiLabel = await getLessonAiLabel(lesson);
@@ -909,12 +910,16 @@ exports.createLesson = async (req, res, next) => {
         const {
             subjectId, title, description,
             contentHtml, sampleSolution, promptId, githubFile,
-            duration, aiKeyId, model,
+            duration, timerMode, aiKeyId, model,
         } = req.body;
 
         if (!subjectId || !title || !title.trim()) {
             return res.status(400).json({ error: "Thiếu subjectId hoặc title" });
         }
+
+        // ★ Thời gian: số phút (đếm giờ) hoặc null (không đếm giờ); không gửi gì → 20 phút
+        const newDuration = lessonDuration.fromBody({ duration, timerMode }, lessonDuration.DURATION_DEFAULT);
+        const durationValue = newDuration === undefined ? lessonDuration.DURATION_DEFAULT : newDuration;
 
         // ★ USER KEY: chỉ được tạo bài trong môn thuộc phạm vi của mình
         const scope = await getContentScope(req);
@@ -975,7 +980,7 @@ exports.createLesson = async (req, res, next) => {
                     description: description || "",
                     contentHtml: contentHtml || "",
                     sampleSolution: sampleSolution || "",
-                    duration: Number(duration) || 20,
+                    duration: durationValue,
                     model: model ? String(model).trim() : null,
                     promptId: safePromptId ? String(safePromptId) : null,
                     aiKeyId: safeAiKeyId ? String(safeAiKeyId) : null,
@@ -1007,7 +1012,7 @@ exports.createLesson = async (req, res, next) => {
             userKey: subject.userKey || null,
             githubFile: resolvedGithubFile,
             githubSha: (saved && saved.sha) || null,
-            duration: Number(duration) || 20,
+            duration: durationValue,
             aiKeyId: safeAiKeyId,
             model: model ? String(model).trim() : null,
             createdBy: currentUserId(req),
@@ -1113,7 +1118,7 @@ exports.updateLesson = async (req, res, next) => {
         const {
             subjectId, title, description,
             contentHtml, sampleSolution, promptId, githubFile,
-            duration, aiKeyId, model,
+            duration, timerMode, aiKeyId, model,
         } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1158,7 +1163,11 @@ exports.updateLesson = async (req, res, next) => {
         if (promptId !== undefined) {
             lesson.promptId = promptId && mongoose.Types.ObjectId.isValid(promptId) ? promptId : null;
         }
-        if (duration !== undefined) lesson.duration = Number(duration) || 20;
+        // ★ đếm giờ (số phút) / không đếm giờ (null)
+        {
+            const d = lessonDuration.fromBody({ duration, timerMode }, lessonDuration.DURATION_DEFAULT);
+            if (d !== undefined) lesson.duration = d;
+        }
 
         // ★ AI KEY + MODEL
         if (aiKeyId !== undefined && scope.isDefaultAdmin) { // ★ USER KEY
@@ -1203,7 +1212,7 @@ exports.updateLesson = async (req, res, next) => {
                 subjectSlug: subjectForFile?.slug || null,
                 description: lesson.description || "",
                 sampleSolution: lesson.sampleSolution || "",
-                duration: lesson.duration || 20,
+                duration: lessonDuration.fromStored(lesson.duration),   // null = không đếm giờ
                 model: lesson.model || null,
                 promptId: lesson.promptId ? String(lesson.promptId) : null,
                 aiKeyId: lesson.aiKeyId ? String(lesson.aiKeyId) : null,

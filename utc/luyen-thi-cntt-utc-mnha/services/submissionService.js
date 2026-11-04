@@ -336,7 +336,7 @@ async function gradeAndSave({ userId, lessonId, answerHtml, model, aiKeyId, draw
                     lessonId: String(lessonId),
                     lessonTitle: lesson.title || null,
                     lessonSlug: lesson.slug || null,
-                    lessonDuration: lesson.duration || 20,
+                    lessonDuration: lesson.duration === null ? null : (lesson.duration || 20),
 
                     // ★ ĐỀ BÀI (HTML)
                     lessonContentHtml: lessonContent.contentHtml || '',

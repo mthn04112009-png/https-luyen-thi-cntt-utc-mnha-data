@@ -376,8 +376,10 @@ exports.parsePreview = (req, res) => {
 // ADMIN — lưu (tạo mới / cập nhật)
 // ============================================================
 async function readCommon(req, body) {
-  const duration = parseDuration(body.duration);
-  if (duration == null) return { error: `Thời gian làm bài phải là số phút nguyên từ ${DURATION_MIN} đến ${DURATION_MAX}.` };
+  // ★ Đếm giờ (số phút nguyên) hoặc KHÔNG đếm giờ (duration = null)
+  const untimed = body.timerMode === 'untimed' || body.duration === null || body.duration === 'null';
+  const duration = untimed ? null : parseDuration(body.duration);
+  if (!untimed && duration == null) return { error: `Thời gian làm bài phải là số phút nguyên từ ${DURATION_MIN} đến ${DURATION_MAX}.` };
 
   const title = String(body.title || '').trim().slice(0, 200);
   if (!title) return { error: 'Chưa nhập tiêu đề bài.' };

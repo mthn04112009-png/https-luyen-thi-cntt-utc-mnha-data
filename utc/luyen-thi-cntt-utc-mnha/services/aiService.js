@@ -1249,7 +1249,8 @@ function buildDrawingAnalysisPrompt(context = "") {
     const ctx = stripHtmlForContext(context);
     return [
         "Bạn là bộ phân tích hình ảnh cho hệ thống chấm bài. Nhiệm vụ: NHÌN bản vẽ tay của sinh viên",
-        "(vẽ bằng công cụ giống MS Paint) và mô tả lại CHÍNH XÁC những gì thực sự có trong ảnh.",
+        "(vẽ bằng công cụ giống MS Paint) hoặc các trang bài làm dạng PDF/ảnh chụp (nhiều trang xếp từ trên xuống, ngăn cách bằng vạch xám mảnh)",
+        "và mô tả lại CHÍNH XÁC những gì thực sự có trong ảnh. Với nhiều trang, chép theo thứ tự từ trên xuống.",
         "",
         "QUY TẮC:",
         "- KHÔNG chấm điểm, KHÔNG nhận xét đúng/sai, KHÔNG giải đề thay sinh viên.",
