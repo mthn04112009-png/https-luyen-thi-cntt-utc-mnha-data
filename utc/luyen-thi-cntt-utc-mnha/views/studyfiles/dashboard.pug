@@ -17,6 +17,10 @@ block content
                 | Up #{app.noun}
 
         form(action=(app.base + "/dashboard"), method="GET", class="mb-6 flex flex-col sm:flex-row gap-3")
+            select(name="subject", data-subject-picker, class="px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500")
+                option(value="") Tất cả môn học
+                each s in subjects
+                    option(value=String(s._id), selected=(filters && filters.subject === String(s._id)))= s.name
             div(class="relative flex-1")
                 i(data-lucide="search", class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none")
                 input(
@@ -27,10 +31,6 @@ block content
                     autocomplete="off",
                     class="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                 )
-            select(name="subject", class="px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500")
-                option(value="") Tất cả môn học
-                each s in subjects
-                    option(value=String(s._id), selected=(filters && filters.subject === String(s._id)))= s.name
             button(type="submit", class="px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800") Lọc
             if filters && (filters.q || filters.subject)
                 a(href=(app.base + "/dashboard"), class="px-4 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 text-center") Xoá lọc
