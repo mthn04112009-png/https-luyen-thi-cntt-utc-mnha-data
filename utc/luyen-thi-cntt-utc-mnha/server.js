@@ -1,4 +1,5 @@
-require("dotenv").config();
+// Chạy local: .env THẮNG biến môi trường hệ thống (tránh GITHUB_TOKEN cũ đặt trong Windows đè lên .env). Vercel/production: giữ biến của nền tảng.
+require("dotenv").config({ override: !process.env.VERCEL && process.env.NODE_ENV !== "production" });
 
 // ★ Đếm MỌI dữ liệu đi/đến web này (GitHub, Cloudinary, AI…) cho trang /connect — phải cài TRƯỚC khi require thư viện khác.
 require("./services/connect/outbound").install();
@@ -965,6 +966,8 @@ async function startServer() {
                 console.log("  Status: ONLINE");
                 console.log("==============================================");
                 console.log("");
+                // Cho biết token GitHub có được nhận không + quota còn lại (GET /rate_limit không tốn quota)
+                try { require("./utils/githubErrors").logAuthStatus(require("./config/github").octokit); } catch (_) { /* bỏ qua */ }
             });
 
             server.on("error", (error) => {

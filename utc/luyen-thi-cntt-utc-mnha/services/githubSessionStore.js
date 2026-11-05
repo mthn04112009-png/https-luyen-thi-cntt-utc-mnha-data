@@ -27,6 +27,7 @@
 const session = require('express-session');
 const githubService = require('./githubService');
 const cookieCrypto = require('./cookieCryptoService');
+const githubErrors = require('../utils/githubErrors');
 
 const COOKIES_PATH = 'cookies/index.json';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -119,14 +120,29 @@ class GithubSessionStore extends session.Store {
 
         this._loading = (async () => {
             try {
+                // GitHub đang chặn (abuse/rate limit) → KHÔNG gọi ra mạng (gọi dồn chỉ bị chặn lâu hơn)
+                if (githubErrors.rateLimitRemainingMs() > 0) {
+                    const ce = new Error('GitHub đang hạ nhiệt (rate limit)');
+                    ce.status = 403; ce.isGithub = true; ce.isCooldown = true;
+                    throw ce;
+                }
                 const cur = await githubService.readJsonFileWithSha(this.path);
                 const sessions = extractSessions(cur && cur.data);
                 this._cache = { at: Date.now(), sessions };
                 return sessions;
             } catch (e) {
                 if (this._cache) {   // GitHub lỗi tạm thời → dùng bản RAM cũ, thử lại sau ~2 giây
-                    console.warn(`[sessionStore] đọc GitHub lỗi, dùng bản RAM cũ: ${e.message}`);
-                    this._cache.at = Date.now() - this.readTtlMs + 2000;
+                    if (!e.isCooldown) console.warn(`[sessionStore] đọc GitHub lỗi, dùng bản RAM cũ: ${e.message}`);
+                    const retryIn = e.isCooldown ? Math.min(Math.max(githubErrors.rateLimitRemainingMs(), 2000), 60000) : 2000;
+                    this._cache.at = Date.now() - this.readTtlMs + retryIn;
+                    return this._cache.sessions;
+                }
+                // Chưa có bản RAM nào (vừa khởi động lại) mà GitHub không dùng được: coi như CHƯA CÓ session (khách)
+                // thay vì ném lỗi → trang công khai vẫn mở được, không sập mọi request.
+                if (e.isCooldown || githubErrors.isGithubUnavailable(e, { assumeGithub: true })) {
+                    const retryIn = Math.min(Math.max(githubErrors.rateLimitRemainingMs(), 5000), 60000);
+                    console.warn(`[sessionStore] GitHub chưa dùng được (${e.message.split(' (')[0]}) → tạm coi như chưa đăng nhập, thử lại sau ~${Math.round(retryIn / 1000)}s`);
+                    this._cache = { at: Date.now() - this.readTtlMs + retryIn, sessions: {}, degraded: true };
                     return this._cache.sessions;
                 }
                 throw e;
@@ -163,7 +179,7 @@ class GithubSessionStore extends session.Store {
             const key = cookieCrypto.encryptSid(sid);
             // RAM mới tải và không có session này ⇒ khỏi tốn 1 commit
             const c = this._cache;
-            if (c && Date.now() - c.at < this.readTtlMs && !c.sessions[key] && !this._pending.sets.has(key)) return;
+            if (c && !c.degraded && Date.now() - c.at < this.readTtlMs && !c.sessions[key] && !this._pending.sets.has(key)) return;
             await this._enqueue({ dels: [key] });
         })().then(() => cb && cb(null), (err) => cb && cb(err));
     }
@@ -228,7 +244,7 @@ class GithubSessionStore extends session.Store {
                 this._cache = { at: Date.now(), sessions };
                 return;
             } catch (e) {
-                if (e.code !== 'SHA_CONFLICT') throw e;
+                if ((e.name === 'HttpError' || e.code !== 'SHA_CONFLICT')) throw e;
                 lastErr = e;   // instance khác vừa ghi → đọc lại, áp dụng lại, thử tiếp
                 await sleep(100 * attempt + Math.random() * 200);
             }

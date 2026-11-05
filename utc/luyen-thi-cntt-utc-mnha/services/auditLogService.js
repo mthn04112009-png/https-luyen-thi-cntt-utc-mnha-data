@@ -92,7 +92,7 @@ async function appendMany(entries, message) {
         try {
             await githubService.writeJsonFileIfSha(AUDIT_PATH, apply(null), null, message);
         } catch (e2) {
-            if (e2.code !== 'SHA_CONFLICT') throw e2;
+            if ((e2.name === 'HttpError' || e2.code !== 'SHA_CONFLICT')) throw e2;
             await githubService.updateJsonFile(AUDIT_PATH, apply, message);
         }
     }

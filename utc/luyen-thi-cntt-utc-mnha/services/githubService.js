@@ -577,11 +577,16 @@ function createClient(opt = {}) {
     const b = opt.branch || process.env.GITHUB_BRANCH || 'main';
     if (!r) throw new Error('createClient: thiếu repo');
     if (!tok || !o) throw new Error('createClient: thiếu token/owner để tạo client GitHub.');
+    const _to = Object.prototype.hasOwnProperty.call(opt, 'timeout') ? opt.timeout : (process.env.VERCEL ? 50000 : 120000);
     const octo = new Octokit({
         auth: tok,
         userAgent: 'luyen-thi-cntt/1.0.0',
-        request: { timeout: Object.prototype.hasOwnProperty.call(opt, 'timeout') ? opt.timeout : (process.env.VERCEL ? 50000 : 120000) }
+        request: {
+            timeout: _to,
+            fetch: require('../utils/githubErrors').octokitFetch(_to)
+        }   // KHÔNG đặt `headers` trong request (đè mất authorization); phiên bản API ép trong hook attachRateLimitGuard
     });
+    require('../utils/githubErrors').attachRateLimitGuard(octo);   // dùng chung bộ hạ nhiệt với client chính
     return buildClient({ octokit: octo, owner: o, repo: r, branch: b, isConfigured: true });
 }
 

@@ -500,7 +500,7 @@ exports.update = async (req, res) => {
         await rec.save();
         return res.json({ success: true, id: String(rec._id), redirect: '/flashcards/dashboard' });
     } catch (e) {
-        if (e && e.code === 'SHA_CONFLICT') return fail(res, 409, 'Bộ flashcard đã bị người khác sửa. Hãy tải lại trang.');
+        if (e && (e.name !== 'HttpError' && e.code === 'SHA_CONFLICT')) return fail(res, 409, 'Bộ flashcard đã bị người khác sửa. Hãy tải lại trang.');
         console.error('[flashcards.update]', e);
         return fail(res, 500, 'Lỗi máy chủ khi lưu flashcard.');
     }

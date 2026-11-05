@@ -17,6 +17,7 @@
 // - Sửa trên web (/admin/ai-keys/Supplier) → ghi GitHub bằng khoá SHA (không ghi đè thay đổi của nơi khác).
 // ============================================================
 const githubService = require('./githubService');
+const githubErrors = require('../utils/githubErrors');
 const seed = require('../config/aiProviderSeed');
 
 const AI_DB_PATH = 'AI-database/index.json';
@@ -294,8 +295,10 @@ async function load() {
             return state.doc;
         } catch (e) {
             state.lastError = e.message;
-            state.loadedAt = Date.now() - CACHE_TTL_MS + ERROR_RETRY_MS;   // thử lại sau ~15s, đang dùng bản RAM cũ
-            console.warn(`⚠️ [aiProviderService] không đọc được ${AI_DB_PATH}: ${e.message} — dùng bản đang có (${state.source}).`);
+            // GitHub đang chặn (hạ nhiệt) → KHÔNG thử lại mỗi 15s (chỉ spam log); chờ hết hạ nhiệt rồi mới đọc lại
+            const coolMs = githubErrors.rateLimitRemainingMs();
+            state.loadedAt = Date.now() - CACHE_TTL_MS + Math.max(ERROR_RETRY_MS, coolMs > 0 ? coolMs + 1000 : 0);   // thử lại sau ~15s (hoặc sau hạ nhiệt), đang dùng bản RAM cũ
+            if (!e.isCooldown) console.warn(`⚠️ [aiProviderService] không đọc được ${AI_DB_PATH}: ${e.message} — dùng bản đang có (${state.source}).`);
             return state.doc;
         } finally {
             loading = null;
@@ -343,7 +346,7 @@ async function mutate(mutator, message) {
             return clean;
         } catch (e) {
             lastErr = e;
-            if (e.code === 'SHA_CONFLICT' && i < 2) continue;
+            if ((e.name !== 'HttpError' && e.code === 'SHA_CONFLICT') && i < 2) continue;
             throw e;
         }
     }

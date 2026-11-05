@@ -225,7 +225,7 @@ async function archive() {
                     done = true;
                 } catch (e) {
                     last = e;
-                    if (e.code !== 'SHA_CONFLICT') break;
+                    if ((e.name === 'HttpError' || e.code !== 'SHA_CONFLICT')) break;
                     await new Promise((ok) => setTimeout(ok, 200 * (attempt + 1)));
                 }
             }

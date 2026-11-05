@@ -243,7 +243,7 @@ async function writeMerge({ upsert, removeId }) {
             return;
         } catch (e) {
             lastErr = e;
-            if (e.code === 'SHA_CONFLICT' && i < MAX_WRITE_TRIES - 1) continue;
+            if ((e.name !== 'HttpError' && e.code === 'SHA_CONFLICT') && i < MAX_WRITE_TRIES - 1) continue;
             throw e;
         }
     }

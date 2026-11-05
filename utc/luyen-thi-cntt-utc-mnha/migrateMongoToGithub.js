@@ -961,7 +961,7 @@ async function processSessionsBatch(docs) {
             st.written += added;
             console.log(`   ✅ Đã ghi ${PATH} (sha ${String(res.sha).slice(0, 7)}), tổng ${doc.total} session.`);
         } catch (e) {
-            if (e.code === 'SHA_CONFLICT' && attempt < 3) {
+            if ((e.name !== 'HttpError' && e.code === 'SHA_CONFLICT') && attempt < 3) {
                 console.warn('   ⚠️  File vừa bị thay đổi (server đang ghi session) → đọc lại và thử lần nữa…');
                 st.written = 0;
                 continue;

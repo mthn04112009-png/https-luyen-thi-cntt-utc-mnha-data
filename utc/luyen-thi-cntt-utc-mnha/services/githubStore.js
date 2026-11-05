@@ -43,7 +43,10 @@ function gh() {
 const HEAD_CHECK_MS = Number(process.env.GITHUB_HEAD_CHECK_MS || 5000);
 const DELETE_GRACE_MS = 30 * 1000;   // không xoá bản ghi vừa tạo/sửa trong khoảng này
 const GRAPHQL_BATCH = 40;
-const CONCURRENCY = 5;
+const CONCURRENCY = Number(process.env.GITHUB_REST_CONCURRENCY || 3);
+const GRAPHQL_GAP_MS = Number(process.env.GITHUB_GRAPHQL_GAP_MS || 200);   // nghỉ giữa 2 đợt GraphQL để không bị GitHub coi là gọi dồn
+const githubErrors = require('../utils/githubErrors');
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 const STRICTNESS = ['lenient', 'normal', 'strict', 'very_strict'];
 const SCOPES = ['global', 'subject', 'lesson'];
@@ -478,8 +481,13 @@ async function readMany(paths) {
     gh();
     const out = new Map(); // path → { data, sha } | null
     const rest = [];
+    // Bị GitHub chặn (abuse/rate limit) → DỪNG đọc ngay, không dồn xuống REST từng file (làm bị chặn lâu hơn).
+    // File chưa đọc được để trống → coi là "đọc hụt", lần đồng bộ sau (khi hết hạ nhiệt) sẽ đọc tiếp.
+    let limited = false;
 
     for (let i = 0; i < paths.length; i += GRAPHQL_BATCH) {
+        if (limited || githubErrors.rateLimitRemainingMs() > 0) { limited = true; break; }
+        if (i > 0) await sleep(GRAPHQL_GAP_MS);
         const chunk = paths.slice(i, i + GRAPHQL_BATCH);
         const fields = chunk.map((p, j) =>
             `f${j}: object(expression: ${JSON.stringify(`${cfg.branch}:${p}`)}) { ... on Blob { oid text isTruncated } }`).join('\n');
@@ -499,6 +507,11 @@ async function readMany(paths) {
                 });
                 done = true;
             } catch (e) {
+                if (githubErrors.isRateLimitError(e)) {
+                    console.warn(`[githubStore] GitHub đang chặn tạm thời (${e.message}) → dừng đọc, sẽ đọc tiếp khi hết thời gian chờ.`);
+                    limited = true;
+                    break;
+                }
                 if (attempt === 0) { await new Promise((ok) => setTimeout(ok, 400)); continue; }
                 console.warn(`[githubStore] GraphQL lỗi (${e.message}) → đọc từng file qua REST.`);
                 rest.push(...chunk.filter((p) => !out.has(p) && !rest.includes(p)));
@@ -507,9 +520,11 @@ async function readMany(paths) {
     }
 
     await pool(rest, CONCURRENCY, async (p) => {
+        if (limited || githubErrors.rateLimitRemainingMs() > 0) { limited = true; return; }
         try {
             out.set(p, await githubService.readJsonFileWithSha(p));
         } catch (e) {
+            if (githubErrors.isRateLimitError(e)) { limited = true; return; }
             // Lỗi mạng/GitHub tạm thời: KHÔNG làm hỏng cả đợt đồng bộ; đánh dấu để đọc lại ở lần kiểm tra kế
             console.warn(`[githubStore] Không đọc được ${p}: ${e.message}`);
             out.set(p, undefined);
@@ -663,8 +678,10 @@ async function syncFromTree({ force = false } = {}) {
     }
     S.headSha = headBefore;     // đầu nhánh đã thấy TRƯỚC khi lấy cây (null → lần kiểm tra kế sẽ đồng bộ lại cho chắc)
     // đọc hụt → thử lại tối đa 6 lần liên tiếp (tránh vòng lặp vô hạn với file hỏng thật sự)
-    S.retryCount = incomplete ? (S.retryCount || 0) + 1 : 0;
-    S.needRetry = incomplete && S.retryCount <= 6;
+    // Đọc hụt do GitHub đang chặn (hạ nhiệt) KHÔNG tính vào số lần thử (không phải file hỏng) → hết chờ sẽ đọc tiếp
+    const limited = githubErrors.rateLimitRemainingMs() > 0;
+    S.retryCount = !incomplete ? 0 : (limited ? (S.retryCount || 0) : (S.retryCount || 0) + 1);
+    S.needRetry = incomplete && (limited || S.retryCount <= 6);
     S.checkedAt = Date.now();
     return stats;
 }
@@ -692,6 +709,7 @@ async function ensureFresh({ force = false } = {}) {
     if (!githubService.isConfigured) return null;
     if (S.loading) return S.loading;
     if (!force && S.loaded && Date.now() - S.checkedAt < HEAD_CHECK_MS) return null;
+    if (S.loaded && githubErrors.rateLimitRemainingMs() > 0) return null;   // GitHub đang chặn → dùng dữ liệu RAM, không gọi thêm
 
     S.loading = (async () => {
         try {

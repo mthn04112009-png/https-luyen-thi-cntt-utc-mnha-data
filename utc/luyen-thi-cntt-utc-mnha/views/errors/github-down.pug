@@ -52,6 +52,9 @@ block content
                 | Hệ thống không đọc được dữ liệu từ GitHub (có thể GitHub đang bảo trì hoặc gián đoạn).
                 br
                 | Dữ liệu của bạn không bị mất, hãy thử lại sau ít phút.
+                if retryAfterSec
+                    br
+                    | GitHub đang giới hạn tốc độ — thử lại sau khoảng #{retryAfterSec >= 90 ? Math.ceil(retryAfterSec / 60) + ' phút' : retryAfterSec + ' giây'}.
 
             if detail
                 div(class="ghd-detail") Chi tiết (chỉ hiện ở môi trường phát triển): #{detail}

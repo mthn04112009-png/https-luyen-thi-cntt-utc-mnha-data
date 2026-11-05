@@ -752,7 +752,7 @@ function createController(app, Model) {
             // Legacy: JSON cũ còn pdfFile/pdfSize → bỏ đi cho gọn
             return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
         } catch (e) {
-            if (e && e.code === 'SHA_CONFLICT') return fail(res, 409, 'Đã bị người khác sửa. Hãy tải lại trang.');
+            if (e && (e.name !== 'HttpError' && e.code === 'SHA_CONFLICT')) return fail(res, 409, 'Đã bị người khác sửa. Hãy tải lại trang.');
             console.error(`[${app.key}.update]`, e);
             return fail(res, 500, 'Lỗi máy chủ khi lưu.');
         }

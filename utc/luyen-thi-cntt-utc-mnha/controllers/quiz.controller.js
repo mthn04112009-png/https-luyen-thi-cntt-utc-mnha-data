@@ -37,7 +37,7 @@ const A = {
     try {
       return await githubService.writeJsonFileIfSha(path, data, sha, 'Quiz: ' + path);
     } catch (e) {
-      if (e && e.code === 'SHA_CONFLICT') e.status = 409;
+      if (e && (e.name !== 'HttpError' && e.code === 'SHA_CONFLICT')) e.status = 409;
       throw e;
     }
   },

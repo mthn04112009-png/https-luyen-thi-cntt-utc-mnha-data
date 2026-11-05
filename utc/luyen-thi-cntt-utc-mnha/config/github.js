@@ -20,12 +20,15 @@ if (!owner || !repo) {
 const octokit = new Octokit({
     auth: token || undefined,
     userAgent: 'luyen-thi-cntt-utc/1.0.0',
-    request: { timeout: 20000 }
+    // ⚠️ KHÔNG đặt `headers` trong `request`: Octokit gộp options.request ĐÈ lên header thật → mất `authorization` (request đi ra như chưa đăng nhập → 60 req/giờ, 401).
+    //    Phiên bản API được ép trong hook (utils/githubErrors.js).
+    request: { timeout: 20000, fetch: require('../utils/githubErrors').octokitFetch(20000) }
 });
 
 // ★ Theo dõi GitHub sập/bảo trì: request lỗi → noteFailure, thành công → noteSuccess
 //   (xem utils/githubErrors.js + middleware/githubDownGuard.js)
 const githubHealth = require('../utils/githubErrors');
+githubHealth.attachRateLimitGuard(octokit);   // bị GitHub chặn (abuse) → tự dừng gọi một lúc thay vì gọi dồn thêm
 octokit.hook.error('request', async (error) => {
     githubHealth.noteFailure(error);
     throw error;

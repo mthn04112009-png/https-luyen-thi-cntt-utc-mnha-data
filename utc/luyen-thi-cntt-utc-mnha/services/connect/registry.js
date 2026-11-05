@@ -57,7 +57,7 @@ async function mutate(fn, message = 'connect: cập nhật sổ web kết nối'
             return next;
         } catch (e) {
             last = e;
-            if (e.code !== 'SHA_CONFLICT') throw e;
+            if ((e.name === 'HttpError' || e.code !== 'SHA_CONFLICT')) throw e;
             await new Promise((ok) => setTimeout(ok, 250 * (attempt + 1)));
         }
     }

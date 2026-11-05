@@ -223,7 +223,7 @@ function createPool(deps) {
                     await base().writeJsonFileIfSha(INDEX_PATH(), d, cur ? cur.sha : null, 'github: tạo repo ' + name);
                 } catch (e) {
                     last = e;
-                    if (e.code !== 'SHA_CONFLICT') throw e;
+                    if ((e.name === 'HttpError' || e.code !== 'SHA_CONFLICT')) throw e;
                     await new Promise((ok) => setTimeout(ok, 200 * (attempt + 1)));
                     continue;
                 }
