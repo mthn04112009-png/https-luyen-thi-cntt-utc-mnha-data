@@ -8,6 +8,15 @@
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/connect/usage-archive",
+      "schedule": "5 0 * * *"
+    }
   ]
 }

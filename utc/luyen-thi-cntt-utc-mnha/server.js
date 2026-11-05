@@ -171,6 +171,10 @@ app.set("views", path.join(__dirname, "views"));
 //   và gắn res.locals.servedBy = web nào đang phục vụ (hiện cho mọi người dùng ở layout).
 app.use(require("./services/connect/usage").middleware());
 
+// ★ Chốt ngày: gộp số đếm đã qua ở MongoDB vào GitHub rồi xoá ở MongoDB (Vercel Cron gọi mỗi ngày — xem vercel.json).
+//   Không cần biến môi trường mới; nếu muốn khoá lại thì đặt CRON_SECRET trên Vercel (Vercel tự gửi kèm Bearer).
+app.get("/api/connect/usage-archive", require("./services/connect/usage").archiveHandler);
+
 app.use(cors());
 app.use(morgan("dev"));
 app.use(cookieParser());

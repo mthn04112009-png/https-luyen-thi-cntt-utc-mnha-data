@@ -13,6 +13,14 @@
 //         nodes:{ "<id>": { days:{ "YYYY-MM-DD":{in,out,originIn,originOut,req} }, updatedAt } } }
 //   N = số thứ tự tuần tính từ tuần chứa CONNECT_USAGE_EPOCH (mặc định 2026-01-05 = tuần 1).
 //   File cũ v-s/usage.json (bản trước) vẫn được ĐỌC và cộng vào, nhưng không ghi thêm.
+//
+//   ★ CÁCH GHI (để không commit GitHub liên tục, tránh bị khoá):
+//       1. Trong ngày: số đếm chỉ được $inc vào MongoDB (collection connect_usage_days_luyen_thi — RIÊNG cho dự án này, mỗi web × mỗi ngày 1 dòng).
+//          Không có commit GitHub nào trong ngày.
+//       2. Sau 00:00 UTC (Vercel Cron 00:05 hoặc request đầu tiên của ngày mới): archive() lấy các ngày đã qua ở MongoDB,
+//          CỘNG vào file tuần trên GitHub (GitHub + MongoDB = GitHub, 1 commit / tuần có dữ liệu), rồi TRỪ đúng số đã ghi
+//          và XOÁ dòng đó ở MongoDB.
+//       3. Trang /connect đọc: file tuần GitHub (ngày đã chốt) + MongoDB (hôm nay / ngày chưa chốt) → số luôn đủ.
 'use strict';
 const registry = require('./registry');
 
@@ -85,7 +93,6 @@ const KEYS = ['in', 'out', 'originIn', 'originOut', 'req'];
 const pending = { in: 0, out: 0, originIn: 0, originOut: 0, req: 0 };
 let timer = null;
 let flushing = null;
-let inFlush = false;   // đang tự ghi chính file lưu lượng → byte origin của lần ghi này KHÔNG được hẹn flush tiếp (tránh vòng lặp commit vô tận)
 let lastError = null;
 let lastFlushAt = 0;   // lần cuối ghi thành công (theo instance)
 
@@ -99,7 +106,7 @@ function note({ in: bytesIn = 0, out: bytesOut = 0, req = 0 } = {}) {
 function noteOrigin({ in: read = 0, out: write = 0 } = {}) {
     pending.originIn += Math.max(0, Number(read) || 0);
     pending.originOut += Math.max(0, Number(write) || 0);
-    if (!inFlush) schedule();
+    schedule();
 }
 function hasPending() { return KEYS.some((k) => pending[k] > 0); }
 function schedule() {
@@ -110,7 +117,7 @@ function schedule() {
 
 const empty = () => ({ in: 0, out: 0, originIn: 0, originOut: 0, req: 0 });
 function add(a, b) {
-    for (const k of KEYS) a[k] += Number(b && b[k]) || 0;
+    for (const k of KEYS) a[k] = (Number(a[k]) || 0) + (Number(b && b[k]) || 0);
     return a;
 }
 
@@ -120,46 +127,151 @@ function normalize(raw) {
     return d;
 }
 
-/** Ghi bộ đếm đang giữ vào file của TUẦN hôm nay. force=false: bỏ qua nếu chưa có gì / vừa ghi xong. */
+// ---------------------------------------------------------------- MONGODB (lưu tạm trong ngày)
+const COLL = () => process.env.CONNECT_USAGE_MONGO_COLLECTION || 'connect_usage_days_luyen_thi';
+const META = () => process.env.CONNECT_USAGE_MONGO_META || 'connect_usage_meta_luyen_thi';
+const LOCK_MS = 2 * 60 * 1000;
+const ARCHIVE_CHECK_MS = Number(process.env.CONNECT_USAGE_ARCHIVE_CHECK_MS) > 0 ? Number(process.env.CONNECT_USAGE_ARCHIVE_CHECK_MS) : 10 * 60 * 1000;
+const mongo = () => require('mongoose');
+const mongoReady = () => { try { return mongo().connection.readyState === 1; } catch (_) { return false; } };
+const col = () => mongo().connection.collection(COLL());
+const metaCol = () => mongo().connection.collection(META());
+
+/** Ghi bộ đếm đang giữ vào MongoDB (dòng "<web>|<ngày>", $inc nguyên tử → nhiều instance ghi cùng lúc vẫn đúng). KHÔNG đụng GitHub. */
 async function flush({ force = false } = {}) {
     if (!force && !hasPending()) return { skipped: true };
     if (flushing) return flushing;
     flushing = (async () => {
-        inFlush = true;
         const snapshot = { ...pending };
-        const id = nodeId(), today = day();
-        const no = weekNo(Date.now()), file = weekPath(no);
-        const start = weekStartOf(no);
-        const gh = require('../githubService');
-        let last = null;
-        for (let attempt = 0; attempt < 6; attempt++) {
-            const cur = await gh.readJsonFileWithSha(file);
-            const d = normalize(cur ? cur.data : {});
-            d.v = 2; d.week = no; d.from = isoDay(start); d.to = isoDay(start + 6 * DAY_MS);
-            const n = d.nodes[id] || (d.nodes[id] = { days: {} });
-            if (!n.days) n.days = {};
-            const row = n.days[today] || (n.days[today] = empty());
-            for (const k of KEYS) row[k] = (Number(row[k]) || 0) + snapshot[k];
-            n.updatedAt = new Date().toISOString();
-            d.updatedAt = n.updatedAt;
-            try {
-                await gh.writeJsonFileIfSha(file, d, cur ? cur.sha : null, 'connect: lưu lượng tuần ' + no + ' · ' + id);
-                for (const k of KEYS) pending[k] -= snapshot[k];
-                lastError = null;
-                lastFlushAt = Date.now();
-                _weekCache.delete(no);
-                return { ok: true, id, week: no, file, day: today, row };
-            } catch (e) {
-                last = e;
-                if (e.code !== 'SHA_CONFLICT') break;
-                await new Promise((ok) => setTimeout(ok, 200 * (attempt + 1)));
-            }
+        if (!KEYS.some((k) => snapshot[k] > 0)) return { skipped: true };
+        if (!mongoReady()) {            // chưa kết nối → giữ số đếm trong RAM, lần sau ghi tiếp (không chặn request)
+            lastError = 'MongoDB chưa kết nối — giữ số đếm trong RAM';
+            return { ok: false, error: lastError };
         }
-        lastError = last ? last.message : 'không ghi được';
-        console.warn('[connect/usage]', lastError);
-        return { ok: false, error: lastError };
-    })().finally(() => { flushing = null; inFlush = false; });
+        const id = nodeId(), today = day();
+        try {
+            const inc = {};
+            for (const k of KEYS) inc[k] = snapshot[k];
+            await col().updateOne(
+                { _id: id + '|' + today },
+                { $inc: inc, $set: { node: id, day: today, updatedAt: new Date() } },
+                { upsert: true }
+            );
+            for (const k of KEYS) pending[k] -= snapshot[k];
+            lastError = null;
+            lastFlushAt = Date.now();
+            return { ok: true, id, day: today, storage: 'mongodb' };
+        } catch (e) {
+            lastError = e.message || 'không ghi được MongoDB';
+            console.warn('[connect/usage]', lastError);
+            return { ok: false, error: lastError };
+        }
+    })().finally(() => { flushing = null; });
     return flushing;
+}
+
+// ---------------------------------------------------------------- CHỐT NGÀY: MongoDB → GitHub
+/** Có ngày đã qua còn nằm ở MongoDB không? (1 query nhẹ) */
+async function hasEndedDays() {
+    if (!mongoReady()) return false;
+    const r = await col().findOne({ day: { $lt: day() } }, { projection: { _id: 1 } });
+    return !!r;
+}
+
+/**
+ * Cộng các ngày ĐÃ QUA ở MongoDB vào file tuần GitHub rồi xoá ở MongoDB.
+ *  - Khoá trong MongoDB: chỉ 1 instance chạy cùng lúc.
+ *  - Mỗi tuần có dữ liệu = 1 commit (thường chỉ 1 commit / ngày cho cả web chính lẫn các web dữ liệu dùng chung Mongo).
+ *  - Sau khi GitHub ghi xong mới TRỪ đúng số đã ghi ($inc âm) rồi xoá dòng đã về 0 → số đếm đến muộn không bị mất / không bị cộng đôi.
+ */
+async function archive() {
+    if (!mongoReady()) return { ok: false, error: 'MongoDB chưa kết nối' };
+    const meta = metaCol(), coll = col();
+    const now = Date.now();
+    try {
+        await meta.updateOne({ _id: 'archive', until: { $lt: now } }, { $set: { until: now + LOCK_MS, at: new Date() } }, { upsert: true });
+    } catch (e) {
+        if (e && e.code === 11000) return { skipped: 'đang có instance khác chốt ngày' };
+        throw e;
+    }
+    const result = { ok: true, weeks: [], archivedDocs: 0 };
+    try {
+        const docs = await coll.find({ day: { $lt: day() } }).toArray();
+        if (!docs.length) return result;
+        const byWeek = new Map();
+        for (const d of docs) {
+            const no = weekNo(Date.parse(d.day + 'T00:00:00Z'));
+            if (!byWeek.has(no)) byWeek.set(no, []);
+            byWeek.get(no).push(d);
+        }
+        const gh = require('../githubService');
+        for (const [no, list] of [...byWeek].sort((a, b) => a[0] - b[0])) {
+            const file = weekPath(no), start = weekStartOf(no);
+            let done = false, last = null;
+            for (let attempt = 0; attempt < 6 && !done; attempt++) {
+                const cur = await gh.readJsonFileWithSha(file);
+                const d = normalize(cur ? cur.data : {});
+                d.v = 2; d.week = no; d.from = isoDay(start); d.to = isoDay(start + 6 * DAY_MS);
+                const stamp = new Date().toISOString();
+                for (const doc of list) {
+                    const n = d.nodes[doc.node] || (d.nodes[doc.node] = { days: {} });
+                    if (!n.days) n.days = {};
+                    add(n.days[doc.day] || (n.days[doc.day] = empty()), doc);     // GitHub + MongoDB = GitHub
+                    n.updatedAt = stamp;
+                }
+                d.updatedAt = stamp;
+                try {
+                    await gh.writeJsonFileIfSha(file, d, cur ? cur.sha : null, 'connect: chốt lưu lượng tuần ' + no + ' (' + list.length + ' dòng ngày)');
+                    done = true;
+                } catch (e) {
+                    last = e;
+                    if (e.code !== 'SHA_CONFLICT') break;
+                    await new Promise((ok) => setTimeout(ok, 200 * (attempt + 1)));
+                }
+            }
+            if (!done) {
+                lastError = (last && last.message) || 'không ghi được GitHub';
+                console.warn('[connect/usage] archive tuần ' + no + ':', lastError);
+                result.ok = false; result.error = lastError;
+                continue;                                  // giữ nguyên ở MongoDB, lần sau thử lại
+            }
+            // GitHub đã có → trừ đúng số đã ghi rồi xoá dòng đã về 0 khỏi MongoDB.
+            await coll.bulkWrite(list.map((doc) => {
+                const dec = {};
+                for (const k of KEYS) dec[k] = -(Number(doc[k]) || 0);
+                return { updateOne: { filter: { _id: doc._id }, update: { $inc: dec } } };
+            }), { ordered: false });
+            await coll.deleteMany({ _id: { $in: list.map((x) => x._id) }, in: { $lte: 0 }, out: { $lte: 0 }, originIn: { $lte: 0 }, originOut: { $lte: 0 }, req: { $lte: 0 } });
+            _weekCache.delete(no);
+            result.weeks.push(no);
+            result.archivedDocs += list.length;
+        }
+        return result;
+    } finally {
+        await meta.updateOne({ _id: 'archive' }, { $set: { until: 0 } }).catch(() => { /* lock tự hết hạn sau LOCK_MS */ });
+    }
+}
+
+let lastArchiveCheck = 0;
+/** Dự phòng khi Cron chưa chạy: request đầu tiên của ngày mới tự chốt ngày cũ (nền, không chặn response). */
+function lazyArchive() {
+    if (Date.now() - lastArchiveCheck < ARCHIVE_CHECK_MS) return;
+    lastArchiveCheck = Date.now();
+    if (!mongoReady()) return;
+    const p = hasEndedDays().then((yes) => (yes ? archive() : null)).catch((e) => console.warn('[connect/usage] lazyArchive:', e.message));
+    if (ON_VERCEL()) keepAlive(p);
+}
+
+/** Express handler cho Vercel Cron (GET /api/connect/usage-archive). Nếu có CRON_SECRET thì bắt buộc đúng Bearer. */
+async function archiveHandler(req, res) {
+    const secret = process.env.CRON_SECRET;
+    if (secret && req.headers.authorization !== 'Bearer ' + secret) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    try {
+        await flush().catch(() => { /* đã log */ });
+        res.json(await archive());
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
 }
 
 // ---------------------------------------------------------------- ĐỌC (gộp file tuần + file cũ)
@@ -195,6 +307,17 @@ async function loadNodes(nos) {
     merge(await readLegacy());
     const docs = await Promise.all([...new Set(nos)].map((n) => readWeek(n)));
     docs.forEach(merge);
+    // MongoDB: các ngày CHƯA chốt sang GitHub (hôm nay, hoặc ngày qua mà chưa tới lượt chốt).
+    if (mongoReady() && nos.length) {
+        const from = isoDay(weekStartOf(Math.min(...nos))), to = isoDay(weekStartOf(Math.max(...nos)) + 6 * DAY_MS);
+        const rows = await col().find({ day: { $gte: from, $lte: to } }).toArray().catch(() => []);
+        for (const r of rows) {
+            const o = out[r.node] || (out[r.node] = { days: {}, updatedAt: null });
+            add(o.days[r.day] || (o.days[r.day] = empty()), r);
+            const u = r.updatedAt ? new Date(r.updatedAt).toISOString() : null;
+            if (u && (!o.updatedAt || u > o.updatedAt)) o.updatedAt = u;
+        }
+    }
     return out;
 }
 
@@ -267,12 +390,12 @@ async function historyAll(ids, { week = 0 } = {}) {
 }
 async function history(id, opts) { return (await historyAll([id], opts))[id]; }
 
-// ---------------------------------------------------------------- GHI TRÊN SERVERLESS
+// ---------------------------------------------------------------- GHI TRÊN SERVERLESS (ghi vào MongoDB — rẻ, không commit)
 // Vercel đóng băng/huỷ instance ngay khi response xong → setTimeout 45s KHÔNG BAO GIỜ chạy và bộ đếm trong RAM
 // mất sạch. Vì vậy trên Vercel phải ghi NGAY trong vòng đời request: ưu tiên waitUntil (chạy nền nhưng
 // Vercel đợi xong mới đóng băng); không có waitUntil thì đợi flush xong rồi mới kết thúc response.
 const ON_VERCEL = () => !!process.env.VERCEL;
-const FLUSH_EVERY_MS = Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) > 0 ? Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) : 10 * 1000;
+const FLUSH_EVERY_MS = Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) > 0 ? Number(process.env.CONNECT_USAGE_FLUSH_EVERY_MS) : 5 * 1000;
 const FLUSH_BYTES = Number(process.env.CONNECT_USAGE_FLUSH_BYTES) > 0 ? Number(process.env.CONNECT_USAGE_FLUSH_BYTES) : 4 * 1024 * 1024;
 
 function pendingBytes() { return pending.in + pending.out + pending.originIn + pending.originOut; }
@@ -296,6 +419,7 @@ function middleware() {
         const me = selfInfo();
         try { res.setHeader('X-Served-By', me.id); } catch (_) { /* header đã gửi */ }
         res.locals.servedBy = me;
+        try { lazyArchive(); } catch (_) { /* không ảnh hưởng request */ }
 
         const sock = req.socket;
         const r0 = sock ? Number(sock.bytesRead) || 0 : 0;
@@ -350,5 +474,5 @@ const bytesToGb = (n) => Math.round((Number(n) || 0) / (1024 ** 3) * 100) / 100;
 
 module.exports = {
     note, noteOrigin, schedule, flush, snapshot, snapshotAll, history, historyAll, buildWeek, clampWeek,
-    middleware, formatBytes, bytesToGb, nodeId, selfInfo, FILE, DIR, weekPath, weekNo, hasPending
+    middleware, archive, archiveHandler, hasEndedDays, formatBytes, bytesToGb, nodeId, selfInfo, FILE, DIR, weekPath, weekNo, hasPending
 };
