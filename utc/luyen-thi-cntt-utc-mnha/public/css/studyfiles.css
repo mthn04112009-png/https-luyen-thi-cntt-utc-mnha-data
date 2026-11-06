@@ -56,7 +56,10 @@
 .sl-pagebox .sl-pn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: .8rem; color: #9ca3af; pointer-events: none; }
 
 /* Trình chiếu PPTX */
-.pp-stage { background: #0b1020; cursor: pointer; padding: 0; overflow: hidden; }
+.pp-stage { background: #0b1020; cursor: pointer; padding: 0; overflow: auto; scrollbar-width: none; }   /* zoom > 100% → cuộn/kéo; ẩn thanh cuộn để không làm đổi kích thước khung */
+.pp-stage::-webkit-scrollbar { display: none; }
+.pp-stage.zoomed { cursor: grab; }
+.pp-stage.zoomed.drag { cursor: grabbing; }
 .pp-container { position: relative; width: 100%; }
 .pp-sh { will-change: transform, opacity; }
 .pp-slide * { box-sizing: border-box; }

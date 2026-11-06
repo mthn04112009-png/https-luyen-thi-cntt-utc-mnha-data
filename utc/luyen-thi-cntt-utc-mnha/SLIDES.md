@@ -38,3 +38,22 @@ Vercel cắt request/response > 4.5MB nên PDF **không đi 1 lần**:
 - Không cần `npm install` thêm gói nào. PDF.js nạp từ `cdnjs.cloudflare.com` (như Tailwind/Lucide đang dùng CDN).
 - Đảm bảo `ENCRYPTION_MASTER_KEY`, `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` có trong `.env.local` và trong Environment Variables của Vercel.
 - Test: `node test/slides.js`
+
+## Sửa lỗi hiệu ứng (2026-11-06) — `public/js/pptxPlayer.js`
+- **Fade (và mọi hiệu ứng có `opacity`: Zoom, Peek, Bounce, Blinds/Checker/… → fade) không mờ dần mà hiện ra tức thì.** Nguyên nhân: `el.animate(..., { composite: 'add' })` — với `opacity`, `add` CỘNG vào giá trị gốc (1 + 0…1 → luôn bị cắt về 1). Sửa: tách mỗi hiệu ứng entr/exit thành 2 animation: `transform` dùng `add`, `opacity`/`clipPath` dùng `replace`.
+- Exit-fade giờ mờ đi rồi mới ẩn (trước đây biến mất đột ngột).
+- Appear (presetID 1) ẩn đúng tới lúc bắt đầu (tôn trọng độ trễ) rồi hiện hẳn.
+- Đã kiểm trên Chromium thật với `error.pptx` (8 slide, 21–22 bước/slide, toàn Fade presetID 10 + auto-start ở slide 2) và các bản biến thể appear / fly / box / circle / diamond / peek / plus / wipe / zoom / split / stretch / bounce / blinds / exit-fade / exit-fly: mỗi bước hiện đúng phần tử, cuối slide không còn phần tử nào bị ẩn, không còn animation/style thừa.
+
+## PPTX tự đổi sang PDF khi up
+- Khi admin chọn `.pptx/.ppt` ở form Slide, `public/js/studyFileForm.js` gửi file tới dịch vụ Python `converter/server.py` (LibreOffice), nhận PDF về rồi up PDF như bình thường → trang xem dùng trình xem PDF (`pdfPageMode`).
+- Bật bằng biến môi trường của web: `PPTX_CONVERTER_URL` (vd `http://localhost:5001`) và tuỳ chọn `PPTX_CONVERTER_TOKEN`. Không đặt URL = up PPTX nguyên bản như cũ.
+- Vercel không có LibreOffice → chạy converter ở máy admin (`python converter/server.py`) hoặc dựng `converter/Dockerfile` lên Render/Railway/VPS.
+- Lỗi đổi (converter tắt, quá 5 phút…) → báo lỗi và không up gì.
+- Đổi tay một file: `python converter/pptx_to_pdf.py bai-giang.pptx`.
+- File `.pptx` đã up từ trước vẫn xem được bằng lõi tự viết `public/js/pptxPlayer.js` (có hiệu ứng/chuyển cảnh).
+
+## Zoom khi xem PPTX (lõi pptxPlayer.js)
+- Thanh công cụ có `− 100% +`; các mức: 50 · 75 · 100 · 115 · **135** · 150 · 175 · 200 · 300%. 100% = vừa khung. Bấm số % để về 100%.
+- Phím `+` / `-` / `0`, hoặc `Ctrl` + lăn chuột. Khi > 100%: lăn chuột để cuộn, kéo chuột (hoặc vuốt trên điện thoại) để di chuyển; bấm không kéo vẫn là "tiếp".
+- Mức zoom được nhớ (localStorage `slPptxZoom`) cho lần xem sau. API: `player.setZoom(1.35)`.

@@ -6,7 +6,7 @@
  *  2. Hiển thị theo loại:
  *     • documents (PDF)      → cuộn dọc liên tục như PDF thường, phóng to/nhỏ (nút, Ctrl+lăn chuột, chụm 2 ngón), đúng khổ ngang/dọc
  *     • slides + PDF         → từng trang như slide (◀ ▶, phím, vuốt, zoom, toàn màn hình)
- *     • slides + PPTX        → trình chiếu có CHUYỂN CẢNH + HIỆU ỨNG (js/pptxPlayer.js)
+ *     • slides + PPTX        → lõi tự viết js/pptxPlayer.js (khuyến nghị: đổi PPTX → PDF bằng converter/server.py khi up, form tự làm; file cũ vẫn xem bằng lõi này)
  *     • slides + PPT (cũ)    → không xem trực tiếp được trên trình duyệt: hướng dẫn tải xuống
  *  3. PDF.js / JSZip nạp từ cdnjs; PDF.js lỗi → dự phòng <iframe> của trình duyệt.
  *  Nút "Tải xuống": file > 4MB tải theo phần rồi lưu bằng Blob (qua được giới hạn Vercel).
@@ -23,7 +23,7 @@
         pdfjs: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VER + '/pdf.min.js',
         pdfjsWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VER + '/pdf.worker.min.js',
         jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-        pptx: '/js/pptxPlayer.js'
+        pptx: '/js/pptxPlayer.js'                                   // lõi dự phòng (tự viết)
     };
     // cho phép test ghi đè địa chỉ thư viện
     if (window.__STUDYFILE_URLS__) for (var k in window.__STUDYFILE_URLS__) URLS[k] = window.__STUDYFILE_URLS__[k];
@@ -530,6 +530,7 @@
     // ============================================================
     // 3) PPTX: trình chiếu
     // ============================================================
+    // PPTX: dùng lõi tự viết pptxPlayer.js. Muốn hiển thị chuẩn nhất → đổi sang PDF (form up Slide tự gọi converter/server.py).
     function pptxMode(bytes) {
         return Promise.all([loadScript(URLS.jszip, 'JSZip'), loadScript(URLS.pptx, 'PptxPlayer')]).then(function () {
             return window.PptxPlayer.load((bytes !== bytesCache && bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) ? bytes.buffer : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), window.JSZip);
@@ -542,7 +543,9 @@
             var pg = el('span', 'sl-page'); pg.appendChild(pageNo); pg.appendChild(document.createTextNode(' / ')); pg.appendChild(total);
             var stat = el('span', 'sl-stat'); stat.id = 'slStat';
             var play = btn('slFull', '▶ Trình chiếu', 'Trình chiếu toàn màn hình');
-            [prev, pg, next, sep()].forEach(function (x) { bar.appendChild(x); });
+            var zo = btn('slZoomOut', '−', 'Thu nhỏ (−)'), zr = btn('slZoomReset', '100%', 'Về vừa khung (0)'), zi = btn('slZoomIn', '+', 'Phóng to (+)');
+            var tdn = btn('slTextDown', 'A−', 'Chữ nhỏ lại'), tr0 = btn('slTextReset', '100%', 'Cỡ chữ vừa khung'), tup = btn('slTextUp', 'A+', 'Chữ to lên');
+            [prev, pg, next, sep(), tdn, tr0, tup, sep()].forEach(function (x) { bar.appendChild(x); });
             var hasAuto = deck.slides.some(function (s) { return s.transition && s.transition.advTm !== null && s.transition.advTm !== undefined; });
             var auto = null;
             if (hasAuto) { auto = btn('slAuto', '⏱ Tự chuyển', 'Tự chuyển slide theo thời gian đã cài trong file'); bar.appendChild(auto); bar.appendChild(sep()); }
@@ -555,10 +558,56 @@
                     stat.textContent = i.steps ? 'hiệu ứng ' + i.step + '/' + i.steps : '';
                 }
             });
-            player.show(0).then(function () { player.resize(); });
+            // Zoom: các mức cố định (có 135%); nhớ mức đã chọn cho lần xem sau
+            var ZOOMS = [0.5, 0.75, 1, 1.15, 1.35, 1.5, 1.75, 2, 3], ZKEY = 'slPptxZoom';
+            function nearest(z) { var b = 2; ZOOMS.forEach(function (v, i) { if (Math.abs(v - z) < Math.abs(ZOOMS[b] - z)) b = i; }); return b; }
+            var zi0 = 2;   // luôn vừa khung (không còn zoom; bỏ mức đã lưu cũ)
+            try { localStorage.removeItem(ZKEY); } catch (x) { /* bỏ qua */ }
+            function applyZoom(i) {
+                zi0 = Math.max(0, Math.min(ZOOMS.length - 1, i));
+                var z = ZOOMS[zi0];
+                player.setZoom(z);
+                zr.textContent = Math.round(z * 100) + '%';
+                stage.classList.toggle('zoomed', z > 1);
+                zo.disabled = zi0 === 0; zi.disabled = zi0 === ZOOMS.length - 1;
+                
+            }
+            // Cỡ chữ nội dung (tiêu đề giữ nguyên): 100% = vừa khung; A+ để chữ to hơn (khung tự cuộn dọc nếu dài)
+            var TS = [0.85, 1, 1.2, 1.5, 2], TKEY = 'slPptxText', ti = 1;
+            try { var tv = Number(localStorage.getItem(TKEY)); if (tv && TS.indexOf(tv) >= 0) ti = TS.indexOf(tv); } catch (x) { /* bỏ qua */ }
+            function applyText(i) {
+                ti = Math.max(0, Math.min(TS.length - 1, i));
+                player.setTextScale(TS[ti]);
+                tr0.textContent = Math.round(TS[ti] * 100) + '%';
+                tdn.disabled = ti === 0; tup.disabled = ti === TS.length - 1;
+                try { localStorage.setItem(TKEY, String(TS[ti])); } catch (x) { /* bỏ qua */ }
+            }
+            tdn.onclick = function (e) { e.stopPropagation(); applyText(ti - 1); };
+            tup.onclick = function (e) { e.stopPropagation(); applyText(ti + 1); };
+            tr0.onclick = function (e) { e.stopPropagation(); applyText(1); };
+            player.textScale = TS[ti]; tr0.textContent = Math.round(TS[ti] * 100) + '%'; tdn.disabled = ti === 0; tup.disabled = ti === TS.length - 1;
+            player.show(0).then(function () { player.resize(); applyZoom(zi0); stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2; });
+            zo.onclick = function (e) { e.stopPropagation(); applyZoom(zi0 - 1); };
+            zi.onclick = function (e) { e.stopPropagation(); applyZoom(zi0 + 1); };
+            zr.onclick = function (e) { e.stopPropagation(); applyZoom(2); };
+            stage.addEventListener('wheel', function (e) {
+                return;       // bỏ zoom bằng Ctrl + lăn chuột
+                e.preventDefault(); applyZoom(zi0 + (e.deltaY < 0 ? 1 : -1));
+            }, { passive: false });
+            // kéo để di chuyển khi đang zoom > 100% (nhả chuột không kéo thì vẫn là "tiếp")
+            var dragged = false, dx0 = 0, dy0 = 0, sl0 = 0, st0 = 0, down = false;
+            stage.addEventListener('mousedown', function (e) { if (e.button !== 0 || ZOOMS[zi0] <= 1) return; down = true; dragged = false; dx0 = e.clientX; dy0 = e.clientY; sl0 = stage.scrollLeft; st0 = stage.scrollTop; });
+            window.addEventListener('mousemove', function (e) {
+                if (!down) return;
+                var mx = e.clientX - dx0, my = e.clientY - dy0;
+                if (!dragged && Math.abs(mx) + Math.abs(my) < 5) return;
+                dragged = true; stage.classList.add('drag');
+                stage.scrollLeft = sl0 - mx; stage.scrollTop = st0 - my;
+            });
+            window.addEventListener('mouseup', function () { down = false; stage.classList.remove('drag'); });
             prev.onclick = function () { player.prev(); }; next.onclick = function () { player.next(); };
             pageNo.onchange = function () { player.goto(Number(pageNo.value) - 1); };
-            stage.addEventListener('click', function () { player.next(); });
+            stage.addEventListener('click', function () { if (dragged) { dragged = false; return; } player.next(); });
             play.onclick = function () { fullscreenToggle(pane); };
             if (auto) auto.onclick = function () { var on = !auto.classList.contains('on'); auto.classList.toggle('on', on); player.setAutoAdvance(on); };
             document.addEventListener('fullscreenchange', function () { setTimeout(function () { player.resize(); }, 150); });
@@ -567,12 +616,14 @@
                 if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); player.next(); }
                 else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Backspace') { e.preventDefault(); player.prev(); }
                 else if (e.key === 'Home') player.goto(0); else if (e.key === 'End') player.goto(deck.slides.length - 1);
+                
             });
             var tx = 0, ty = 0, tt = 0;
             stage.addEventListener('touchstart', function (e) { if (e.touches.length === 1) { tx = e.touches[0].clientX; ty = e.touches[0].clientY; tt = Date.now(); } }, { passive: true });
             stage.addEventListener('touchend', function (e) {
                 if (!e.changedTouches.length) return;
                 var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+                if (ZOOMS[zi0] > 1) return;
                 if (Date.now() - tt < 600 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { e.preventDefault(); dx < 0 ? player.next() : player.prev(); }
             }, { passive: false });
             window.__pptxPlayer = player;      // phục vụ test

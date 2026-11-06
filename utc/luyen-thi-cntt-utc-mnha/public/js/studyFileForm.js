@@ -78,6 +78,7 @@
         var ext = extOf(f.name);
         if (S.exts.indexOf(ext) === -1) { els.info.textContent = '❌ Chỉ nhận ' + extList + '.'; els.file.value = ''; return; }
         if (f.size > S.maxBytes) { els.info.textContent = '❌ File ' + mbText(f.size) + ' vượt giới hạn ' + mbText(S.maxBytes) + '.'; els.file.value = ''; return; }
+        if (wantsConvert(ext)) { els.info.textContent = f.name + ' — ' + mbText(f.size) + ' → sẽ tự đổi sang PDF rồi mới up.'; return; }
         var n = groupFrames(frameSizes(f.size, S), S).length;
         els.info.textContent = f.name + ' — ' + mbText(f.size) + (n > 1 ? ' → sẽ lưu thành ' + n + ' file (-1 … -' + n + ')' : '');
     });
@@ -166,6 +167,33 @@
         });
     }
 
+    // ------------------------------------------------------------
+    // PPTX/PPT → PDF tự động (qua dịch vụ Python converter/server.py) rồi up PDF như bình thường.
+    // Chỉ chạy khi: server đặt PPTX_CONVERTER_URL, mục này nhận PDF, và file chọn là .pptx/.ppt.
+    // ------------------------------------------------------------
+    function wantsConvert(ext) {
+        return !!S.converterUrl && (ext === 'pptx' || ext === 'ppt') && S.exts.indexOf('pdf') !== -1;
+    }
+    function convertToPdf(file) {
+        var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 300000);
+        var headers = { 'Content-Type': 'application/octet-stream' };
+        if (S.converterToken) headers['X-Converter-Token'] = S.converterToken;
+        return fetch(S.converterUrl.replace(/\/+$/, '') + '/convert?name=' + encodeURIComponent(file.name), {
+            method: 'POST', headers: headers, body: file, signal: ctl.signal
+        }).then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(t && t.length < 300 ? t : 'Dịch vụ đổi PDF trả HTTP ' + r.status); });
+            return r.blob();
+        }).then(function (blob) {
+            clearTimeout(timer);
+            if (!blob.size) throw new Error('PDF rỗng.');
+            return new File([blob], file.name.replace(/\.[a-z0-9]+$/i, '') + '.pdf', { type: 'application/pdf' });
+        }).catch(function (e) {
+            clearTimeout(timer);
+            var m = e && e.name === 'AbortError' ? 'quá 5 phút' : (e && e.message === 'Failed to fetch' ? 'không kết nối được ' + S.converterUrl + ' (đã chạy converter/server.py chưa?)' : (e && e.message) || e);
+            throw new Error('Không đổi được PPTX sang PDF: ' + m);
+        });
+    }
+
     var busy = false;
     els.save.addEventListener('click', function () {
         if (busy) return;
@@ -184,7 +212,11 @@
         };
         if (S.id) body.sha = S.sha;
 
-        (file ? uploadFile(file, ext, body) : Promise.resolve(null)).then(function (fileInfo) {
+        var prepared = !file ? Promise.resolve(null)
+            : wantsConvert(ext)
+                ? (setProgress(5, '⏳ Đang đổi ' + file.name + ' sang PDF (có thể mất vài chục giây)…'), convertToPdf(file)).then(function (pdf) { return uploadFile(pdf, 'pdf', body); })
+                : uploadFile(file, ext, body);
+        prepared.then(function (fileInfo) {
             if (fileInfo) body.file = fileInfo;
             setProgress(file ? 99 : 50, '⏳ Đang lưu thông tin…');
             return postJson(S.id ? S.base + '/dashboard/' + S.id : S.base + '/dashboard', body);

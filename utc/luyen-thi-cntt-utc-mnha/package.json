@@ -41,8 +41,9 @@
     "multer": "^2.4.0",
     "nodemailer": "^10.0.10",
     "openai": "^7.27.0",
+    "pptxgenjs": "^4.0.1",
     "pug": "^3.0.4",
-    "sanitize-html": "^2.18.0",
+    "sanitize-html": "^2.18.1",
     "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {

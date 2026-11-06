@@ -467,6 +467,8 @@ function createController(app, Model) {
             maxBytes: L.MAX_FILE_BYTES, frameBytes: L.FRAME_PLAIN_BYTES, frameOverhead: L.FRAME_OVERHEAD,
             magicBytes: L.FILE_MAGIC_BYTES, partMaxBytes: L.PART_MAX_BYTES, maxFrames: L.MAX_FRAMES,
             encryptionReady: slideCrypto.isConfigured(),
+            converterUrl: process.env.PPTX_CONVERTER_URL || '',       // dịch vụ đổi PPTX → PDF (converter/server.py); rỗng = up PPTX nguyên bản
+            converterToken: process.env.PPTX_CONVERTER_TOKEN || '',
             sha: rec ? ((await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null)) || {}).sha || null : null
         };
         return res.render('studyfiles/form', {

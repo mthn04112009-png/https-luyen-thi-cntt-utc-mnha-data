@@ -5,7 +5,7 @@
  *   • Bố cục: slide / layout / master (vị trí, nền, chữ kế thừa từ placeholder), theme màu + font
  *   • Hình: chữ nhật, bo góc, elip, đường, mũi tên, tam giác, hình thoi, ngũ giác, lục giác, sao, freeform (custGeom)…
  *   • Chữ: cỡ, đậm/nghiêng/gạch chân, màu, font, căn lề, bullet, giãn dòng, vị trí chữ trong khung, autofit co chữ
- *   • Ảnh (có cắt xén, xoay, lật), nhóm (group), bảng, nền (màu / gradient / ảnh)
+ *   • Ảnh (có cắt xén, xoay, lật; PNG/JPG/GIF/SVG/WebP/BMP và cả EMF/WMF/EMZ/WMZ — tự dựng lại thành SVG), nhóm (group), bảng, nền (màu / gradient / ảnh)
  *   • CHUYỂN CẢNH: fade, push, cover, pull(uncover), wipe, split, zoom, circle, diamond, plus, cut, random + nhóm p14 (gần đúng)
  *   • HIỆU ỨNG: entrance / exit / emphasis / motion path — appear, fly in/out, fade, wipe, zoom, box, circle, diamond, split, spin,
  *     grow/shrink, pulse… theo ĐÚNG thứ tự click / cùng lúc / sau hiệu ứng trước và độ trễ, độ dài trong file; hiệu ứng theo đoạn văn
@@ -15,7 +15,7 @@
  *
  * Dùng:  var deck = await PptxPlayer.load(arrayBuffer, JSZip);
  *        var player = new PptxPlayer.Player(containerEl, deck, { onChange: fn });  await player.show(0);
- *        player.next(); player.prev(); player.goto(i); player.resize(); player.destroy();
+ *        player.next(); player.prev(); player.goto(i); player.resize(); player.setZoom(1.35); player.destroy();
  * ============================================================ */
 (function (global) {
     'use strict';
@@ -145,6 +145,909 @@
     function css(c) { return c ? 'rgba(' + c.rgb[0] + ',' + c.rgb[1] + ',' + c.rgb[2] + ',' + c.a + ')' : 'transparent'; }
 
     // ------------------------------------------------------------
+    // Metafile (EMF / WMF) → SVG
+    // PowerPoint lưu ảnh vector dán từ Office / Illustrator / Visio / EPS… dưới dạng .emf / .wmf. Trình duyệt KHÔNG đọc được hai định dạng này
+    // (<img> trỏ tới blob EMF chỉ ra khung trống) nên ở đây tự đọc dãy lệnh GDI rồi dựng lại thành SVG, chạy hoàn toàn trên trình duyệt.
+    //   • EMF: đường (path) / bezier / đa giác / hình chữ nhật / elip / cung / hình bo góc, bút & cọ (đặc, rỗng, kẻ sọc, mẫu bitmap), nét đứt,
+    //     clip (path / vùng / chữ nhật), world transform + các chế độ ánh xạ, bitmap DIB (mọi độ sâu bit, RLE, PNG/JPEG nhúng, alpha), chữ, gradient.
+    //   • WMF (có / không có header placeable): tập lệnh tương đương.
+    // Không hỗ trợ: EMF+ "Only" (không có lệnh GDI dự phòng), raster-op đặc biệt (XOR/INVERT…) — các lệnh này bị bỏ qua, phần còn lại vẫn được vẽ.
+    // ------------------------------------------------------------
+    var Metafile = (function () {
+        var PI = Math.PI;
+
+        function n3(v) { return String(Math.round(v * 1000) / 1000); }
+        function nm(v) { return String(+(+v).toPrecision(9)); }           // ma trận cần nhiều chữ số hơn toạ độ
+        function xe(s) { return String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+        function hh(v) { v &= 255; return (v < 16 ? '0' : '') + v.toString(16); }
+        function cref(c) { return '#' + hh(c) + hh(c >> 8) + hh(c >> 16); }       // COLORREF 0x00BBGGRR → #rrggbb
+        function b64(u8) {
+            if (typeof Buffer !== 'undefined' && Buffer.from) return Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
+            var s = '', i, CH = 0x8000;
+            for (i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+            return btoa(s);
+        }
+
+        // ---------- PNG (dùng canvas khi có; không thì tự ghi PNG không nén) ----------
+        var crcT = null;
+        function crc32(u8) {
+            var i, n, k, c;
+            if (!crcT) { crcT = new Int32Array(256); for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); crcT[n] = c; } }
+            c = -1; for (i = 0; i < u8.length; i++) c = crcT[(c ^ u8[i]) & 255] ^ (c >>> 8);
+            return (c ^ -1) >>> 0;
+        }
+        function pngChunk(type, data) {
+            var out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer), i;
+            dv.setUint32(0, data.length);
+            for (i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+            out.set(data, 8);
+            dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+            return out;
+        }
+        function pngStored(w, h, rgba) {
+            var rowLen = w * 4 + 1, raw = new Uint8Array(rowLen * h), y, i;
+            for (y = 0; y < h; y++) raw.set(rgba.subarray(y * w * 4, (y + 1) * w * 4), y * rowLen + 1);
+            var nb = Math.max(1, Math.ceil(raw.length / 65535)), z = new Uint8Array(2 + raw.length + nb * 5 + 4), p = 2, o = 0, b;
+            z[0] = 0x78; z[1] = 0x01;
+            for (b = 0; b < nb; b++) {
+                var n = Math.min(65535, raw.length - o);
+                z[p++] = b === nb - 1 ? 1 : 0; z[p++] = n & 255; z[p++] = n >> 8; z[p++] = (~n) & 255; z[p++] = ((~n) >> 8) & 255;
+                z.set(raw.subarray(o, o + n), p); p += n; o += n;
+            }
+            var s1 = 1, s2 = 0;
+            for (i = 0; i < raw.length;) { var e = Math.min(i + 5552, raw.length); for (; i < e; i++) { s1 += raw[i]; s2 += s1; } s1 %= 65521; s2 %= 65521; }
+            z[p++] = s2 >> 8; z[p++] = s2 & 255; z[p++] = s1 >> 8; z[p++] = s1 & 255;
+            var ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer);
+            dv.setUint32(0, w); dv.setUint32(4, h); ihdr[8] = 8; ihdr[9] = 6;
+            var parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', z), pngChunk('IEND', new Uint8Array(0))];
+            var tot = 0; parts.forEach(function (q) { tot += q.length; });
+            var res = new Uint8Array(tot), q0 = 0; parts.forEach(function (q) { res.set(q, q0); q0 += q.length; });
+            return res;
+        }
+        function rgbaToUri(w, h, rgba) {
+            if (typeof document !== 'undefined' && document.createElement) {
+                try {
+                    var c = document.createElement('canvas'); c.width = w; c.height = h;
+                    var cx = c.getContext('2d'), id = cx.createImageData(w, h);
+                    id.data.set(rgba); cx.putImageData(id, 0, 0);
+                    var u = c.toDataURL('image/png');
+                    if (u && u.length > 30) return u;
+                } catch (e) { /* rơi xuống bộ ghi PNG thuần */ }
+            }
+            return 'data:image/png;base64,' + b64(pngStored(w, h, rgba));
+        }
+
+        // ---------- DIB (BITMAPINFO + bit) → ảnh ----------
+        function maskInfo(m) {
+            m = m >>> 0; if (!m) return null;
+            var s = 0, bits = 0; while (!((m >>> s) & 1)) s++; while ((m >>> (s + bits)) & 1) bits++;
+            return { m: m, s: s, bits: bits };
+        }
+        function mget(v, mi) { if (!mi) return 255; var x = (v & mi.m) >>> mi.s; return mi.bits === 8 ? x : Math.round(x * 255 / ((1 << mi.bits) - 1)); }
+
+        /** dv: DataView của cả bản ghi/tệp; trả về { w, h, uri, bottomUp } hoặc null. opts: { alpha: dùng kênh alpha 32bit, key: COLORREF làm trong suốt } */
+        function decodeDib(dv, bmiOff, cbBmi, bitsOff, cbBits, opts) {
+            opts = opts || {};
+            var u8 = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+            if (bmiOff < 0 || bmiOff + 12 > u8.length) return null;
+            var hs = dv.getUint32(bmiOff, true), w, h, bpp, comp = 0, clrUsed = 0, x, y, i;
+            if (hs === 12) { w = dv.getUint16(bmiOff + 4, true); h = dv.getInt16(bmiOff + 6, true); bpp = dv.getUint16(bmiOff + 10, true); }
+            else { w = dv.getInt32(bmiOff + 4, true); h = dv.getInt32(bmiOff + 8, true); bpp = dv.getUint16(bmiOff + 14, true); comp = dv.getUint32(bmiOff + 16, true); clrUsed = dv.getUint32(bmiOff + 32, true); }
+            var ah = Math.abs(h), topDown = h < 0;
+            if (w <= 0 || ah <= 0 || w > 32768 || ah > 32768) return null;
+            if (bitsOff + cbBits > u8.length) cbBits = Math.max(0, u8.length - bitsOff);
+            if (comp === 4 || comp === 5) {           // JPEG / PNG nhúng nguyên trong DIB
+                return { w: w, h: ah, uri: 'data:image/' + (comp === 4 ? 'jpeg' : 'png') + ';base64,' + b64(u8.subarray(bitsOff, bitsOff + cbBits)), bottomUp: false };
+            }
+            // mặt nạ bit (16/32 bpp)
+            var rM = null, gM = null, bM = null, aM = null, palOff = bmiOff + hs;
+            if (comp === 3 || comp === 6 || (hs >= 52 && (bpp === 16 || bpp === 32) && comp !== 0)) {
+                var mo = hs >= 52 ? bmiOff + 40 : bmiOff + hs;
+                rM = maskInfo(dv.getUint32(mo, true)); gM = maskInfo(dv.getUint32(mo + 4, true)); bM = maskInfo(dv.getUint32(mo + 8, true));
+                if (hs >= 56) aM = maskInfo(dv.getUint32(bmiOff + 52, true)); else if (comp === 6) aM = maskInfo(dv.getUint32(mo + 12, true));
+                if (hs < 52) palOff += comp === 6 ? 16 : 12;
+            }
+            var nCol = clrUsed || (bpp <= 8 ? (1 << bpp) : 0), pe = hs === 12 ? 3 : 4, pal = [];
+            for (i = 0; i < nCol; i++) {
+                var po = palOff + i * pe;
+                if (po + pe > u8.length) break;
+                pal.push([u8[po + 2], u8[po + 1], u8[po], 255]);
+            }
+            var rgba = new Uint8ClampedArray(w * ah * 4), stride = ((w * bpp + 31) >>> 5) << 2;
+            var kr = -1, kg = -1, kb = -1;
+            if (opts.key != null) { kr = opts.key & 255; kg = (opts.key >> 8) & 255; kb = (opts.key >> 16) & 255; }
+
+            function put(o, r, g, b, a) {
+                if (r === kr && g === kg && b === kb) a = 0;
+                rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a;
+            }
+            if (comp === 1 || comp === 2) {           // RLE8 / RLE4 (luôn bottom-up)
+                var idx = new Int16Array(w * ah).fill(-1), p = bitsOff, end = bitsOff + cbBits, cx = 0, cy = 0, c, v, n, k;
+                while (p + 1 < end && cy < ah) {
+                    c = u8[p++]; v = u8[p++];
+                    if (c > 0) {
+                        for (k = 0; k < c; k++) {
+                            var pv = comp === 1 ? v : ((k & 1) ? (v & 15) : (v >> 4));
+                            if (cx < w) idx[cy * w + cx] = pv; cx++;
+                        }
+                    } else if (v === 0) { cx = 0; cy++; }
+                    else if (v === 1) break;
+                    else if (v === 2) { cx += u8[p++]; cy += u8[p++]; }
+                    else {
+                        n = v;
+                        var nb = comp === 1 ? n : ((n + 1) >> 1);
+                        for (k = 0; k < n; k++) {
+                            var q = comp === 1 ? u8[p + k] : ((k & 1) ? (u8[p + (k >> 1)] & 15) : (u8[p + (k >> 1)] >> 4));
+                            if (cx < w && cy < ah) idx[cy * w + cx] = q; cx++;
+                        }
+                        p += nb + (nb & 1);
+                    }
+                }
+                for (y = 0; y < ah; y++) for (x = 0; x < w; x++) {
+                    var ix = idx[y * w + x], o = ((ah - 1 - y) * w + x) * 4, pc = ix >= 0 ? pal[ix] : null;
+                    if (pc) put(o, pc[0], pc[1], pc[2], 255);
+                }
+                return { w: w, h: ah, uri: rgbaToUri(w, ah, rgba), bottomUp: true };
+            }
+            for (y = 0; y < ah; y++) {
+                var row = topDown ? y : ah - 1 - y, base = bitsOff + row * stride;
+                if (base + stride > bitsOff + cbBits + 3 && base >= u8.length) continue;
+                for (x = 0; x < w; x++) {
+                    var o2 = (y * w + x) * 4, px, r, g, b, a = 255;
+                    switch (bpp) {
+                        case 1: px = (u8[base + (x >> 3)] >> (7 - (x & 7))) & 1; break;
+                        case 4: px = (u8[base + (x >> 1)] >> ((x & 1) ? 0 : 4)) & 15; break;
+                        case 8: px = u8[base + x]; break;
+                        case 16:
+                            if (base + x * 2 + 1 >= u8.length) continue;
+                            v = dv.getUint16(base + x * 2, true);
+                            if (rM) { r = mget(v, rM); g = mget(v, gM); b = mget(v, bM); a = aM ? mget(v, aM) : 255; }
+                            else { r = ((v >> 10) & 31) * 255 / 31; g = ((v >> 5) & 31) * 255 / 31; b = (v & 31) * 255 / 31; }
+                            put(o2, r, g, b, a); continue;
+                        case 24:
+                            if (base + x * 3 + 2 >= u8.length) continue;
+                            put(o2, u8[base + x * 3 + 2], u8[base + x * 3 + 1], u8[base + x * 3], 255); continue;
+                        case 32:
+                            if (base + x * 4 + 3 >= u8.length) continue;
+                            if (rM) { v = dv.getUint32(base + x * 4, true); r = mget(v, rM); g = mget(v, gM); b = mget(v, bM); a = aM ? mget(v, aM) : 255; }
+                            else { b = u8[base + x * 4]; g = u8[base + x * 4 + 1]; r = u8[base + x * 4 + 2]; a = u8[base + x * 4 + 3]; }
+                            if (!opts.alpha) a = 255;
+                            else if (a > 0 && a < 255) { r = Math.min(255, r * 255 / a); g = Math.min(255, g * 255 / a); b = Math.min(255, b * 255 / a); }   // bỏ premultiply
+                            put(o2, r, g, b, a); continue;
+                        default: continue;
+                    }
+                    var pc2 = pal[px]; if (pc2) put(o2, pc2[0], pc2[1], pc2[2], 255);
+                }
+            }
+            return { w: w, h: ah, uri: rgbaToUri(w, ah, rgba), bottomUp: true };
+        }
+        /** DIB gói liền (WMF): header + bảng màu + bit nằm kế nhau → tính cbBmi để dùng chung decodeDib. */
+        function dibPacked(dv, off, end) {
+            var hs = dv.getUint32(off, true), bpp, comp = 0, clr = 0;
+            if (hs === 12) { bpp = dv.getUint16(off + 10, true); }
+            else { bpp = dv.getUint16(off + 14, true); comp = dv.getUint32(off + 16, true); clr = dv.getUint32(off + 32, true); }
+            var nCol = clr || (bpp <= 8 ? (1 << bpp) : 0), extra = (hs === 40 && (comp === 3 || comp === 6)) ? (comp === 6 ? 16 : 12) : 0;
+            var cb = hs + extra + nCol * (hs === 12 ? 3 : 4);
+            return { bmiOff: off, cbBmi: cb, bitsOff: off + cb, cbBits: Math.max(0, end - off - cb) };
+        }
+
+        // ---------- Font / chữ ----------
+        var SYM_UP = 'ΑΒΧΔΕΦΓΗΙϑΚΛΜΝΟΠΘΡΣΤΥςΩΞΨΖ', SYM_LO = 'αβχδεφγηιϕκλμνοπθρστυϖωξψζ';
+        var SYM_X = { 0xA3: '≤', 0xB3: '≥', 0xB1: '±', 0xB4: '×', 0xB8: '÷', 0xB9: '≠', 0xBB: '≈', 0xA5: '∞', 0xD6: '√', 0xE5: '∑', 0xF2: '∫', 0xB7: '•', 0xAE: '→', 0xAC: '←', 0xAD: '↑', 0xAF: '↓', 0xDE: '⇒', 0xDB: '⇔', 0xCE: '∈', 0xB6: '∂', 0xD1: '∇', 0xC7: '∩', 0xC8: '∪', 0xCC: '⊂', 0xC9: '⊃', 0xD5: '∏', 0xB0: '°', 0x22: '∀', 0x24: '∃', 0x2D: '−', 0x2A: '∗', 0x5C: '∴', 0x40: '≅', 0x7E: '∼', 0xD7: '⋅' };
+        function symbolMap(str) {
+            var o = '', i, c;
+            for (i = 0; i < str.length; i++) {
+                c = str.charCodeAt(i);
+                if (c >= 0xF000) c -= 0xF000;
+                if (c >= 65 && c <= 90) o += SYM_UP.charAt(c - 65);
+                else if (c >= 97 && c <= 122) o += SYM_LO.charAt(c - 97);
+                else o += SYM_X[c] || String.fromCharCode(c);
+            }
+            return o;
+        }
+        var CHARSET_ENC = { 0: 'windows-1252', 128: 'shift_jis', 129: 'euc-kr', 134: 'gb2312', 136: 'big5', 161: 'windows-1253', 162: 'windows-1254', 163: 'windows-1258', 177: 'windows-1255', 178: 'windows-1256', 186: 'windows-1257', 204: 'windows-1251', 222: 'windows-874', 238: 'windows-1250' };
+        function decodeAnsi(u8, charset) {
+            try { if (typeof TextDecoder !== 'undefined') return new TextDecoder(CHARSET_ENC[charset] || 'windows-1252').decode(u8); } catch (e) { /* encoding lạ */ }
+            var s = '', i; for (i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return s;
+        }
+        function utf16(dv, off, n) { var s = '', i; for (i = 0; i < n; i++) s += String.fromCharCode(dv.getUint16(off + i * 2, true)); return s; }
+        function fontCss(f) {
+            var fam = f.face ? "'" + f.face.replace(/['"\\]/g, '') + "'" : '';
+            var gen = (f.pitch & 3) === 1 ? 'monospace' : ({ 16: 'serif', 32: 'sans-serif', 48: 'monospace', 64: 'cursive', 80: 'fantasy' }[f.pitch & 0xF0] || 'sans-serif');
+            return (fam ? fam + ',' : '') + gen;
+        }
+
+        // ---------- Đối tượng GDI mặc định ----------
+        var STOCK_BRUSH = [{ k: 'brush', style: 0, color: '#ffffff' }, { k: 'brush', style: 0, color: '#c0c0c0' }, { k: 'brush', style: 0, color: '#808080' }, { k: 'brush', style: 0, color: '#404040' }, { k: 'brush', style: 0, color: '#000000' }, { k: 'brush', style: 1 }];
+        var STOCK_PEN = [{ k: 'pen', style: 0, width: 0, color: '#ffffff', cosmetic: true, cap: 'butt', join: 'round' }, { k: 'pen', style: 0, width: 0, color: '#000000', cosmetic: true, cap: 'butt', join: 'round' }, { k: 'pen', style: 5 }];
+        var DEFAULT_FONT = { k: 'font', height: -12, esc: 0, weight: 400, italic: false, underline: false, strike: false, charset: 0, face: '', pitch: 0 };
+
+        // ---------- Phép biến đổi ----------
+        function compose(f, s) {          // áp f rồi mới áp s (ma trận kiểu SVG [a b c d e f])
+            return [s[0] * f[0] + s[2] * f[1], s[1] * f[0] + s[3] * f[1], s[0] * f[2] + s[2] * f[3], s[1] * f[2] + s[3] * f[3], s[0] * f[4] + s[2] * f[5] + s[4], s[1] * f[4] + s[3] * f[5] + s[5]];
+        }
+        function M(a, m, x, y) { a.push('M' + n3(m[0] * x + m[2] * y + m[4]) + ' ' + n3(m[1] * x + m[3] * y + m[5])); }
+        function L(a, m, x, y) { a.push('L' + n3(m[0] * x + m[2] * y + m[4]) + ' ' + n3(m[1] * x + m[3] * y + m[5])); }
+        function C(a, m, x1, y1, x2, y2, x3, y3) {
+            a.push('C' + n3(m[0] * x1 + m[2] * y1 + m[4]) + ' ' + n3(m[1] * x1 + m[3] * y1 + m[5]) + ' ' + n3(m[0] * x2 + m[2] * y2 + m[4]) + ' ' + n3(m[1] * x2 + m[3] * y2 + m[5]) + ' ' + n3(m[0] * x3 + m[2] * y3 + m[4]) + ' ' + n3(m[1] * x3 + m[3] * y3 + m[5]));
+        }
+
+        // ============================================================
+        // Gdi: trạng thái thiết bị (DC) + dựng SVG theo toạ độ thiết bị
+        // ============================================================
+        function Gdi(dev, view, hair) {
+            this.dev = dev; this.view = view; this.hair = hair || 1;
+            this.body = []; this.defs = []; this.uid = 0; this.open = []; this.pats = {};
+            this.objs = []; this.stack = []; this.cx = 0; this.cy = 0; this.path = null; this.pathDone = null; this.drawn = 0; this._m = null; this.emfPlus = false;
+            this.st = { mapMode: 1, wo: [0, 0], we: [1, 1], vo: [0, 0], ve: [1, 1], xf: [1, 0, 0, 1, 0, 0], pen: STOCK_PEN[1], brush: STOCK_BRUSH[0], font: DEFAULT_FONT, tc: '#000000', bc: '#ffffff', bm: 2, fill: 1, align: 0, clip: [], miter: 10, arcDir: 1, dcPen: '#000000', dcBrush: '#ffffff' };
+        }
+        Gdi.prototype.touch = function () { this._m = null; };
+        Gdi.prototype.id = function (p) { return (p || 'm') + (++this.uid); };
+        Gdi.prototype.mat = function () {
+            if (this._m) return this._m;
+            var s = this.st, d = this.dev, px = d.w / d.mw, py = d.h / d.mh, sx = 1, sy = 1;
+            switch (s.mapMode) {
+                case 2: sx = px * 0.1; sy = -py * 0.1; break;
+                case 3: sx = px * 0.01; sy = -py * 0.01; break;
+                case 4: sx = px * 0.254; sy = -py * 0.254; break;
+                case 5: sx = px * 0.0254; sy = -py * 0.0254; break;
+                case 6: sx = px * 25.4 / 1440; sy = -py * 25.4 / 1440; break;
+                case 7: case 8: sx = s.we[0] ? s.ve[0] / s.we[0] : 1; sy = s.we[1] ? s.ve[1] / s.we[1] : 1; break;
+            }
+            var x = s.xf;
+            return (this._m = [sx * x[0], sy * x[1], sx * x[2], sy * x[3], sx * (x[4] - s.wo[0]) + s.vo[0], sy * (x[5] - s.wo[1]) + s.vo[1]]);
+        };
+        Gdi.prototype.save = function () {
+            var s = this.st, c = {}, k;
+            for (k in s) c[k] = s[k];
+            c.wo = s.wo.slice(); c.we = s.we.slice(); c.vo = s.vo.slice(); c.ve = s.ve.slice(); c.xf = s.xf.slice(); c.clip = s.clip.slice();
+            this.stack.push(c);
+        };
+        Gdi.prototype.restore = function (n) {
+            n = n || -1;
+            var i = n < 0 ? this.stack.length + n : n - 1;      // n<0: tương đối; n>0: tuyệt đối (1-based)
+            if (i < 0 || i >= this.stack.length) return;
+            this.st = this.stack[i]; this.stack.length = i; this.touch();
+        };
+        /** Đóng/mở các <g clip-path> cho khớp vùng clip hiện hành (giữ phần đầu chung để khỏi mở lại). */
+        Gdi.prototype.sync = function () {
+            var want = this.st.clip, open = this.open, i = 0;
+            while (i < open.length && i < want.length && open[i] === want[i]) i++;
+            while (open.length > i) { this.body.push('</g>'); open.pop(); }
+            for (; i < want.length; i++) { this.body.push('<g clip-path="url(#' + want[i] + ')">'); open.push(want[i]); }
+        };
+        Gdi.prototype.setClip = function (mode, d, rule) {
+            // mode: 1 AND, 2 OR, 3 XOR, 4 DIFF, 5 COPY. d rỗng + COPY = bỏ clip.
+            var s = this.st;
+            if (mode === 5 && !d) { s.clip = []; return; }
+            if (!d) return;
+            var id = this.id('c');
+            if (mode === 4) {
+                var v = this.view;
+                d = 'M' + n3(v.x - 1) + ' ' + n3(v.y - 1) + 'h' + n3(v.w + 2) + 'v' + n3(v.h + 2) + 'h' + n3(-v.w - 2) + 'z ' + d; rule = 1;
+            } else if (mode === 2 || mode === 3) return;       // hợp / loại trừ: hiếm gặp, giữ nguyên clip cũ
+            this.defs.push('<clipPath id="' + id + '"><path d="' + d + '" clip-rule="' + (rule === 1 ? 'evenodd' : 'nonzero') + '"/></clipPath>');
+            if (mode === 5) s.clip = [id]; else s.clip = s.clip.concat([id]);
+        };
+
+        // ----- bút / cọ -----
+        Gdi.prototype.brushPaint = function (b) {
+            if (b.style === 0) return b.color;
+            var key, id, s = this.st;
+            if (b.style === 2) {                              // kẻ sọc
+                key = 'h' + b.hatch + b.color + (s.bm === 2 ? s.bc : '');
+                if (this.pats[key]) return 'url(#' + this.pats[key] + ')';
+                id = this.id('p'); this.pats[key] = id;
+                var H = 'M0 4H8', V = 'M4 0V8', F = 'M0 0L8 8', B = 'M0 8L8 0', dd = [H, V, F, B, H + V, F + B][b.hatch] || H;
+                this.defs.push('<pattern id="' + id + '" patternUnits="userSpaceOnUse" width="8" height="8">' + (s.bm === 2 ? '<rect width="8" height="8" fill="' + s.bc + '"/>' : '') + '<path d="' + dd + '" stroke="' + b.color + '" stroke-width="1" fill="none"/></pattern>');
+                return 'url(#' + id + ')';
+            }
+            if (b.dib) {
+                key = b.dib.key;
+                if (this.pats[key]) return 'url(#' + this.pats[key] + ')';
+                id = this.id('p'); this.pats[key] = id;
+                this.defs.push('<pattern id="' + id + '" patternUnits="userSpaceOnUse" width="' + b.dib.w + '" height="' + b.dib.h + '"><image width="' + b.dib.w + '" height="' + b.dib.h + '" preserveAspectRatio="none" xlink:href="' + b.dib.uri + '"/></pattern>');
+                return 'url(#' + id + ')';
+            }
+            return b.color || '#000000';
+        };
+        Gdi.prototype.fillAttr = function () {
+            var b = this.st.brush;
+            if (!b || b.style === 1) return 'fill="none"';
+            return 'fill="' + this.brushPaint(b) + '"' + (this.st.fill === 1 ? ' fill-rule="evenodd"' : '');
+        };
+        Gdi.prototype.strokeAttr = function (m) {
+            var p = this.st.pen;
+            if (!p || p.style === 5) return 'stroke="none"';
+            var sc = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])), w = (p.cosmetic || !p.width) ? this.hair : p.width * sc;
+            var o = 'stroke="' + p.color + '" stroke-width="' + nm(w) + '"';
+            if (p.cap && p.cap !== 'butt') o += ' stroke-linecap="' + p.cap + '"';
+            if (p.join && p.join !== 'miter') o += ' stroke-linejoin="' + p.join + '"';
+            if (p.join === 'miter') o += ' stroke-miterlimit="' + n3(this.st.miter) + '"';
+            var ds = p.style & 15, u = Math.max(w, this.hair), da = null;
+            if (ds === 1) da = [4, 2]; else if (ds === 2) da = [1, 2]; else if (ds === 3) da = [4, 2, 1, 2]; else if (ds === 4) da = [4, 2, 1, 2, 1, 2];
+            if (da) o += ' stroke-dasharray="' + da.map(function (v) { return nm(v * u); }).join(' ') + '"';
+            else if (ds === 7 && p.dashes && p.dashes.length) o += ' stroke-dasharray="' + p.dashes.map(function (v) { return nm(Math.max(v * sc, 0.01)); }).join(' ') + '"';
+            return o;
+        };
+        Gdi.prototype.paint = function (d, fill, stroke) {
+            var m = this.mat(), f = fill ? this.fillAttr() : 'fill="none"', s = stroke ? this.strokeAttr(m) : 'stroke="none"';
+            if (f === 'fill="none"' && s === 'stroke="none"') return;
+            this.drawn++; this.sync();
+            this.body.push('<path d="' + d + '" ' + f + ' ' + s + '/>');
+        };
+        /** Thêm một nhóm lệnh path: trong khung BEGINPATH thì gộp vào path, ngoài khung thì vẽ ngay. */
+        Gdi.prototype.emit = function (a, fill, stroke) {
+            if (this.path) { for (var i = 0; i < a.length; i++) this.path.a.push(a[i]); this.path.open = false; return; }
+            this.paint(a.join(' '), fill, stroke);
+        };
+        Gdi.prototype.moveTo = function (x, y) { this.cx = x; this.cy = y; if (this.path) this.path.open = false; };
+        Gdi.prototype.startFig = function (tgt, m) {
+            if (this.path) { if (this.path.open) return; this.path.open = true; this.path.sx = this.cx; this.path.sy = this.cy; }
+            M(tgt, m, this.cx, this.cy);
+        };
+        Gdi.prototype.lineTo = function (pts) {
+            var m = this.mat(), a = [], tgt = this.path ? this.path.a : a, i;
+            this.startFig(tgt, m);
+            for (i = 0; i + 1 < pts.length; i += 2) L(tgt, m, pts[i], pts[i + 1]);
+            if (pts.length >= 2) { this.cx = pts[pts.length - 2]; this.cy = pts[pts.length - 1]; }
+            if (!this.path) this.paint(a.join(' '), false, true);
+        };
+        Gdi.prototype.bezTo = function (pts) {
+            var m = this.mat(), a = [], tgt = this.path ? this.path.a : a, i;
+            this.startFig(tgt, m);
+            for (i = 0; i + 5 < pts.length; i += 6) C(tgt, m, pts[i], pts[i + 1], pts[i + 2], pts[i + 3], pts[i + 4], pts[i + 5]);
+            if (pts.length >= 6) { this.cx = pts[pts.length - 2]; this.cy = pts[pts.length - 1]; }
+            if (!this.path) this.paint(a.join(' '), false, true);
+        };
+        Gdi.prototype.bezier = function (pts) {          // POLYBEZIER: điểm đầu là điểm xuất phát
+            var m = this.mat(), a = [], i;
+            if (pts.length < 8) return;
+            M(a, m, pts[0], pts[1]);
+            for (i = 2; i + 5 < pts.length; i += 6) C(a, m, pts[i], pts[i + 1], pts[i + 2], pts[i + 3], pts[i + 4], pts[i + 5]);
+            this.emit(a, false, true);
+        };
+        Gdi.prototype.poly = function (pts, closed, fill, stroke) {
+            var m = this.mat(), a = [], n = pts.length >> 1, i;
+            if (n < 1) return;
+            M(a, m, pts[0], pts[1]);
+            for (i = 1; i < n; i++) L(a, m, pts[2 * i], pts[2 * i + 1]);
+            if (closed) a.push('Z');
+            this.emit(a, fill, stroke);
+        };
+        Gdi.prototype.polyDraw = function (pts, types) {
+            var m = this.mat(), a = [], i, n = types.length, t;
+            for (i = 0; i < n; i++) {
+                t = types[i] & ~1;
+                if (t === 6) { M(a, m, pts[2 * i], pts[2 * i + 1]); this.cx = pts[2 * i]; this.cy = pts[2 * i + 1]; }
+                else if (t === 2) { if (!a.length) M(a, m, this.cx, this.cy); L(a, m, pts[2 * i], pts[2 * i + 1]); this.cx = pts[2 * i]; this.cy = pts[2 * i + 1]; }
+                else if (t === 4 && i + 2 < n) { if (!a.length) M(a, m, this.cx, this.cy); C(a, m, pts[2 * i], pts[2 * i + 1], pts[2 * i + 2], pts[2 * i + 3], pts[2 * i + 4], pts[2 * i + 5]); i += 2; this.cx = pts[2 * i]; this.cy = pts[2 * i + 1]; }
+                if (types[i] & 1) a.push('Z');
+            }
+            this.emit(a, true, true);
+        };
+        Gdi.prototype.closeFig = function () {
+            if (this.path && this.path.open) { this.path.a.push('Z'); this.path.open = false; this.cx = this.path.sx; this.cy = this.path.sy; }
+        };
+        // ----- hình học: cung / elip -----
+        Gdi.prototype.arcSegs = function (a, m, cx, cy, rx, ry, t0, da, moveFirst) {
+            var n = Math.max(1, Math.ceil(Math.abs(da) / (PI / 2) - 1e-9)), step = da / n, k = 4 / 3 * Math.tan(step / 4), i, t1;
+            var x0 = cx + rx * Math.cos(t0), y0 = cy + ry * Math.sin(t0);
+            if (moveFirst) M(a, m, x0, y0); else L(a, m, x0, y0);
+            var ex = x0, ey = y0;
+            for (i = 0; i < n; i++) {
+                t1 = t0 + step;
+                ex = cx + rx * Math.cos(t1); ey = cy + ry * Math.sin(t1);
+                C(a, m, cx + rx * (Math.cos(t0) - k * Math.sin(t0)), cy + ry * (Math.sin(t0) + k * Math.cos(t0)), cx + rx * (Math.cos(t1) + k * Math.sin(t1)), cy + ry * (Math.sin(t1) - k * Math.cos(t1)), ex, ey);
+                t0 = t1;
+            }
+            return [ex, ey];
+        };
+        Gdi.prototype.arcSweep = function (t0, t1) {
+            var m = this.mat(), flip = (m[0] * m[3] - m[1] * m[2]) < 0, dec = (this.st.arcDir === 1) !== flip, da = t1 - t0;
+            if (dec) { while (da > 0) da -= 2 * PI; while (da <= -2 * PI) da += 2 * PI; }
+            else { while (da < 0) da += 2 * PI; while (da >= 2 * PI) da -= 2 * PI; }
+            if (Math.abs(da) < 1e-9) da = dec ? -2 * PI : 2 * PI;
+            return da;
+        };
+        Gdi.prototype.ellipse = function (l, t, r, b) {
+            var m = this.mat(), a = [];
+            this.arcSegs(a, m, (l + r) / 2, (t + b) / 2, Math.abs(r - l) / 2, Math.abs(b - t) / 2, 0, 2 * PI, true); a.push('Z');
+            this.emit(a, true, true);
+        };
+        Gdi.prototype.rect = function (l, t, r, b) {
+            var m = this.mat(), a = [];
+            M(a, m, l, t); L(a, m, r, t); L(a, m, r, b); L(a, m, l, b); a.push('Z');
+            this.emit(a, true, true);
+        };
+        Gdi.prototype.roundRect = function (l, t, r, b, cw, ch) {
+            var m = this.mat(), a = [], x0 = Math.min(l, r), x1 = Math.max(l, r), y0 = Math.min(t, b), y1 = Math.max(t, b);
+            var rx = Math.min(Math.abs(cw) / 2, (x1 - x0) / 2), ry = Math.min(Math.abs(ch) / 2, (y1 - y0) / 2);
+            M(a, m, x0 + rx, y0);
+            this.arcSegs(a, m, x1 - rx, y0 + ry, rx, ry, -PI / 2, PI / 2, false);
+            this.arcSegs(a, m, x1 - rx, y1 - ry, rx, ry, 0, PI / 2, false);
+            this.arcSegs(a, m, x0 + rx, y1 - ry, rx, ry, PI / 2, PI / 2, false);
+            this.arcSegs(a, m, x0 + rx, y0 + ry, rx, ry, PI, PI / 2, false);
+            a.push('Z');
+            this.emit(a, true, true);
+        };
+        /** kind: 'arc' | 'pie' | 'chord' | 'arcto' */
+        Gdi.prototype.arcShape = function (kind, l, t, r, b, xs, ys, xe_, ye) {
+            var m = this.mat(), a = [], cx = (l + r) / 2, cy = (t + b) / 2, rx = Math.abs(r - l) / 2 || 1e-6, ry = Math.abs(b - t) / 2 || 1e-6;
+            var t0 = Math.atan2((ys - cy) / ry, (xs - cx) / rx), t1 = Math.atan2((ye - cy) / ry, (xe_ - cx) / rx), da = this.arcSweep(t0, t1), end;
+            if (kind === 'arcto') {
+                var tgt = this.path ? this.path.a : a; this.startFig(tgt, m);
+                end = this.arcSegs(tgt, m, cx, cy, rx, ry, t0, da, false); this.cx = end[0]; this.cy = end[1];
+                if (!this.path) this.paint(a.join(' '), false, true);
+                return;
+            }
+            end = this.arcSegs(a, m, cx, cy, rx, ry, t0, da, true);
+            if (kind === 'pie') { L(a, m, cx, cy); a.push('Z'); } else if (kind === 'chord') a.push('Z');
+            this.emit(a, kind !== 'arc', true);
+        };
+        Gdi.prototype.angleArc = function (x, y, r, a0, sw) {
+            var m = this.mat(), a = [], flip = (m[0] * m[3] - m[1] * m[2]) < 0, sg = flip ? 1 : -1, tgt = this.path ? this.path.a : a;
+            this.startFig(tgt, m);
+            var end = this.arcSegs(tgt, m, x, y, r, r, sg * a0 * PI / 180, sg * sw * PI / 180, false);
+            this.cx = end[0]; this.cy = end[1];
+            if (!this.path) this.paint(a.join(' '), false, true);
+        };
+        // ----- vùng (region) -----
+        Gdi.prototype.rectsPath = function (rects) {
+            var m = this.mat(), a = [];
+            rects.forEach(function (q) { M(a, m, q[0], q[1]); L(a, m, q[2], q[1]); L(a, m, q[2], q[3]); L(a, m, q[0], q[3]); a.push('Z'); });
+            return a.join(' ');
+        };
+        // ----- bitmap -----
+        Gdi.prototype.blit = function (img, xd, yd, wd, hd, xs, ys, ws, hs, o) {
+            if (!img || !wd || !hd) return;
+            o = o || {};
+            if (ws == null) { xs = 0; ys = 0; ws = img.w; hs = img.h; }
+            ws = Math.abs(ws); hs = Math.abs(hs);
+            if (!ws || !hs) return;
+            if (img.bottomUp) ys = img.h - ys - hs;          // gốc toạ độ nguồn của DIB bottom-up nằm ở góc dưới trái
+            var m = this.mat(), sgx = wd < 0 ? -1 : 1, sgy = hd < 0 ? -1 : 1;
+            var t = [m[0] * sgx, m[1] * sgx, m[2] * sgy, m[3] * sgy, m[4] + m[0] * xd + m[2] * yd, m[5] + m[1] * xd + m[3] * yd];
+            this.drawn++; this.sync();
+            var extra = (o.opacity != null && o.opacity < 1 ? ' opacity="' + n3(o.opacity) + '"' : '') + (o.blend ? ' style="mix-blend-mode:' + o.blend + '"' : '');
+            this.body.push('<g transform="matrix(' + t.map(nm).join(' ') + ')"' + extra + '><svg width="' + nm(Math.abs(wd)) + '" height="' + nm(Math.abs(hd)) + '" viewBox="' + xs + ' ' + ys + ' ' + ws + ' ' + hs + '" preserveAspectRatio="none"><image width="' + img.w + '" height="' + img.h + '" preserveAspectRatio="none" xlink:href="' + img.uri + '"/></svg></g>');
+        };
+        // ----- chữ -----
+        Gdi.prototype.text = function (x, y, str, dx, rcl, eto) {
+            var s = this.st, f = s.font || DEFAULT_FONT, m = this.mat();
+            if (!str) return;
+            if (s.align & 1) { x = this.cx; y = this.cy; }
+            var sxm = Math.sqrt(m[0] * m[0] + m[1] * m[1]), sym = Math.sqrt(m[2] * m[2] + m[3] * m[3]);
+            var fs = (f.height < 0 ? -f.height : (f.height ? f.height * 0.85 : 12)) * sym;
+            if (!(fs > 0)) return;
+            if (/symbol/i.test(f.face) || f.charset === 2) str = symbolMap(str);
+            var rx = m[0] * x + m[2] * y + m[4], ry = m[1] * x + m[3] * y + m[5];
+            var rot = Math.atan2(m[1], m[0]) * 180 / PI - (f.esc || 0) / 10, h = s.align & 6, v = s.align & 24, i;
+            this.drawn++; this.sync();
+            if ((eto & 2) && rcl) { var a = [], mm = m; M(a, mm, rcl[0], rcl[1]); L(a, mm, rcl[2], rcl[1]); L(a, mm, rcl[2], rcl[3]); L(a, mm, rcl[0], rcl[3]); a.push('Z'); this.body.push('<path d="' + a.join(' ') + '" fill="' + s.bc + '"/>'); }
+            var xs = '', anchor = h === 0 ? 'start' : (h === 2 ? 'end' : 'middle'), total = 0;
+            if (dx && dx.length >= str.length) {
+                var cum = 0, arr = [];
+                for (i = 0; i < str.length; i++) { arr.push(cum); cum += dx[i] * sxm; }
+                total = cum;
+                var shift = h === 0 ? 0 : (h === 2 ? -total : -total / 2);
+                xs = ' x="' + arr.map(function (q) { return n3(q + shift); }).join(' ') + '"'; anchor = 'start';
+            }
+            var yo = v === 24 ? 0 : (v === 8 ? -fs * 0.2 : fs * 0.8);
+            var at = ' font-family="' + xe(fontCss(f)) + '" font-size="' + n3(fs) + '"' + (f.weight >= 600 ? ' font-weight="700"' : '') + (f.italic ? ' font-style="italic"' : '') + (f.underline || f.strike ? ' text-decoration="' + (f.underline ? 'underline ' : '') + (f.strike ? 'line-through' : '') + '"' : '');
+            this.body.push('<text transform="translate(' + n3(rx) + ' ' + n3(ry) + ') rotate(' + n3(rot) + ')"' + (xs || ' x="0"') + ' y="' + n3(yo) + '" text-anchor="' + anchor + '" fill="' + s.tc + '"' + at + ' xml:space="preserve">' + xe(str) + '</text>');
+            if ((s.align & 1) && dx && sxm) { var sum = 0; for (i = 0; i < str.length; i++) sum += dx[i]; this.cx = x + sum; }
+        };
+        // ----- gradient (GRADIENTFILL) -----
+        Gdi.prototype.gradRect = function (v0, v1, vertical) {
+            var m = this.mat(), a = [], id = this.id('g'), x0 = Math.min(v0.x, v1.x), x1 = Math.max(v0.x, v1.x), y0 = Math.min(v0.y, v1.y), y1 = Math.max(v0.y, v1.y);
+            var p0 = vertical ? [(x0 + x1) / 2, v0.y] : [v0.x, (y0 + y1) / 2], p1 = vertical ? [(x0 + x1) / 2, v1.y] : [v1.x, (y0 + y1) / 2];
+            var q0 = [m[0] * p0[0] + m[2] * p0[1] + m[4], m[1] * p0[0] + m[3] * p0[1] + m[5]], q1 = [m[0] * p1[0] + m[2] * p1[1] + m[4], m[1] * p1[0] + m[3] * p1[1] + m[5]];
+            this.defs.push('<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' + n3(q0[0]) + '" y1="' + n3(q0[1]) + '" x2="' + n3(q1[0]) + '" y2="' + n3(q1[1]) + '"><stop offset="0" stop-color="' + v0.c + '"/><stop offset="1" stop-color="' + v1.c + '"/></linearGradient>');
+            M(a, m, x0, y0); L(a, m, x1, y0); L(a, m, x1, y1); L(a, m, x0, y1); a.push('Z');
+            this.drawn++; this.sync();
+            this.body.push('<path d="' + a.join(' ') + '" fill="url(#' + id + ')"/>');
+        };
+        Gdi.prototype.svg = function () {
+            while (this.open.length) { this.body.push('</g>'); this.open.pop(); }
+            var v = this.view;
+            return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + n3(v.w) + '" height="' + n3(v.h) + '" viewBox="' + n3(v.x) + ' ' + n3(v.y) + ' ' + n3(v.w) + ' ' + n3(v.h) + '" preserveAspectRatio="none">' +
+                (this.defs.length ? '<defs>' + this.defs.join('') + '</defs>' : '') + this.body.join('') + '</svg>';
+        };
+        // ----- bảng đối tượng -----
+        Gdi.prototype.selectObj = function (ih) {
+            var s = this.st;
+            if (ih & 0x80000000) {                           // đối tượng "stock"
+                var i = ih & 0x7fffffff;
+                if (i <= 5) s.brush = STOCK_BRUSH[i];
+                else if (i === 18) s.brush = { k: 'brush', style: 0, color: s.dcBrush };
+                else if (i === 6 || i === 7 || i === 8) s.pen = STOCK_PEN[i - 6];
+                else if (i === 19) s.pen = { k: 'pen', style: 0, width: 0, color: s.dcPen, cosmetic: true, cap: 'butt', join: 'round' };
+                else if (i >= 10 && i <= 17) s.font = DEFAULT_FONT;
+                return;
+            }
+            var o = this.objs[ih]; if (!o) return;
+            if (o.k === 'pen') s.pen = o; else if (o.k === 'brush') s.brush = o; else if (o.k === 'font') s.font = o;
+        };
+
+        // ============================================================
+        // Bộ đọc EMF
+        // ============================================================
+        function readPts(dv, off, n, is16) {
+            var out = new Array(n * 2), i;
+            if (is16) for (i = 0; i < n * 2; i++) out[i] = dv.getInt16(off + i * 2, true);
+            else for (i = 0; i < n * 2; i++) out[i] = dv.getInt32(off + i * 4, true);
+            return out;
+        }
+        function rgnRects(dv, off) {
+            var n = dv.getUint32(off + 8, true), out = [], i, b;
+            for (i = 0; i < n; i++) { b = off + 32 + i * 16; out.push([dv.getInt32(b, true), dv.getInt32(b + 4, true), dv.getInt32(b + 8, true), dv.getInt32(b + 12, true)]); }
+            return out;
+        }
+        function emfToSvg(u8) {
+            var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), len = u8.length;
+            if (len < 88 || dv.getUint32(0, true) !== 1) return null;
+            var bl = dv.getInt32(8, true), bt = dv.getInt32(12, true), br = dv.getInt32(16, true), bb = dv.getInt32(20, true);
+            var fl = dv.getInt32(24, true), ft = dv.getInt32(28, true), fr = dv.getInt32(32, true), fb = dv.getInt32(36, true);
+            var dw = dv.getInt32(72, true), dh = dv.getInt32(76, true), mw = dv.getInt32(80, true), mh = dv.getInt32(84, true);
+            if (dw <= 0 || dh <= 0 || mw <= 0 || mh <= 0) { dw = 1280; dh = 1024; mw = 338; mh = 270; }
+            var kx = dw / mw / 100, ky = dh / mh / 100;             // rclFrame tính bằng 0.01mm → đơn vị thiết bị
+            var view = { x: fl * kx, y: ft * ky, w: (fr - fl) * kx, h: (fb - ft) * ky };
+            if (!(view.w > 0 && view.h > 0)) view = { x: bl, y: bt, w: br - bl + 1, h: bb - bt + 1 };
+            if (!(view.w > 0 && view.h > 0)) return null;
+            var g = new Gdi({ w: dw, h: dh, mw: mw, mh: mh }, view, 1);
+            var off = 0, errs = 0;
+            while (off + 8 <= len) {
+                var type = dv.getUint32(off, true), size = dv.getUint32(off + 4, true);
+                if (size < 8 || off + size > len) break;
+                try { emfRecord(g, dv, u8, off, type, size); } catch (e) { errs++; }
+                off += size;
+                if (type === 14) break;
+            }
+            if (g.drawn === 0) return null;                          // rỗng / EMF+ Only → để phía trên báo "không hiển thị được"
+            return g.svg();
+        }
+        function emfRecord(g, dv, u8, off, type, size) {
+            var s = g.st, i, n, p, is16, pts, m;
+            function I(o) { return dv.getInt32(off + o, true); }
+            function U(o) { return dv.getUint32(off + o, true); }
+            function F(o) { return dv.getFloat32(off + o, true); }
+            function dib(oBmi, cbBmi, oBits, cbBits, opts) {
+                if (!cbBmi || !cbBits) return null;
+                return decodeDib(dv, off + oBmi, cbBmi, off + oBits, cbBits, opts);
+            }
+            switch (type) {
+                // --- trạng thái ---
+                case 17: s.mapMode = U(8); g.touch(); break;
+                case 9: s.we = [I(8), I(12)]; g.touch(); break;
+                case 10: s.wo = [I(8), I(12)]; g.touch(); break;
+                case 11: s.ve = [I(8), I(12)]; g.touch(); break;
+                case 12: s.vo = [I(8), I(12)]; g.touch(); break;
+                case 31: if (I(12) && I(20)) { s.ve = [s.ve[0] * I(8) / I(12), s.ve[1] * I(16) / I(20)]; g.touch(); } break;
+                case 32: if (I(12) && I(20)) { s.we = [s.we[0] * I(8) / I(12), s.we[1] * I(16) / I(20)]; g.touch(); } break;
+                case 35: s.xf = [F(8), F(12), F(16), F(20), F(24), F(28)]; g.touch(); break;
+                case 36:
+                    var x = [F(8), F(12), F(16), F(20), F(24), F(28)], md = U(32);
+                    if (md === 1) s.xf = [1, 0, 0, 1, 0, 0]; else if (md === 2) s.xf = compose(x, s.xf); else if (md === 3) s.xf = compose(s.xf, x); else if (md === 4) s.xf = x;
+                    g.touch(); break;
+                case 18: s.bm = U(8); break;
+                case 19: s.fill = U(8); break;
+                case 22: s.align = U(8); break;
+                case 24: s.tc = cref(U(8)); break;
+                case 25: s.bc = cref(U(8)); break;
+                case 57: s.arcDir = U(8); break;
+                case 58: s.miter = U(8) || 10; break;
+                case 33: g.save(); break;
+                case 34: g.restore(I(8)); break;
+                case 37: g.selectObj(U(8)); break;
+                case 40: g.objs[U(8)] = null; break;
+                // --- tạo đối tượng ---
+                case 38: {
+                    var w0 = I(16), st0 = U(12);
+                    g.objs[U(8)] = { k: 'pen', style: st0 & 15, width: w0, color: cref(U(24)), cosmetic: false, cap: w0 > 1 ? 'round' : 'butt', join: 'round' };
+                    break;
+                }
+                case 95: {
+                    var ps = U(28), wd = U(32), geo = (ps & 0xF0000) === 0x10000, cb = U(48), cap = ps & 0xF00, jn = ps & 0xF000, dsh = [];
+                    for (i = 0; i < cb && i < 16; i++) dsh.push(U(52 + i * 4));
+                    var pen = { k: 'pen', style: ps & 15, width: wd, color: cref(U(40)), cosmetic: !geo, cap: geo ? (cap === 0x100 ? 'square' : cap === 0x200 ? 'butt' : 'round') : 'butt', join: geo ? (jn === 0x1000 ? 'bevel' : jn === 0x2000 ? 'miter' : 'round') : 'round', dashes: dsh };
+                    if (U(36) === 1) pen.style = 5;                  // bút có cọ rỗng
+                    g.objs[U(8)] = pen; break;
+                }
+                case 39: g.objs[U(8)] = { k: 'brush', style: U(12) === 1 ? 1 : (U(12) === 2 ? 2 : 0), color: cref(U(16)), hatch: U(20) }; break;
+                case 94: case 93: {
+                    var d0 = dib(U(16), U(20), U(24), U(28), {});
+                    g.objs[U(8)] = d0 ? { k: 'brush', style: 3, color: '#808080', dib: { w: d0.w, h: d0.h, uri: d0.uri, key: 'd' + U(8) + '_' + g.uid + '_' + off } } : { k: 'brush', style: 0, color: '#808080' };
+                    break;
+                }
+                case 82: {
+                    g.objs[U(8)] = { k: 'font', height: I(12), esc: I(20), weight: I(28), italic: u8[off + 32] !== 0, underline: u8[off + 33] !== 0, strike: u8[off + 34] !== 0, charset: u8[off + 35], pitch: u8[off + 39], face: utf16(dv, off + 40, 32).replace(/\u0000.*$/, '') };
+                    break;
+                }
+                // --- đường / đa giác ---
+                case 27: g.moveTo(I(8), I(12)); break;
+                case 54: g.lineTo([I(8), I(12)]); break;
+                case 2: case 85: case 3: case 86: case 4: case 87: case 5: case 88: case 6: case 89:
+                    is16 = type >= 85; n = U(24); pts = readPts(dv, off + 28, n, is16);
+                    switch (type - (is16 ? 83 : 0)) {
+                        case 2: g.bezier(pts); break;
+                        case 3: g.poly(pts, true, true, true); break;
+                        case 4: g.poly(pts, false, false, true); break;
+                        case 5: g.bezTo(pts); break;
+                        case 6: g.lineTo(pts); break;
+                    }
+                    break;
+                case 7: case 8: case 90: case 91: {
+                    is16 = type >= 90; var np = U(24), cnts = [], q = off + 32;
+                    for (i = 0; i < np; i++) cnts.push(U(32 + i * 4));
+                    q = off + 32 + np * 4;
+                    var closed = (type === 8 || type === 91);
+                    for (i = 0; i < np; i++) {
+                        pts = readPts(dv, q, cnts[i], is16); q += cnts[i] * (is16 ? 4 : 8);
+                        if (closed) g.poly(pts, true, true, true); else g.poly(pts, false, false, true);
+                    }
+                    break;
+                }
+                case 56: case 92: {
+                    is16 = type === 92; n = U(24); pts = readPts(dv, off + 28, n, is16);
+                    var types = [], tb = off + 28 + n * (is16 ? 4 : 8);
+                    for (i = 0; i < n; i++) types.push(u8[tb + i]);
+                    g.polyDraw(pts, types); break;
+                }
+                case 43: g.rect(I(8), I(12), I(16), I(20)); break;
+                case 42: g.ellipse(I(8), I(12), I(16), I(20)); break;
+                case 44: g.roundRect(I(8), I(12), I(16), I(20), I(24), I(28)); break;
+                case 45: g.arcShape('arc', I(8), I(12), I(16), I(20), I(24), I(28), I(32), I(36)); break;
+                case 46: g.arcShape('chord', I(8), I(12), I(16), I(20), I(24), I(28), I(32), I(36)); break;
+                case 47: g.arcShape('pie', I(8), I(12), I(16), I(20), I(24), I(28), I(32), I(36)); break;
+                case 55: g.arcShape('arcto', I(8), I(12), I(16), I(20), I(24), I(28), I(32), I(36)); break;
+                case 41: g.angleArc(I(8), I(12), U(16), F(20), F(24)); break;
+                // --- khung path ---
+                case 59: g.path = { a: [], open: false, sx: 0, sy: 0 }; break;
+                case 60: if (g.path) { g.pathDone = g.path; g.path = null; } break;
+                case 68: g.path = null; g.pathDone = null; break;
+                case 61: g.closeFig(); break;
+                case 62: case 63: case 64:
+                    if (g.pathDone && g.pathDone.a.length) g.paint(g.pathDone.a.join(' '), type !== 64, type !== 62);
+                    g.pathDone = null; break;
+                case 67:
+                    if (g.pathDone) { g.setClip(U(8), g.pathDone.a.join(' '), s.fill); g.pathDone = null; }
+                    break;
+                // --- clip ---
+                case 30: { var rr = [[I(8), I(12), I(16), I(20)]]; g.setClip(1, g.rectsPath(rr), 2); break; }
+                case 29: { var rr2 = [[I(8), I(12), I(16), I(20)]]; g.setClip(4, g.rectsPath(rr2), 2); break; }
+                case 75: {
+                    var cbr = U(8), mode = U(12);
+                    if (!cbr) { if (mode === 5) s.clip = []; }
+                    else g.setClip(mode, g.rectsPath(rgnRects(dv, off + 16)), 2);
+                    break;
+                }
+                case 71: case 74: {                              // FILLRGN / PAINTRGN
+                    var cr = U(24), bo = type === 71 ? 32 : 28;
+                    if (cr) {
+                        var old = s.brush, d1 = g.rectsPath(rgnRects(dv, off + bo));
+                        if (type === 71) { var o = g.objs[U(28)]; if (o && o.k === 'brush') s.brush = o; }
+                        g.paint(d1, true, false); s.brush = old;
+                    }
+                    break;
+                }
+                // --- bitmap ---
+                case 81: {                                        // STRETCHDIBITS
+                    var im = dib(U(48), U(52), U(56), U(60), {}), rop = U(68);
+                    if (im) g.blit(im, I(24), I(28), I(72), I(76), I(32), I(36), I(40), I(44), { blend: rop === 0x008800C6 ? 'multiply' : rop === 0x00EE0086 ? 'screen' : null });
+                    break;
+                }
+                case 80: {                                        // SETDIBITSTODEVICE
+                    var im2 = dib(U(48), U(52), U(56), U(60), {});
+                    if (im2) g.blit(im2, I(24), I(28), I(40), I(44), I(32), I(36), I(40), I(44));
+                    break;
+                }
+                case 76: case 77: {                               // BITBLT / STRETCHBLT
+                    var rop2 = U(40), cxs = type === 77 ? I(100) : I(32), cys = type === 77 ? I(104) : I(36);
+                    var im3 = dib(U(84), U(88), U(92), U(96), {});
+                    if (im3) g.blit(im3, I(24), I(28), I(32), I(36), I(44), I(48), cxs, cys, { blend: rop2 === 0x008800C6 ? 'multiply' : rop2 === 0x00EE0086 ? 'screen' : null });
+                    else if (rop2 === 0x00F00021 || rop2 === 0x00000042 || rop2 === 0x00FF0062) {      // PATCOPY / BLACKNESS / WHITENESS: tô khối màu
+                        var old2 = s.brush, oldp = s.pen;
+                        if (rop2 === 0x42) s.brush = STOCK_BRUSH[4]; else if (rop2 === 0xFF0062) s.brush = STOCK_BRUSH[0];
+                        s.pen = STOCK_PEN[2]; g.rect(I(24), I(28), I(24) + I(32), I(28) + I(36)); s.brush = old2; s.pen = oldp;
+                    }
+                    break;
+                }
+                case 114: case 116: {                             // ALPHABLEND / TRANSPARENTBLT
+                    var bf = U(40), isAlpha = type === 114, af = (bf >>> 24) & 255, ca = (bf >>> 16) & 255;
+                    var im4 = dib(U(84), U(88), U(92), U(96), { alpha: isAlpha && (af & 1) === 1, key: isAlpha ? null : bf });
+                    if (im4) g.blit(im4, I(24), I(28), I(32), I(36), I(44), I(48), I(100), I(104), { opacity: isAlpha ? ca / 255 : 1 });
+                    break;
+                }
+                case 118: {                                       // GRADIENTFILL
+                    var nv = U(24), nt = U(28), mdg = U(32), vs = [], q2 = off + 36;
+                    for (i = 0; i < nv; i++) { var vb = off + 36 + i * 16; vs.push({ x: dv.getInt32(vb, true), y: dv.getInt32(vb + 4, true), c: '#' + hh(dv.getUint16(vb + 8, true) >> 8) + hh(dv.getUint16(vb + 10, true) >> 8) + hh(dv.getUint16(vb + 12, true) >> 8) }); }
+                    q2 = off + 36 + nv * 16;
+                    for (i = 0; i < nt; i++) {
+                        if (mdg < 2) { var a0 = vs[dv.getUint32(q2 + i * 8, true)], a1 = vs[dv.getUint32(q2 + i * 8 + 4, true)]; if (a0 && a1) g.gradRect(a0, a1, mdg === 1); }
+                        else {
+                            var t0 = vs[dv.getUint32(q2 + i * 12, true)], t1 = vs[dv.getUint32(q2 + i * 12 + 4, true)], t2 = vs[dv.getUint32(q2 + i * 12 + 8, true)];
+                            if (t0 && t1 && t2) { var ob = s.brush, op = s.pen; s.brush = { k: 'brush', style: 0, color: t0.c }; s.pen = STOCK_PEN[2]; g.poly([t0.x, t0.y, t1.x, t1.y, t2.x, t2.y], true, true, false); s.brush = ob; s.pen = op; }
+                        }
+                    }
+                    break;
+                }
+                // --- chữ ---
+                case 83: case 84: {                               // EXTTEXTOUTA / W
+                    var wide = type === 84, nch = U(44), offStr = U(48), opt = U(52), offDx = U(72), str;
+                    if (wide) str = utf16(dv, off + offStr, nch);
+                    else str = decodeAnsi(u8.subarray(off + offStr, off + offStr + nch), s.font ? s.font.charset : 0);
+                    var dxs = null;
+                    if (offDx && offDx + nch * 4 <= size) {
+                        dxs = []; var pdy = (opt & 0x2000) ? 2 : 1;
+                        for (i = 0; i < nch; i++) dxs.push(dv.getInt32(off + offDx + i * 4 * pdy, true));
+                    }
+                    if (opt & 0x10) break;                         // ETO_GLYPH_INDEX: không ánh xạ được chỉ số glyph
+                    g.text(I(36), I(40), str, dxs, [I(56), I(60), I(64), I(68)], opt);
+                    break;
+                }
+                case 70: if (U(8) >= 4 && u8[off + 12] === 0x45 && u8[off + 13] === 0x4D && u8[off + 14] === 0x46 && u8[off + 15] === 0x2B) g.emfPlus = true; break;
+                default: break;                                    // lệnh còn lại không ảnh hưởng hình
+            }
+        }
+
+        // ============================================================
+        // Bộ đọc WMF
+        // ============================================================
+        function wmfToSvg(u8) {
+            var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), len = u8.length, p = 0, bl = 0, bt = 0, br = 0, bb = 0, inch = 0, placeable = false;
+            if (len < 18) return null;
+            if (dv.getUint32(0, true) === 0x9AC6CDD7) {
+                placeable = true; bl = dv.getInt16(6, true); bt = dv.getInt16(8, true); br = dv.getInt16(10, true); bb = dv.getInt16(12, true); inch = dv.getUint16(14, true); p = 22;
+            }
+            var hs = dv.getUint16(p + 2, true) * 2;
+            p += hs || 18;
+            var view = placeable ? { x: Math.min(bl, br), y: Math.min(bt, bb), w: Math.abs(br - bl), h: Math.abs(bb - bt) } : null;
+            if (view && !(view.w > 0 && view.h > 0)) view = null;
+            // Không có placeable: dùng cửa sổ logic do SETWINDOWORG/EXT khai báo (quét trước)
+            var wox = 0, woy = 0, wex = 0, wey = 0, q = p, rs, fn;
+            while (q + 6 <= len) {
+                rs = dv.getUint32(q, true) * 2; fn = dv.getUint16(q + 4, true);
+                if (rs < 6 || q + rs > len) break;
+                if (fn === 0x020B) { woy = dv.getInt16(q + 6, true); wox = dv.getInt16(q + 8, true); }
+                else if (fn === 0x020C) { wey = dv.getInt16(q + 6, true); wex = dv.getInt16(q + 8, true); }
+                if (fn === 0) break; q += rs;
+            }
+            if (!view) { if (!wex || !wey) return null; view = { x: Math.min(wox, wox + wex), y: Math.min(woy, woy + wey), w: Math.abs(wex), h: Math.abs(wey) }; }
+            var g = new Gdi({ w: 1, h: 1, mw: 1, mh: 1 }, view, inch ? inch / 96 : Math.max(view.w, view.h) / 600);
+            var s = g.st; s.mapMode = 8; s.wo = [view.x, view.y]; s.we = [view.w, view.h]; s.vo = [view.x, view.y]; s.ve = [view.w, view.h];
+            if (wex && wey) { s.we = [wex, wey]; s.wo = [wox, woy]; }
+            g.touch();
+            function newObj(o) { var i = 0; while (g.objs[i]) i++; g.objs[i] = o; }
+            var errs = 0;
+            q = p;
+            while (q + 6 <= len) {
+                rs = dv.getUint32(q, true) * 2; fn = dv.getUint16(q + 4, true);
+                if (rs < 6 || q + rs > len) break;
+                if (fn === 0) break;
+                try { wmfRecord(g, dv, u8, q, rs, fn, newObj); } catch (e) { errs++; }
+                q += rs;
+            }
+            if (g.drawn === 0) return null;
+            return g.svg();
+        }
+        function wmfRecord(g, dv, u8, q, rs, fn, newObj) {
+            var s = g.st, o = q + 6, i, n;
+            function S(k) { return dv.getInt16(o + k * 2, true); }
+            function W(k) { return dv.getUint16(o + k * 2, true); }
+            function D(k) { return dv.getUint32(o + k * 2, true); }
+            function pts16(at, cnt) { var r = [], j; for (j = 0; j < cnt * 2; j++) r.push(dv.getInt16(at + j * 2, true)); return r; }
+            switch (fn) {
+                case 0x0103: s.mapMode = W(0); g.touch(); break;
+                case 0x020B: s.wo = [S(1), S(0)]; g.touch(); break;
+                case 0x020C: s.we = [S(1), S(0)]; g.touch(); break;
+                case 0x020F: s.wo = [s.wo[0] - S(1), s.wo[1] - S(0)]; g.touch(); break;
+                case 0x0410: if (S(0) && S(2)) { s.we = [s.we[0] * S(3) / S(2), s.we[1] * S(1) / S(0)]; g.touch(); } break;
+                case 0x001E: g.save(); break;
+                case 0x0127: g.restore(S(0)); break;
+                case 0x0102: s.bm = W(0); break;
+                case 0x0106: s.fill = W(0); break;
+                case 0x012E: s.align = W(0); break;
+                case 0x0209: s.tc = cref(D(0)); break;
+                case 0x0201: s.bc = cref(D(0)); break;
+                case 0x012D: g.selectObj(W(0)); break;
+                case 0x01F0: g.objs[W(0)] = null; break;
+                case 0x02FA: { var w0 = S(1); newObj({ k: 'pen', style: W(0) & 15, width: w0, color: cref(D(3)), cosmetic: false, cap: w0 > 1 ? 'round' : 'butt', join: 'round' }); break; }
+                case 0x02FC: newObj({ k: 'brush', style: W(0) === 1 ? 1 : (W(0) === 2 ? 2 : 0), color: cref(D(1)), hatch: W(3) }); break;
+                case 0x02FB: {
+                    var fo = o, face = '';
+                    for (i = 0; i < 32; i++) { var ch = u8[fo + 18 + i]; if (!ch) break; face += String.fromCharCode(ch); }
+                    newObj({ k: 'font', height: dv.getInt16(fo, true), esc: dv.getInt16(fo + 4, true), weight: dv.getInt16(fo + 8, true), italic: u8[fo + 10] !== 0, underline: u8[fo + 11] !== 0, strike: u8[fo + 12] !== 0, charset: u8[fo + 13], pitch: u8[fo + 17], face: face });
+                    break;
+                }
+                case 0x00F7: case 0x01F9: case 0x06FF: case 0x0142: newObj({ k: 'other' }); break;
+                case 0x0214: g.moveTo(S(1), S(0)); break;
+                case 0x0213: g.lineTo([S(1), S(0)]); break;
+                case 0x0324: n = S(0); g.poly(pts16(o + 2, n), true, true, true); break;
+                case 0x0325: n = S(0); g.poly(pts16(o + 2, n), false, false, true); break;
+                case 0x0538: {
+                    var np = S(0), cnt = [], at;
+                    for (i = 0; i < np; i++) cnt.push(W(1 + i));
+                    at = o + 2 + np * 2;
+                    for (i = 0; i < np; i++) { g.poly(pts16(at, cnt[i]), true, true, true); at += cnt[i] * 4; }
+                    break;
+                }
+                case 0x041B: g.rect(S(3), S(2), S(1), S(0)); break;
+                case 0x0418: g.ellipse(S(3), S(2), S(1), S(0)); break;
+                case 0x061C: g.roundRect(S(5), S(4), S(3), S(2), S(1), S(0)); break;
+                case 0x0817: g.arcShape('arc', S(7), S(6), S(5), S(4), S(3), S(2), S(1), S(0)); break;
+                case 0x081A: g.arcShape('pie', S(7), S(6), S(5), S(4), S(3), S(2), S(1), S(0)); break;
+                case 0x0830: g.arcShape('chord', S(7), S(6), S(5), S(4), S(3), S(2), S(1), S(0)); break;
+                case 0x0416: g.setClip(1, g.rectsPath([[S(3), S(2), S(1), S(0)]]), 2); break;
+                case 0x0415: g.setClip(4, g.rectsPath([[S(3), S(2), S(1), S(0)]]), 2); break;
+                case 0x0521: {                                    // TEXTOUT
+                    var sl = S(0), sb = u8.subarray(o + 2, o + 2 + sl), at2 = o + 2 + ((sl + 1) & ~1);
+                    g.text(dv.getInt16(at2 + 2, true), dv.getInt16(at2, true), decodeAnsi(sb, s.font ? s.font.charset : 0), null, null, 0);
+                    break;
+                }
+                case 0x0A32: {                                    // EXTTEXTOUT
+                    var ty = S(0), tx = S(1), tl = S(2), opt = W(3), at3 = o + 8, rc = null;
+                    if (opt & 6) { rc = [S(4), S(5), S(6), S(7)]; at3 += 8; }
+                    var str = decodeAnsi(u8.subarray(at3, at3 + tl), s.font ? s.font.charset : 0), dxa = null, da = at3 + ((tl + 1) & ~1);
+                    if (da + tl * 2 <= q + rs) { dxa = []; for (i = 0; i < tl; i++) dxa.push(dv.getInt16(da + i * 2, true)); }
+                    g.text(tx, ty, str, dxa, rc, opt);
+                    break;
+                }
+                case 0x0F43: {                                    // STRETCHDIB
+                    var rop = D(0), ds = dibPacked(dv, o + 22, q + rs);
+                    var im = decodeDib(dv, ds.bmiOff, ds.cbBmi, ds.bitsOff, ds.cbBits, {});
+                    if (im) g.blit(im, S(10), S(9), S(8), S(7), S(6), S(5), S(4), S(3), { blend: rop === 0x008800C6 ? 'multiply' : rop === 0x00EE0086 ? 'screen' : null });
+                    break;
+                }
+                case 0x0B41: {                                    // DIBSTRETCHBLT
+                    if (rs <= 6 + 20) break;
+                    var rop2 = D(0), ds2 = dibPacked(dv, o + 20, q + rs);
+                    var im2 = decodeDib(dv, ds2.bmiOff, ds2.cbBmi, ds2.bitsOff, ds2.cbBits, {});
+                    if (im2) g.blit(im2, S(9), S(8), S(7), S(6), S(5), S(4), S(3), S(2), { blend: rop2 === 0x008800C6 ? 'multiply' : rop2 === 0x00EE0086 ? 'screen' : null });
+                    break;
+                }
+                case 0x0D33: {                                    // SETDIBTODEV
+                    var ds3 = dibPacked(dv, o + 18, q + rs);
+                    var im3 = decodeDib(dv, ds3.bmiOff, ds3.cbBmi, ds3.bitsOff, ds3.cbBits, {});
+                    if (im3) g.blit(im3, S(8), S(7), S(6), S(5), S(4), S(3), S(6), S(5));
+                    break;
+                }
+                default: break;
+            }
+        }
+
+        // ============================================================
+        // Nhận dạng & API
+        // ============================================================
+        /** Đoán loại tệp theo nội dung: 'emf' | 'wmf' | 'gzip' | mime ảnh | null */
+        function sniff(u8) {
+            var n = u8.length;
+            if (n < 4) return null;
+            if (n >= 44 && u8[0] === 1 && u8[1] === 0 && u8[2] === 0 && u8[3] === 0 && u8[40] === 0x20 && u8[41] === 0x45 && u8[42] === 0x4D && u8[43] === 0x46) return 'emf';
+            if (u8[0] === 0xD7 && u8[1] === 0xCD && u8[2] === 0xC6 && u8[3] === 0x9A) return 'wmf';
+            if ((u8[0] === 1 || u8[0] === 2) && u8[1] === 0 && u8[2] === 9 && u8[3] === 0 && (u8[4] === 0 || u8[4] === 1 || u8[4] === 3) && u8[5] === 3) return 'wmf';
+            if (u8[0] === 0x1F && u8[1] === 0x8B) return 'gzip';
+            if (u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4E && u8[3] === 0x47) return 'image/png';
+            if (u8[0] === 0xFF && u8[1] === 0xD8 && u8[2] === 0xFF) return 'image/jpeg';
+            if (u8[0] === 0x47 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x38) return 'image/gif';
+            if (u8[0] === 0x42 && u8[1] === 0x4D) return 'image/bmp';
+            if (n > 12 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46 && u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50) return 'image/webp';
+            if (n > 12 && u8[4] === 0x66 && u8[5] === 0x74 && u8[6] === 0x79 && u8[7] === 0x70 && u8[8] === 0x61 && u8[9] === 0x76 && u8[10] === 0x69) return 'image/avif';
+            return null;
+        }
+        /** Chuyển bytes EMF/WMF thành chuỗi SVG; null nếu không phải metafile hoặc không dựng được hình. */
+        function toSvg(u8) {
+            var kind = sniff(u8);
+            try {
+                if (kind === 'emf') return emfToSvg(u8);
+                if (kind === 'wmf') return wmfToSvg(u8);
+            } catch (e) { if (typeof console !== 'undefined') console.warn('[pptxPlayer] Không giải mã được metafile:', e); }
+            return null;
+        }
+        return { toSvg: toSvg, sniff: sniff };
+    })();
+
+    // ------------------------------------------------------------
     // Nạp file
     // ------------------------------------------------------------
     function Zip(zip) { this.zip = zip; this.cache = {}; this.blobs = {}; }
@@ -167,14 +1070,34 @@
             return out;
         });
     };
-    var MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', bmp: 'image/bmp' };
+    var MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', jpe: 'image/jpeg', jfif: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif', ico: 'image/x-icon' };
+    /** .emz / .wmz (EMF/WMF nén gzip): giải nén bằng DecompressionStream nếu trình duyệt có. */
+    function gunzipIfNeeded(buf) {
+        var u8 = new Uint8Array(buf);
+        if (!(u8[0] === 0x1F && u8[1] === 0x8B) || typeof DecompressionStream === 'undefined' || typeof Response === 'undefined') return Promise.resolve(buf);
+        return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().catch(function () { return buf; });
+    }
+    /**
+     * Trả về blob URL dùng được cho <img> / SVG <image>, hoặc null nếu không hiển thị được.
+     * Loại ảnh được nhận dạng theo NỘI DUNG tệp (không tin đuôi tệp). EMF/WMF được dựng lại thành SVG vì trình duyệt không đọc được.
+     */
     Zip.prototype.blobUrl = function (p) {
         var self = this;
         if (self.blobs[p]) return self.blobs[p];
-        var ext = (p.split('.').pop() || '').toLowerCase();
         var f = self.zip.file(p);
-        if (!f || !MIME[ext]) { self.blobs[p] = Promise.resolve(null); return self.blobs[p]; }
-        self.blobs[p] = f.async('arraybuffer').then(function (buf) { return URL.createObjectURL(new Blob([buf], { type: MIME[ext] })); });
+        if (!f) { self.blobs[p] = Promise.resolve(null); return self.blobs[p]; }
+        var ext = (p.split('.').pop() || '').toLowerCase();
+        self.blobs[p] = f.async('arraybuffer').then(gunzipIfNeeded).then(function (buf) {
+            var u8 = new Uint8Array(buf), kind = Metafile.sniff(u8);
+            if (kind === 'emf' || kind === 'wmf') {
+                var svg = Metafile.toSvg(u8);
+                if (!svg) { if (global.console) console.warn('[pptxPlayer] Không dựng được ảnh ' + kind.toUpperCase() + ': ' + p); return null; }
+                return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+            }
+            var mime = (kind && kind.indexOf('image/') === 0) ? kind : MIME[ext];
+            if (!mime) { if (global.console) console.warn('[pptxPlayer] Định dạng ảnh chưa hỗ trợ: ' + p); return null; }
+            return URL.createObjectURL(new Blob([u8], { type: mime }));
+        }).catch(function (e) { if (global.console) console.warn('[pptxPlayer] Lỗi đọc ảnh ' + p, e); return null; });
         return self.blobs[p];
     };
 
@@ -523,11 +1446,22 @@
         var fontRefColor = this.styleRefColor(shape, 'fontRef');
         var fs = 1;
         var af = bodyPr && kid(bodyPr, NS_A, 'normAutofit');
+        // normAutofit có thể kế thừa từ layout/master (PowerPoint tự co chữ cho vừa khung)
+        var autoShrink = false;
+        [bodyPr, lp && path(lp, 'p:txBody', 'a:bodyPr'), mp && path(mp, 'p:txBody', 'a:bodyPr')].some(function (src) {
+            if (!src) return false;
+            if (kid(src, NS_A, 'normAutofit')) { autoShrink = true; return true; }
+            if (kid(src, NS_A, 'noAutofit') || kid(src, NS_A, 'spAutoFit')) return true;
+            return false;
+        });
+        // Khung nội dung (không phải tiêu đề/số trang/ngày/chân trang) cũng tự co khi chữ tràn — dù file không bật autofit. Tiêu đề giữ nguyên.
+        if (ph && !/^(title|ctrTitle|subTitle|sldNum|dt|ftr)$/.test(ph.type || '')) autoShrink = true;
         if (af && af.hasAttribute('fontScale')) fs = num(af.getAttribute('fontScale'), 100000) / 100000;
         var lnRed = af && af.hasAttribute('lnSpcReduction') ? num(af.getAttribute('lnSpcReduction'), 0) / 100000 : 0;
 
         var wrap = document.createElement('div');
         wrap.className = 'pp-text';
+        if (autoShrink) wrap.setAttribute('data-autofit', '1');
         var L = num(bp('lIns', 91440), 91440) / EMU, T = num(bp('tIns', 45720), 45720) / EMU, R = num(bp('rIns', 91440), 91440) / EMU, B = num(bp('bIns', 45720), 45720) / EMU;
         var anchor = bp('anchor', 't');
         var st = wrap.style;
@@ -548,7 +1482,7 @@
             var div = document.createElement('div');
             div.className = 'pp-p'; div.setAttribute('data-p', String(pi));
             var ds = div.style;
-            ds.margin = '0'; ds.minHeight = '1em'; ds.wordBreak = 'break-word'; ds.overflowWrap = 'anywhere';
+            ds.margin = '0'; ds.minHeight = '1em'; ds.flexShrink = '0'; ds.wordBreak = 'break-word'; ds.overflowWrap = 'anywhere';
             var algn = pp.algn || 'l';
             ds.textAlign = algn === 'ctr' ? 'center' : algn === 'r' ? 'right' : algn === 'just' ? 'justify' : 'left';
             var marL = num(pp.marL, 0) / EMU, indent = num(pp.indent, 0) / EMU;
@@ -562,11 +1496,15 @@
             ds.lineHeight = ls ? (ls.px !== undefined ? ls.px + 'px' : Math.max(0.5, (ls.pct - lnRed)) * 1.2) : (1.2 - lnRed * 1.2);
 
             // bullet
-            var buNode = pp.bu, hasText = false, bulletText = '';
+            var buNode = pp.bu, hasText = false, bulletText = '', symbolFont = false;
             var runs = [];
             kids(p).forEach(function (c) { if (/^(r|br|fld)$/.test(c.localName)) runs.push(c); });
             runs.forEach(function (r) { if (r.localName !== 'br' && (path(r, 'a:t') || {}).textContent) hasText = true; });
-            if (buNode && buNode.localName === 'buChar' && hasText) bulletText = buNode.getAttribute('char') || '•';
+            if (buNode && buNode.localName === 'buChar' && hasText) {
+                bulletText = buNode.getAttribute('char') || '•';
+                var symFont = pp.buFont && pp.buFont.getAttribute('typeface'), symCh = symbolBullet(symFont, bulletText);
+                if (symCh) { bulletText = symCh; symbolFont = true; }
+            }
             else if (buNode && buNode.localName === 'buAutoNum' && hasText) {
                 autoNum[lvl] = (autoNum[lvl] || 0) + 1;
                 for (var k in autoNum) if (+k > lvl) autoNum[k] = 0;
@@ -605,7 +1543,8 @@
                 if (!bw) bu.style.marginRight = '0.4em';
                 var brp = JSON.parse(JSON.stringify({ sz: pp.r.sz, font: null })); brp.fill = pp.buClr || pp.r.fill; brp.b = null;
                 runStyle(bu, brp);
-                if (pp.buFont && pp.buFont.getAttribute('typeface') && !/^\+/.test(pp.buFont.getAttribute('typeface'))) bu.style.fontFamily = '"' + pp.buFont.getAttribute('typeface') + '", Arial, sans-serif';
+                if (symbolFont) bu.style.fontFamily = '"Segoe UI Symbol", "Noto Sans Symbols2", "Noto Sans Symbols", "DejaVu Sans", Arial, sans-serif';
+                else if (pp.buFont && pp.buFont.getAttribute('typeface') && !/^\+/.test(pp.buFont.getAttribute('typeface'))) bu.style.fontFamily = '"' + pp.buFont.getAttribute('typeface') + '", Arial, sans-serif';
                 if (pp.buSzPct) bu.style.fontSize = (parseFloat(bu.style.fontSize) * num(pp.buSzPct.getAttribute('val'), 100000) / 100000) + 'px';
                 div.appendChild(bu);
             }
@@ -639,6 +1578,29 @@
         return wrap;
     };
 
+
+    // ------------------------------------------------------------
+    // Bullet dùng font ký hiệu (Wingdings, Wingdings 2/3, Symbol, Webdings): trình duyệt không có các font này nên
+    // ký tự gốc ("q", "Ø", "§"…) hiện nguyên chữ. Đổi sang ký tự Unicode tương ứng.
+    // ------------------------------------------------------------
+    var SYMBOL_BULLETS = {
+        wingdings: { 'l': '\u25CF', 'm': '\u274D', 'n': '\u25A0', 'o': '\u25A1', 'p': '\u25A1', 'q': '\u2751', 'r': '\u2752', 's': '\u2B27', 't': '\u29EB', 'u': '\u25C6', 'v': '\u2756', 'w': '\u2B25', 'x': '\u2327',
+            '\u00A7': '\u25AA', '\u00A1': '\u25CB', '\u00A8': '\u25FB', '\u00D8': '\u27A2', '\u00DE': '\u21E8', '\u00E8': '\u2794', '\u00E0': '\u2794', '\u00FC': '\u2713', '\u00FB': '\u2717', '\u00FD': '\u2612', '\u00FE': '\u2611',
+            'J': '\u263A', 'K': '\uD83D\uDE10', 'L': '\u2639', 'F': '\u2691', 'N': '\u2620', 'P': '\u2756', '\u00B7': '\u2022', '\u00AB': '\u2605', '\u00AC': '\u2606', 'S': '\u2744', 'T': '\u271E', '\u00D5': '\u21E8' },
+        wingdings2: { 'P': '\u25CF', 'Q': '\u25CB', 'R': '\u25A0', 'S': '\u25A1', '\u00A3': '\u25CF', '\u00A4': '\u25C9', '\u00A5': '\u25CE', '\u00AB': '\u2605', '\u00AC': '\u2606', '\u00F8': '\u2714', '\u00FC': '\u2714', '\u00FB': '\u2718', '\u00FE': '\u2611', '\u00FD': '\u2612' },
+        wingdings3: { 'p': '\u25B2', 'q': '\u25BC', 'u': '\u25B6', 't': '\u25C0', '\u00A7': '\u25B6', '\u00D8': '\u25B6', '\u0075': '\u25B6', '\u0076': '\u25C0', 'f': '\u25B6', 'g': '\u25C0' },
+        symbol: { '\u00B7': '\u2022', '\u00A8': '\u2666', '\u00D8': '\u2205', '-': '\u2013', '\u00DE': '\u21D2', '\u00AE': '\u2192', '\u00B0': '\u00B0', 'o': '\u25CB', '\u00A7': '\u2663' },
+        webdings: { 'i': '\u25CF', 'g': '\u25CF', '4': '\u25B6', '3': '\u25C0', 'a': '\u2713', '\u00FC': '\u2713' }
+    };
+    function symbolBullet(font, ch) {
+        var key = String(font || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!/^(wingdings[23]?|symbol|webdings)$/.test(key)) return null;
+        var code = ch ? ch.charCodeAt(0) : 0;
+        if (code >= 0xF000 && code <= 0xF0FF) ch = String.fromCharCode(code - 0xF000);   // PowerPoint hay lưu ký hiệu ở vùng riêng U+F0xx
+        var map = SYMBOL_BULLETS[key] || {};
+        return map[ch] || (ch && ch.charCodeAt(0) > 0x2000 ? ch : '\u2022');
+    }
+
     // --- Hình học ---
     function polyPoints(prst, w, h, adj) {
         var P = function (arr) { return arr.map(function (p) { return (p[0] * w) + ',' + (p[1] * h); }).join(' '); };
@@ -661,6 +1623,11 @@
             case 'plus': case 'mathPlus': return P([[0.33, 0], [0.67, 0], [0.67, 0.33], [1, 0.33], [1, 0.67], [0.67, 0.67], [0.67, 1], [0.33, 1], [0.33, 0.67], [0, 0.67], [0, 0.33], [0.33, 0.33]]);
             case 'star4': return P([[0.5, 0], [0.62, 0.38], [1, 0.5], [0.62, 0.62], [0.5, 1], [0.38, 0.62], [0, 0.5], [0.38, 0.38]]);
             case 'star5': return P([[0.5, 0], [0.62, 0.38], [1, 0.38], [0.69, 0.62], [0.81, 1], [0.5, 0.77], [0.19, 1], [0.31, 0.62], [0, 0.38], [0.38, 0.38]]);
+            case 'flowChartPreparation': return P([[0.2, 0], [0.8, 0], [1, 0.5], [0.8, 1], [0.2, 1], [0, 0.5]]);
+            case 'flowChartInputOutput': return P([[0.2, 0], [1, 0], [0.8, 1], [0, 1]]);
+            case 'flowChartManualOperation': return P([[0, 0], [1, 0], [0.8, 1], [0.2, 1]]);
+            case 'flowChartMerge': return P([[0, 0], [1, 0], [0.5, 1]]);
+            case 'flowChartExtract': return P([[0.5, 0], [1, 1], [0, 1]]);
             case 'flowChartTerminator': return null;
             default: return undefined;
         }
@@ -776,7 +1743,7 @@
 
     Ctx.prototype.lineSpec = function (spPr, shape, defs) {
         var ln = spPr && kid(spPr, NS_A, 'ln'), self = this;
-        var w = null, c = null, dash = null, none = false, head = null, tail = null;
+        var w = null, c = null, dash = null, none = false, head = null, tail = null, headSz = null, tailSz = null;
         function applyLn(l) {
             if (!l) return;
             if (l.hasAttribute('w')) w = attrNum(l, 'w', 0) / EMU;
@@ -786,8 +1753,8 @@
             if (gf) { var g = kid(kid(gf, NS_A, 'gsLst'), NS_A, 'gs'); if (g) { c = readColor(g, self.T()); none = false; } }
             var pd = kid(l, NS_A, 'prstDash'); if (pd) dash = pd.getAttribute('val');
             var he = kid(l, NS_A, 'headEnd'), te = kid(l, NS_A, 'tailEnd');
-            if (he && he.getAttribute('type') && he.getAttribute('type') !== 'none') head = he.getAttribute('type');
-            if (te && te.getAttribute('type') && te.getAttribute('type') !== 'none') tail = te.getAttribute('type');
+            if (he && he.getAttribute('type') && he.getAttribute('type') !== 'none') { head = he.getAttribute('type'); headSz = { w: he.getAttribute('w') || 'med', l: he.getAttribute('len') || 'med' }; }
+            if (te && te.getAttribute('type') && te.getAttribute('type') !== 'none') { tail = te.getAttribute('type'); tailSz = { w: te.getAttribute('w') || 'med', l: te.getAttribute('len') || 'med' }; }
         }
         var st = kid(shape, NS_P, 'style'), lr = st && kid(st, NS_A, 'lnRef');
         if (lr) {
@@ -802,7 +1769,7 @@
         applyLn(ln);
         if (none || (!c && !ln)) return null;
         if (!c) c = { rgb: [0, 0, 0], a: 1 };
-        return { w: w === null ? 1 : Math.max(w, 0.5), c: c, dash: dash, head: head, tail: tail };
+        return { w: w === null ? 1 : Math.max(w, 0.5), c: c, dash: dash, head: head, tail: tail, headSz: headSz, tailSz: tailSz };
     };
 
     var DASH = { dash: '6 3', sysDash: '3 2', dot: '1.5 2', sysDot: '1.5 1.5', lgDash: '9 4', dashDot: '6 3 1.5 3', lgDashDot: '9 4 1.5 4', lgDashDotDot: '9 4 1.5 4 1.5 4' };
@@ -810,7 +1777,11 @@
     Ctx.prototype.shapeGeometry = function (shape, box, ph, isLine) {
         var spPr = kid(shape, NS_P, 'spPr');
         var w = Math.max(box.w, 0.01), h = Math.max(box.h, 0.01);
-        var svg = svgEl('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h });
+        var pg0 = spPr && kid(spPr, NS_A, 'prstGeom'), prst0 = pg0 ? pg0.getAttribute('prst') : '';
+        var lineish = isLine || /^(line|straightConnector1|bentConnector[2-5]|curvedConnector[2-5]|lineInv)$/.test(prst0);
+        // Đường nối thẳng đứng/nằm ngang có cx hoặc cy = 0: svg rộng 0.01px bị Chromium bỏ qua → không thấy đường. Cho khung svg ≥ 1px, nét vẫn vẽ đúng toạ độ cũ.
+        var sw = lineish ? Math.max(w, 1) : w, sh = lineish ? Math.max(h, 1) : h;
+        var svg = svgEl('svg', { width: sw, height: sh, viewBox: '0 0 ' + sw + ' ' + sh });
         svg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible';
         var defs = svgEl('defs', {}); svg.appendChild(defs);
         var fill = this.fillSpec(spPr, shape, ph, defs), line = this.lineSpec(spPr, shape, defs);
@@ -819,6 +1790,8 @@
         var prst = pg ? pg.getAttribute('prst') : (cg ? 'custom' : 'rect');
         var adjNode = pg && kid(kid(pg, NS_A, 'avLst'), NS_A, 'gd');
         var adj1 = adjNode ? num((adjNode.getAttribute('fmla') || '').replace(/[^0-9-]/g, ''), null) : null;
+        var adjN = {};   // adj1, adj2, adj3 theo tên (đường nối gấp khúc cần nhiều tham số)
+        if (pg) kids(kid(pg, NS_A, 'avLst'), NS_A, 'gd').forEach(function (gd) { adjN[gd.getAttribute('name')] = num((gd.getAttribute('fmla') || '').replace(/[^0-9-]/g, ''), null); });
         var fillAttr = fill && fill.kind === 'solid' ? 'rgb(' + fill.c.rgb.join(',') + ')' : fill && (fill.kind === 'grad' || fill.kind === 'pat') ? 'url(#' + fill.id + ')' : 'none';
         var fillOp = fill && fill.kind === 'solid' ? fill.c.a : 1;
         var common = { fill: fillAttr, 'fill-opacity': fillOp };
@@ -831,17 +1804,31 @@
                 var e = svgEl('path', Object.assign({}, common, { d: p.d })); if (!p.fill) e.setAttribute('fill', 'none'); if (!p.stroke) e.setAttribute('stroke', 'none'); svg.appendChild(e);
             });
         } else if (isLine || /^(line|straightConnector1|bentConnector[2-5]|curvedConnector[2-5]|lineInv)$/.test(prst)) {
-            var attrs = { x1: 0, y1: 0, x2: w, y2: h }; var ln2 = line || { w: 1, c: { rgb: [0, 0, 0], a: 1 } };
-            var l = svgEl('line', { x1: 0, y1: 0, x2: w, y2: h, stroke: 'rgb(' + ln2.c.rgb.join(',') + ')', 'stroke-opacity': ln2.c.a, 'stroke-width': ln2.w });
+            var ln2 = line || { w: 1, c: { rgb: [0, 0, 0], a: 1 } };
+            var seg = null;
+            if (prst === 'bentConnector2') seg = 'M0,0 L' + w + ',0 L' + w + ',' + h;
+            else if (prst === 'bentConnector3') { var ax = w * (adj1 !== null ? adj1 : 50000) / 100000; seg = 'M0,0 L' + ax + ',0 L' + ax + ',' + h + ' L' + w + ',' + h; }
+            else if (prst === 'bentConnector4') {
+                var bx1 = w * (adjN.adj1 != null ? adjN.adj1 : 50000) / 100000, by2 = h * (adjN.adj2 != null ? adjN.adj2 : 50000) / 100000;
+                seg = 'M0,0 L' + bx1 + ',0 L' + bx1 + ',' + by2 + ' L' + w + ',' + by2 + ' L' + w + ',' + h;
+            } else if (prst === 'bentConnector5') {
+                var cx1 = w * (adjN.adj1 != null ? adjN.adj1 : 50000) / 100000, cy2 = h * (adjN.adj2 != null ? adjN.adj2 : 50000) / 100000, cx3 = w * (adjN.adj3 != null ? adjN.adj3 : 50000) / 100000;
+                seg = 'M0,0 L' + cx1 + ',0 L' + cx1 + ',' + cy2 + ' L' + cx3 + ',' + cy2 + ' L' + cx3 + ',' + h + ' L' + w + ',' + h;
+            }
+            var lAttrs = { stroke: 'rgb(' + ln2.c.rgb.join(',') + ')', 'stroke-opacity': ln2.c.a, 'stroke-width': ln2.w };
+            var l = seg ? svgEl('path', Object.assign({ d: seg, fill: 'none', 'stroke-linejoin': 'miter' }, lAttrs)) : svgEl('line', Object.assign({ x1: 0, y1: 0, x2: w, y2: h }, lAttrs));
             if (ln2.dash && DASH[ln2.dash]) l.setAttribute('stroke-dasharray', DASH[ln2.dash]);
             var mid = 'ppm' + (++gradSeq);
-            function marker(type, atEnd) {
-                var m = svgEl('marker', { id: mid + (atEnd ? 't' : 'h'), markerWidth: 8, markerHeight: 8, refX: atEnd ? 7 : 1, refY: 4, orient: 'auto-start-reverse', markerUnits: 'strokeWidth' });
+            // Cỡ mũi tên theo PowerPoint: sm=2, med=3, lg=5 × bề dày nét (nét mỏng hơn 2pt vẫn tính như 2pt). Trước đây = 8 × bề dày → to gấp ~2,7 lần.
+            var ARROW = { sm: 2, med: 3, lg: 5 }, abase = Math.max(ln2.w, 2.67);
+            function marker(type, atEnd, sz) {
+                var mw = (ARROW[sz && sz.w] || 3) * abase, ml = (ARROW[sz && sz.l] || 3) * abase;
+                var m = svgEl('marker', { id: mid + (atEnd ? 't' : 'h'), viewBox: '0 0 8 8', preserveAspectRatio: 'none', markerWidth: ml, markerHeight: mw, refX: 6, refY: 4, orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse' });
                 m.appendChild(svgEl('path', { d: type === 'oval' ? 'M1,4 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0' : 'M0,0 L8,4 L0,8 Z', fill: 'rgb(' + ln2.c.rgb.join(',') + ')' }));
                 defs.appendChild(m); return 'url(#' + mid + (atEnd ? 't' : 'h') + ')';
             }
-            if (ln2.tail) l.setAttribute('marker-end', marker(ln2.tail, true));
-            if (ln2.head) l.setAttribute('marker-start', marker(ln2.head, false));
+            if (ln2.tail) l.setAttribute('marker-end', marker(ln2.tail, true, ln2.tailSz));
+            if (ln2.head) l.setAttribute('marker-start', marker(ln2.head, false, ln2.headSz));
             svg.appendChild(l);
         } else if (prst === 'ellipse' || prst === 'flowChartConnector') {
             svg.appendChild(svgEl('ellipse', Object.assign({}, common, { cx: w / 2, cy: h / 2, rx: w / 2, ry: h / 2 })));
@@ -872,13 +1859,16 @@
         return { x: 0, y: 0, w: 0, h: 0, rot: 0, flipH: false, flipV: false };
     };
 
-    Ctx.prototype.renderShape = function (shape, parentEl, opts) {
+    Ctx.prototype.renderShape = function (shape, parentEl, opts, map) {
         var self = this, ln = shape.localName;
         var cNvPr = path(shape, 'p:nvSpPr', 'p:cNvPr') || path(shape, 'p:nvPicPr', 'p:cNvPr') || path(shape, 'p:nvGrpSpPr', 'p:cNvPr') || path(shape, 'p:nvGraphicFramePr', 'p:cNvPr') || path(shape, 'p:nvCxnSpPr', 'p:cNvPr');
         if (cNvPr && cNvPr.getAttribute('hidden') === '1') return null;
         var spid = cNvPr ? cNvPr.getAttribute('id') : null;
         var ph = phInfo(shape);
         var box = this.resolveBox(shape);
+        // Con của nhóm: toạ độ nằm trong không gian chOff/chExt → đổi sang px của nhóm cha (PowerPoint chỉ co giãn HÌNH HỌC,
+        // không co giãn cỡ chữ / bề dày nét — trước đây scale() cả nhóm làm chữ & nét to lên hàng nghìn lần khi chExt rất nhỏ).
+        if (map) box = Object.assign({}, box, { x: (box.x - map.cx) * map.sx, y: (box.y - map.cy) * map.sy, w: box.w * map.sx, h: box.h * map.sy });
 
         var outer = document.createElement('div');
         outer.className = 'pp-sh';
@@ -896,11 +1886,10 @@
 
         if (ln === 'grpSp') {
             var g = document.createElement('div');
-            var gw = box.chW || box.w, gh = box.chH || box.h;
-            g.style.cssText = 'position:absolute;left:0;top:0;width:' + gw + 'px;height:' + gh + 'px;transform-origin:0 0;transform:scale(' + (gw ? box.w / gw : 1) + ',' + (gh ? box.h / gh : 1) + ') translate(' + (-(box.chX || 0)) + 'px,' + (-(box.chY || 0)) + 'px)';
-            kids(shape).forEach(function (c) { if (c.namespaceURI === NS_P && /^(sp|pic|grpSp|graphicFrame|cxnSp)$/.test(c.localName)) self.renderShape(c, g); });
-            // group: tọa độ con nằm trong không gian chOff → dời về 0 rồi scale
-            g.style.transform = 'scale(' + (gw ? box.w / gw : 1) + ',' + (gh ? box.h / gh : 1) + ') translate(' + (-(box.chX || 0)) + 'px,' + (-(box.chY || 0)) + 'px)';
+            var hasCh = box.chW > 0 && box.chH > 0;
+            var cmap = hasCh ? { cx: box.chX || 0, cy: box.chY || 0, sx: box.w / box.chW, sy: box.h / box.chH } : { cx: 0, cy: 0, sx: 1, sy: 1 };
+            g.style.cssText = 'position:absolute;left:0;top:0;width:' + box.w + 'px;height:' + box.h + 'px';
+            kids(shape).forEach(function (c) { if (c.namespaceURI === NS_P && /^(sp|pic|grpSp|graphicFrame|cxnSp)$/.test(c.localName)) self.renderShape(c, g, undefined, cmap); });
             inner.appendChild(g);
         } else if (ln === 'pic') {
             this.renderPicture(shape, box, inner);
@@ -1002,8 +1991,19 @@
         else if (pg && pg.getAttribute('prst') === 'roundRect') holder.style.borderRadius = (Math.min(box.w, box.h) * 0.16667) + 'px';
         var line = this.lineSpec(spPr, pic, null);
         if (line && spPr && kid(spPr, NS_A, 'ln')) holder.style.outline = line.w + 'px solid ' + css(line.c);
+        // Ảnh không đọc/giải mã được → hiện khung báo lỗi (có tên tệp) thay vì để trống, để người dùng biết ảnh nào hỏng.
+        function failed(target) {
+            if (img.parentNode) img.parentNode.removeChild(img);
+            holder.style.background = 'rgba(0,0,0,0.04)';
+            holder.style.display = 'flex'; holder.style.alignItems = 'center'; holder.style.justifyContent = 'center';
+            var lb = document.createElement('div');
+            lb.style.cssText = 'color:#9ca3af;font:12px sans-serif;text-align:center;padding:4px';
+            lb.textContent = '(Không hiển thị được ảnh' + (target ? ' ' + target.split('/').pop() : '') + ')';
+            holder.appendChild(lb);
+        }
         if (rel) {
-            this.pending.push(self.deck.zip.blobUrl(rel.target).then(function (u) { if (u) img.src = u; else holder.style.background = 'rgba(0,0,0,0.04)'; }));
+            img.onerror = function () { failed(rel.target); };
+            this.pending.push(self.deck.zip.blobUrl(rel.target).then(function (u) { if (u) img.src = u; else failed(rel.target); }));
         }
         this.attachYouTube(pic, holder);
     };
@@ -1012,6 +2012,10 @@
         var gd = path(gf, 'a:graphic', 'a:graphicData');
         var tbl = gd && kid(gd, NS_A, 'tbl');
         if (tbl) { this.renderTable(tbl, box, inner); return; }
+        // Đối tượng OLE (vd. Paint.Picture, Equation…): file lưu sẵn ảnh xem trước dạng <p:pic> trong mc:Fallback → vẽ ảnh đó
+        // (trước đây hiện khung xám "Đối tượng nhúng — chưa hỗ trợ").
+        var oPic = gd && desc(gd, 'pic')[0];
+        if (oPic) { this.renderPicture(oPic, box, inner); return; }
         var ph = document.createElement('div');
         ph.style.cssText = 'position:absolute;inset:0;border:1px dashed rgba(100,100,100,.5);background:rgba(240,240,240,.6);display:flex;align-items:center;justify-content:center;color:#6b7280;font:14px sans-serif;text-align:center;padding:8px';
         var uri = gd ? (gd.getAttribute('uri') || '') : '';
@@ -1091,7 +2095,7 @@
                 if (bf) {
                     var blip = kid(bf, NS_A, 'blip'), rid = blip && blip.getAttributeNS(NS_R, 'embed');
                     var rels = sources[i] === this.slide.root ? this.slideRels : sources[i] === this.layout.root ? this.layout.rels : this.master.rels;
-                    if (rels && rels[rid]) this.pending.push(this.deck.zip.blobUrl(rels[rid].target).then(function (u) { if (u) stageEl.style.background = 'url("' + u + '") center/cover no-repeat'; }));
+                    if (rels && rels[rid]) this.pending.push(this.deck.zip.blobUrl(rels[rid].target).then(function (u) { if (u) stageEl.style.background = 'url("' + u + '") 0 0/100% 100% no-repeat'; }));
                     return;
                 }
             } else if (ref) {
@@ -1210,6 +2214,51 @@
     // ------------------------------------------------------------
     function fmtPx(n) { return Math.round(n * 100) / 100 + 'px'; }
 
+
+    // ------------------------------------------------------------
+    // Hiệu ứng dạng mặt nạ: Blinds, Checkerboard, Random Bars, Strips, Wedge, Wheel.
+    // Dùng thuộc tính CSS đã đăng ký (--ppP phần trăm, --ppA góc) để Web Animations nội suy được trong mask-image.
+    // ------------------------------------------------------------
+    var maskReady = null;
+    function maskSupported() {
+        if (maskReady !== null) return maskReady;
+        maskReady = false;
+        try {
+            if (global.CSS && CSS.registerProperty && CSS.supports && (CSS.supports('mask-image', 'linear-gradient(#000,#000)') || CSS.supports('-webkit-mask-image', 'linear-gradient(#000,#000)'))) {
+                [{ name: '--ppP', syntax: '<percentage>', initialValue: '0%' }, { name: '--ppA', syntax: '<angle>', initialValue: '0deg' }].forEach(function (d) {
+                    try { CSS.registerProperty({ name: d.name, syntax: d.syntax, inherits: false, initialValue: d.initialValue }); } catch (e) { /* đã đăng ký rồi */ }
+                });
+                maskReady = true;
+            }
+        } catch (e) { maskReady = false; }
+        return maskReady;
+    }
+    function maskEffect(id, st) {
+        if (!maskSupported()) return null;
+        var img, prop, p0, p1;
+        if (id === 3 || id === 5 || id === 14) {            // blinds / checkerboard / random bars: các thanh mở dần
+            var dir = (st === 10 || (id !== 3 && st === 5)) ? 'to bottom' : 'to right';
+            if (id === 3 && st === 5) dir = 'to right';
+            var per = id === 14 ? 6.25 : 12.5;
+            img = 'repeating-linear-gradient(' + dir + ', #000 0, #000 var(--ppP), transparent var(--ppP), transparent ' + per + '%)';
+            prop = '--ppP'; p0 = '0%'; p1 = per + '%';
+        } else if (id === 18) {                             // strips: thanh chéo
+            var ang = (st === 3 || st === 12) ? '45deg' : '135deg';
+            img = 'repeating-linear-gradient(' + ang + ', #000 0, #000 var(--ppP), transparent var(--ppP), transparent 10%)';
+            prop = '--ppP'; p0 = '0%'; p1 = '10%';
+        } else if (id === 20) {                             // wedge: mở từ giữa-trên ra hai bên
+            img = 'conic-gradient(from calc(0deg - var(--ppA)) at 50% 50%, #000 0deg, #000 calc(2 * var(--ppA)), transparent calc(2 * var(--ppA)))';
+            prop = '--ppA'; p0 = '0deg'; p1 = '180deg';
+        } else {                                            // wheel (21): st = số nan quạt (1,2,3,4,8)
+            var n = [1, 2, 3, 4, 8].indexOf(st) >= 0 ? st : 1;
+            img = 'repeating-conic-gradient(from 0deg at 50% 50%, #000 0deg, #000 var(--ppA), transparent var(--ppA), transparent ' + (360 / n) + 'deg)';
+            prop = '--ppA'; p0 = '0deg'; p1 = (360 / n) + 'deg';
+        }
+        var k0 = { maskImage: img, webkitMaskImage: img }, k1 = { maskImage: img, webkitMaskImage: img };
+        k0[prop] = p0; k1[prop] = p1;
+        return { kf: [k0, k1] };
+    }
+
     function effectKeyframes(e, el, W, H) {
         // trả về { kf: [...], opt:{...}, persist: fn|null } — kf mô tả trạng thái BẮT ĐẦU → KẾT THÚC của entr (exit sẽ đảo chiều)
         var left = el.offsetLeft, top = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight;
@@ -1221,9 +2270,12 @@
             return 'translate(' + fmtPx(dx) + ',' + fmtPx(dy) + ')';
         };
         switch (id) {
-            case 1: return { kf: [{ opacity: 0 }, { opacity: 0 }], dur: 1, appear: true };
+            case 1: return { kf: [{ opacity: 0 }, { opacity: 0, offset: 0.99 }, { opacity: 1 }], dur: 1, appear: true };   // ẩn tới đúng lúc bắt đầu (delay) rồi hiện hẳn
             case 2: return { kf: [{ transform: from(st || 4) }, { transform: 'translate(0,0)' }] };
-            case 3: case 5: case 14: case 18: case 20: case 21: return { kf: [{ opacity: 0 }, { opacity: 1 }] };   // blinds/checker/bars/strips/wedge/wheel → fade
+            case 3: case 5: case 14: case 18: case 20: case 21: {    // blinds / checkerboard / random bars / strips / wedge / wheel → mặt nạ (mask) động; trình duyệt cũ không có → fade
+                var mk = maskEffect(id, st);
+                return mk || { kf: [{ opacity: 0 }, { opacity: 1 }] };
+            }
             case 4: return { kf: [{ clipPath: st === 32 ? 'inset(0)' : 'inset(50%)' }, { clipPath: 'inset(0%)' }] };
             case 6: return { kf: [{ clipPath: 'circle(0% at 50% 50%)' }, { clipPath: 'circle(75% at 50% 50%)' }] };
             case 8: return { kf: [{ clipPath: 'polygon(50% 50%,50% 50%,50% 50%,50% 50%)' }, { clipPath: 'polygon(50% -50%,150% 50%,50% 150%,-50% 50%)' }] };
@@ -1264,9 +2316,10 @@
         this.frame = document.createElement('div');
         this.frame.className = 'pp-frame';
         this.frame.style.cssText = 'position:relative;overflow:hidden;background:#000;margin:auto;flex:none;transform-origin:0 0';
+        this.fh = deck.height; this.textScale = Number(this.opts.textScale) || 1;   // fh: chiều cao khung (cao hơn slide khi chữ phóng to quá khung)
         this.frame.style.width = deck.width + 'px'; this.frame.style.height = deck.height + 'px';
         container.appendChild(this.frame);
-        this.scale = 1;
+        this.scale = 1; this.zoom = Math.max(0.25, Math.min(4, Number(this.opts.zoom) || 1));
         this.resize();
         var self = this;
         this._ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(function () { self.resize(); }) : null;
@@ -1274,15 +2327,27 @@
     }
 
     Player.prototype.resize = function () {
-        var c = this.container, W = this.deck.width, H = this.deck.height;
+        var c = this.container, W = this.deck.width, H = this.fh || this.deck.height;
         var cw = c.clientWidth, ch = c.clientHeight;
         if (!cw || !ch) return;
-        var s = Math.min(cw / W, ch / H);
+        var s = (H > this.deck.height ? cw / W : Math.min(cw / W, ch / H)) * (this.zoom || 1);   // slide bị kéo dài (chữ to) → vừa chiều ngang, cuộn dọc      // zoom 1 = vừa khung; > 1 = to hơn khung (khung tự cuộn)
         this.scale = s;
         this.frame.style.transform = 'scale(' + s + ')';
         this.frame.style.marginLeft = Math.max(0, (cw - W * s) / 2) + 'px';
         this.frame.style.marginTop = Math.max(0, (ch - H * s) / 2) + 'px';
         this.frame.style.marginRight = (-(W - W * s)) + 'px'; this.frame.style.marginBottom = (-(H - H * s)) + 'px';
+    };
+
+    /** Phóng to / thu nhỏ so với mức "vừa khung" (1 = 100%). Giữ nguyên tâm đang xem. */
+    Player.prototype.setZoom = function (z) {
+        var c = this.container;
+        var fx = c.scrollWidth ? (c.scrollLeft + c.clientWidth / 2) / c.scrollWidth : 0.5;
+        var fy = c.scrollHeight ? (c.scrollTop + c.clientHeight / 2) / c.scrollHeight : 0.5;
+        this.zoom = Math.max(0.25, Math.min(4, z));
+        this.resize();
+        c.scrollLeft = fx * c.scrollWidth - c.clientWidth / 2;
+        c.scrollTop = fy * c.scrollHeight - c.clientHeight / 2;
+        return this.zoom;
     };
 
     Player.prototype._info = function () {
@@ -1333,9 +2398,24 @@
                 if (e.cls === 'entr' || e.cls === 'exit') {
                     var k = effectKeyframes(e, el, W, H);
                     if (e.cls === 'entr') { el.style.visibility = 'visible'; }
-                    var kf = k.kf.slice();
-                    a = el.animate(kf, Object.assign({}, opts, { direction: e.cls === 'exit' ? 'reverse' : 'normal', composite: 'add' }));
-                    if (k.appear) { opts.duration = 1; }
+                    // ⚠️ composite 'add' chỉ đúng với transform. Với opacity thì 'add' CỘNG vào giá trị gốc (1 + 0…1 → luôn bị cắt về 1)
+                    //    nên Fade/Zoom… không mờ dần mà hiện ra tức thì. → tách: transform = 'add', opacity/clipPath = 'replace'.
+                    var tKf = [], oKf = [], hasT = false, hasO = false;
+                    k.kf.forEach(function (f) {
+                        var tf = {}, of = {};
+                        Object.keys(f).forEach(function (p) {
+                            if (p === 'transform') { tf.transform = f[p]; hasT = true; }
+                            else if (p === 'offset') { tf.offset = f[p]; of.offset = f[p]; }
+                            else { of[p] = f[p]; hasO = true; }
+                        });
+                        tKf.push(tf); oKf.push(of);
+                    });
+                    var dirOpt = { direction: e.cls === 'exit' ? 'reverse' : 'normal' };
+                    var animsHere = [];
+                    if (hasT) animsHere.push(el.animate(tKf, Object.assign({}, opts, dirOpt, { composite: 'add' })));
+                    if (hasO) animsHere.push(el.animate(oKf, Object.assign({}, opts, dirOpt, { composite: 'replace' })));
+                    animsHere.forEach(function (x) { self.live.push(x); });
+                    a = animsHere[animsHere.length - 1] || null;
                 } else if (e.cls === 'emph') {
                     var kfs;
                     if (e.extra.rot) kfs = [{ transform: 'rotate(0deg)' }, { transform: 'rotate(' + e.extra.rot + 'deg)' }];
@@ -1373,6 +2453,7 @@
             var old = self._shown;
             if (el.parentNode !== self.frame) self.frame.appendChild(el);
             self._shown = el; self.cur = index; self.step = k; self._rs = rs;
+            try { self._autoFit(rs); } catch (e) { if (window.console) console.error('[pptx] autofit:', e && e.message); }
             var tr = opts.transition !== false && slide.transition && old && old !== el && opts.forward !== false ? slide.transition : null;
             function after() {
                 if (old && old !== el && old.parentNode) old.parentNode.removeChild(old);
@@ -1394,6 +2475,61 @@
         });
     };
 
+    /** Chữ nội dung (không phải tiêu đề): co cho vừa khung (như PowerPoint) rồi nhân thêm cỡ chữ người dùng chọn (A− / A+). Tiêu đề giữ nguyên. */
+    Player.prototype._autoFit = function (rs) {
+        if (!rs.fits) {
+            rs.fits = [];
+            var root = rs.el, H = this.deck.height, rr = root.getBoundingClientRect(), sc = this.scale || 1;
+            root.querySelectorAll('.pp-text[data-autofit]').forEach(function (wrap) {
+                var cs = getComputedStyle(wrap);
+                var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0, padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+                var top = (wrap.getBoundingClientRect().top - rr.top) / sc;           // đỉnh khung chữ trong slide (px gốc)
+                var availH = Math.min(wrap.clientHeight, H - top) - padT - padB;
+                var availW = wrap.clientWidth - padL - padR;
+                if (availH < 20 || availW < 20 || !wrap.firstChild) return;
+                var inner = document.createElement('div');
+                inner.className = 'pp-fit';
+                while (wrap.firstChild) inner.appendChild(wrap.firstChild);
+                wrap.appendChild(inner);
+                inner.style.cssText = 'transform-origin:0 0;flex:none;width:' + availW + 'px';
+                var k = 1, h = inner.offsetHeight;
+                while (h > availH + 1 && k > 0.4) {                                   // co dần đến khi vừa
+                    k = Math.max(0.4, k - 0.025);
+                    inner.style.width = (availW / k) + 'px';
+                    h = inner.offsetHeight * k;
+                }
+                rs.fits.push({ inner: inner, availW: availW, k0: k });
+            });
+        }
+        this._applyTextScale();
+    };
+
+    Player.prototype._applyTextScale = function () {
+        var rs = this._rs; if (!rs || !rs.fits) return;
+        var t = this.textScale || 1, H0 = this.deck.height;
+        rs.fits.forEach(function (f) {
+            var k = f.k0 * t;
+            f.inner.style.width = (f.availW / k) + 'px';
+            f.inner.style.transform = k === 1 ? '' : 'scale(' + k + ')';
+            f.inner.style.marginBottom = k === 1 ? '' : (-(f.inner.offsetHeight * (1 - k))) + 'px';
+        });
+        // chữ phóng to quá khung → kéo dài slide xuống (nền giữ nguyên), khung xem tự cuộn dọc
+        var el = rs.el, H = H0;
+        el.style.height = H0 + 'px';
+        if (t > 1) H = Math.min(Math.max(H0, Math.ceil(el.scrollHeight) + 10), H0 * 3);
+        el.style.height = H + 'px';
+        this.fh = H; this.frame.style.height = H + 'px';
+        this.resize();
+    };
+
+    /** Đổi cỡ chữ nội dung (1 = vừa khung, 1.2 = 120% …). */
+    Player.prototype.setTextScale = function (t) {
+        this.textScale = Math.max(0.5, Math.min(3, t));
+        this._applyTextScale();
+        this.container.scrollTop = 0;
+        return this.textScale;
+    };
+
     Player.prototype._afterShown = function (slide, rs, k) {
         var self = this;
         // hiệu ứng tự chạy khi slide bắt đầu ("After previous"/"With previous" ở bước đầu)
@@ -1413,7 +2549,9 @@
 
     Player.prototype.next = function () {
         if (this._finishTransition) { this._finishTransition(); return Promise.resolve(); }
-        if (this.busy && this._stepDone) { this._stepDone(); return Promise.resolve(); }
+        // Click khi hiệu ứng đang chạy: hoàn tất ngay hiệu ứng đó RỒI chạy tiếp bước kế (như PowerPoint).
+        // Trước đây click chỉ "chốt" hiệu ứng đang chạy và bị nuốt → phải bấm 2 lần mới sang bước sau.
+        if (this.busy && this._stepDone) this._stepDone();
         var slide = this.deck.slides[this.cur];
         if (slide && this.step < slide.timing.steps.length) {
             var self = this, st = slide.timing.steps[this.step];
