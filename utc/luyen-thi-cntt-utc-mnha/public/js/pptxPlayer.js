@@ -1462,6 +1462,8 @@
         var wrap = document.createElement('div');
         wrap.className = 'pp-text';
         if (autoShrink) wrap.setAttribute('data-autofit', '1');
+        // mọi khung chữ (trừ tiêu đề / số trang / ngày / chân trang) chỉnh được cỡ chữ bằng A− / A+, kể cả slide thiết kế sẵn không có placeholder
+        if (!(ph && /^(title|ctrTitle|sldNum|dt|ftr)$/.test(ph.type || ''))) wrap.setAttribute('data-ts', '1');
         var L = num(bp('lIns', 91440), 91440) / EMU, T = num(bp('tIns', 45720), 45720) / EMU, R = num(bp('rIns', 91440), 91440) / EMU, B = num(bp('bIns', 45720), 45720) / EMU;
         var anchor = bp('anchor', 't');
         var st = wrap.style;
@@ -2480,7 +2482,8 @@
         if (!rs.fits) {
             rs.fits = [];
             var root = rs.el, H = this.deck.height, rr = root.getBoundingClientRect(), sc = this.scale || 1;
-            root.querySelectorAll('.pp-text[data-autofit]').forEach(function (wrap) {
+            root.querySelectorAll('.pp-text[data-ts]').forEach(function (wrap) {
+                if (!wrap.textContent.trim() || getComputedStyle(wrap).writingMode !== 'horizontal-tb') return;
                 var cs = getComputedStyle(wrap);
                 var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0, padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
                 var top = (wrap.getBoundingClientRect().top - rr.top) / sc;           // đỉnh khung chữ trong slide (px gốc)
@@ -2493,7 +2496,7 @@
                 wrap.appendChild(inner);
                 inner.style.cssText = 'transform-origin:0 0;flex:none;width:' + availW + 'px';
                 var k = 1, h = inner.offsetHeight;
-                while (h > availH + 1 && k > 0.4) {                                   // co dần đến khi vừa
+                while (wrap.hasAttribute('data-autofit') && h > availH + 1 && k > 0.4) {                                   // co dần đến khi vừa
                     k = Math.max(0.4, k - 0.025);
                     inner.style.width = (availW / k) + 'px';
                     h = inner.offsetHeight * k;
