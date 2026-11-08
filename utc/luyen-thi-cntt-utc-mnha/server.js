@@ -176,6 +176,10 @@ app.use(require("./services/connect/usage").middleware());
 //   Không cần biến môi trường mới; nếu muốn khoá lại thì đặt CRON_SECRET trên Vercel (Vercel tự gửi kèm Bearer).
 app.get("/api/connect/usage-archive", require("./services/connect/usage").archiveHandler);
 
+// ★ Dọn lịch sử commit repo dữ liệu GitHub: chỉ giữ 10 ngày gần nhất (Vercel Cron gọi mỗi ngày 03:30 giờ VN — xem vercel.json, services/githubPrune.js).
+//   Tắt: PRUNE_HISTORY=off · đổi số ngày: PRUNE_HISTORY_DAYS · xem trước: /api/github/prune-history?dry=1
+app.get("/api/github/prune-history", require("./services/githubPrune").pruneHandler);
+
 app.use(cors());
 app.use(morgan("dev"));
 app.use(cookieParser());

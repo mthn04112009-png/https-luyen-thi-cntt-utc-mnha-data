@@ -17,6 +17,10 @@
     {
       "path": "/api/connect/usage-archive",
       "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/github/prune-history",
+      "schedule": "30 20 * * *"
     }
   ]
 }
