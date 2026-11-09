@@ -1,5 +1,6 @@
 // services/githubPrune.js
 // Cắt lịch sử commit của repo dữ liệu GitHub: chỉ giữ commit trong N ngày gần nhất (mặc định 10).
+// ⚠ Chỉ hợp repo NHỎ (≤ PRUNE_MAX_REPLAY commit trong cửa sổ, mặc định 60). Repo lớn: github-actions/prune-history.yml.
 // Dùng bởi: scripts/prune-history.js (chạy tay) và GET /api/github/prune-history (Vercel Cron hằng ngày, xem vercel.json).
 //
 // Cách làm (chỉ GitHub API, không clone): gộp mọi commit cũ hơn N ngày thành 1 commit gốc "Snapshot" (giữ nguyên nội dung),
@@ -22,7 +23,16 @@ async function pruneRepo(octo, { owner, repo, branch, days, apply, backup, log =
   const oldHead = ref.data.object.sha;
 
   // 1. Các commit trong N ngày (mới → cũ)
-  const recent = await octo.paginate(octo.repos.listCommits, { owner, repo, sha: branch, since: cutoff.toISOString(), per_page: 100 });
+  // Mỗi commit giữ lại phải dựng lại bằng 1 request tuần tự (~0,3–0,5s) → quá nhiều thì Vercel (60s) không kịp.
+  // Repo lớn do GitHub Actions xử lý (github-actions/prune-history.yml, dùng git thật). Dừng đọc trang ngay khi vượt ngưỡng cho nhanh.
+  const maxReplay = Number(process.env.PRUNE_MAX_REPLAY || 60);
+  const recent = [];
+  for (let page = 1; ; page++) {
+    const r = await octo.repos.listCommits({ owner, repo, sha: branch, since: cutoff.toISOString(), per_page: 100, page });
+    recent.push(...r.data);
+    if (recent.length > maxReplay) { log(`• ${tag}: hơn ${maxReplay} commit trong ${days} ngày — để GitHub Actions xử lý (bỏ qua ở đây).`); return { status: 'too-large' }; }
+    if (r.data.length < 100) break;
+  }
   if (!recent.length) {
     // Không có commit mới trong N ngày: giữ lại đúng đầu nhánh (để không mất dữ liệu).
     const head = await octo.git.getCommit({ owner, repo, commit_sha: oldHead });
@@ -103,6 +113,7 @@ async function pruneAll({ apply = false, days = 10, backup = false, onlyMain = f
   if (!(days >= 1)) throw new Error('days phải >= 1');
   octo = octo || new (require('@octokit/rest').Octokit)({ auth: token, userAgent: 'prune-history' });
   const repos = await listRepos(octo, { owner, repo, branch, onlyMain }, env);
+  repos.push(repos.shift());   // repo chính (thường lớn nhất) làm CUỐI để repo nhỏ không bị bỏ lỡ vì hết giờ
   const results = [];
   for (const r of repos) {
     if (deadlineMs && Date.now() > deadlineMs) { results.push({ repo: r.repo, status: 'skipped-time' }); continue; }

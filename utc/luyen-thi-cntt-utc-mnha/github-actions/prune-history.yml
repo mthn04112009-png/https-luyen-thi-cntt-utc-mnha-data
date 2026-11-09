@@ -1,0 +1,101 @@
+# Đặt file này vào repo DỮ LIỆU CHÍNH (GITHUB_REPO) tại: .github/workflows/prune-history.yml
+# Mỗi ngày 03:30 giờ VN: giữ commit N ngày gần nhất của repo chính + mọi repo -1, -2… (đọc github/repos/index.json), phần cũ gộp thành 1 commit gốc.
+# Cần 1 secret trong repo này: PRUNE_TOKEN = token GitHub có quyền Contents: Read and write cho TẤT CẢ các repo dữ liệu (dùng lại GITHUB_TOKEN của web cũng được).
+# Chạy ngay: tab Actions → "Prune history" → Run workflow (chọn dry = true để chỉ xem trước).
+name: Prune history
+on:
+  schedule:
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Số ngày giữ lại'
+        default: '10'
+      dry:
+        description: 'Chỉ xem trước, không sửa (true/false)'
+        default: 'false'
+permissions:
+  contents: read
+concurrency:
+  group: prune-history
+  cancel-in-progress: false
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Prune
+        env:
+          TOKEN: ${{ secrets.PRUNE_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          MAIN: ${{ github.event.repository.name }}
+          DAYS: ${{ inputs.days || '10' }}
+          DRY: ${{ inputs.dry || 'false' }}
+        run: |
+          #!/usr/bin/env bash
+          # Cắt lịch sử commit bằng git thật: chỉ giữ commit trong $DAYS ngày gần nhất (gộp phần cũ thành 1 commit gốc "Snapshot").
+          # Env: TOKEN (PAT, quyền Contents: write) · OWNER · MAIN (tên repo chính) · DAYS=10 · DRY=true|false · REMOTE_BASE (chỉ để test)
+          set -uo pipefail
+          DAYS="${DAYS:-10}"; DRY="${DRY:-false}"
+          SINCE="$(date -u -d "$DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
+          BASE="${REMOTE_BASE:-https://x-access-token:${TOKEN}@github.com/${OWNER}}"
+          export GIT_TERMINAL_PROMPT=0
+          if [ -z "${TOKEN:-}" ] && [ -z "${REMOTE_BASE:-}" ]; then echo "❌ Thiếu secret PRUNE_TOKEN (Settings → Secrets and variables → Actions)."; exit 1; fi
+
+          # copy_commit <commit> [<parent>] → in sha commit mới: cùng cây, message, tác giả, ngày
+          copy_commit() {
+            local c="$1" p="${2:-}" an ae ad cn ce cd t
+            IFS=$'\x1f' read -r an ae ad cn ce cd < <(git log -1 --format='%an%x1f%ae%x1f%aI%x1f%cn%x1f%ce%x1f%cI' "$c")
+            t="$(git rev-parse "$c^{tree}")"
+            if [ -n "$p" ]; then
+              git log -1 --format=%B "$c" | GIT_AUTHOR_NAME="$an" GIT_AUTHOR_EMAIL="$ae" GIT_AUTHOR_DATE="$ad" GIT_COMMITTER_NAME="$cn" GIT_COMMITTER_EMAIL="$ce" GIT_COMMITTER_DATE="$cd" git commit-tree "$t" -p "$p"
+            else
+              printf 'Snapshot: gộp lịch sử trước %s (giữ %s ngày gần nhất)\n' "${SINCE%%T*}" "$DAYS" | GIT_AUTHOR_NAME="$an" GIT_AUTHOR_EMAIL="$ae" GIT_AUTHOR_DATE="$ad" GIT_COMMITTER_NAME="$cn" GIT_COMMITTER_EMAIL="$ce" GIT_COMMITTER_DATE="$cd" git commit-tree "$t"
+            fi
+          }
+
+          prune_repo() {
+            local R="$1" d BR head W C P S new cur c try
+            d="$(mktemp -d)"
+            git clone -q --bare --single-branch --filter=blob:none "$BASE/$R.git" "$d" || { echo "❌ $R: không clone được"; return 1; }
+            cd "$d" || return 1
+            BR="$(git symbolic-ref --short HEAD)"; head="$(git rev-parse HEAD)"
+            mapfile -t W < <(git rev-list --first-parent --reverse --since="$SINCE" HEAD)
+            [ "${#W[@]}" -eq 0 ] && W=("$head")
+            C="${W[0]}"
+            P="$(git rev-parse -q --verify "$C^" || true)"
+            if [ -z "$P" ]; then echo "• $R: lịch sử đã nằm gọn trong $DAYS ngày — bỏ qua."; return 0; fi
+            if ! git rev-parse -q --verify "$P^" >/dev/null; then echo "• $R: đã cắt từ trước (mốc là commit gốc) — bỏ qua."; return 0; fi
+            local total; total="$(git rev-list --count "$P")"
+            echo "• $R@$BR: giữ ${#W[@]} commit (từ ${SINCE%%T*}), gộp $total commit cũ thành 1 commit gốc."
+            [ "$DRY" = "true" ] && return 0
+
+            S="$(copy_commit "$P")" || return 1
+            new="$S"
+            for c in "${W[@]}"; do new="$(copy_commit "$c" "$new")" || return 1; done
+            [ "$(git rev-parse "$new^{tree}")" = "$(git rev-parse "$head^{tree}")" ] || { echo "❌ $R: cây thư mục mới khác cũ — HUỶ."; return 1; }
+
+            for try in 1 2 3 4 5 6; do
+              if git push -q --force-with-lease="refs/heads/$BR:$head" origin "$new:refs/heads/$BR" 2>/dev/null; then
+                echo "  ↳ xong $R → ${new:0:7}"; return 0
+              fi
+              # Web vừa ghi thêm commit trong lúc chạy → phát lại phần mới lên trên rồi đẩy lại
+              git fetch -q origin "+refs/heads/$BR:refs/prune/remote" || return 1
+              cur="$(git rev-parse refs/prune/remote)"
+              git merge-base --is-ancestor "$head" "$cur" || { echo "❌ $R: nhánh bị ghi đè trong lúc chạy — huỷ, lần sau làm lại."; return 1; }
+              while read -r c; do new="$(copy_commit "$c" "$new")" || return 1; done < <(git rev-list --first-parent --reverse "$head..$cur")
+              head="$cur"
+            done
+            echo "❌ $R: đẩy lỗi nhiều lần"; return 1
+          }
+
+          repos=("$MAIN")
+          if [ -n "${TOKEN:-}" ] && [ -z "${REMOTE_BASE:-}" ]; then
+            while read -r n; do [ -n "$n" ] && repos+=("$n"); done < <(GH_TOKEN="$TOKEN" gh api "repos/$OWNER/$MAIN/contents/github/repos/index.json" -q .content 2>/dev/null | base64 -d 2>/dev/null | jq -r '.repos[]?.repo' 2>/dev/null)
+          elif [ -n "${EXTRA_REPOS:-}" ]; then
+            read -ra more <<< "$EXTRA_REPOS"; repos+=("${more[@]}")
+          fi
+
+          fail=0
+          for r in "${repos[@]}"; do ( prune_repo "$r" ) || fail=1; done
+          exit $fail
