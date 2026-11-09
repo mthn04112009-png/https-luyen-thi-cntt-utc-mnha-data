@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Cắt lịch sử commit bằng git thật: chỉ giữ commit trong $DAYS ngày gần nhất (gộp phần cũ thành 1 commit gốc "Snapshot").
-# Env: TOKEN (PAT, quyền Contents: write) · OWNER · MAIN (tên repo chính) · DAYS=10 · DRY=true|false · REMOTE_BASE (chỉ để test)
+# Env: TOKEN (PAT, quyền Contents: write) · OWNER · MAIN (tên repo chính) · DAYS=5 · DRY=true|false · REMOTE_BASE (chỉ để test)
 set -uo pipefail
-DAYS="${DAYS:-10}"; DRY="${DRY:-false}"
+DAYS="${DAYS:-5}"; DRY="${DRY:-false}"
 SINCE="$(date -u -d "$DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
 BASE="${REMOTE_BASE:-https://x-access-token:${TOKEN}@github.com/${OWNER}}"
 export GIT_TERMINAL_PROMPT=0

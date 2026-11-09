@@ -1,5 +1,5 @@
 // services/githubPrune.js
-// Cắt lịch sử commit của repo dữ liệu GitHub: chỉ giữ commit trong N ngày gần nhất (mặc định 10).
+// Cắt lịch sử commit của repo dữ liệu GitHub: chỉ giữ commit trong N ngày gần nhất (mặc định 5).
 // ⚠ Chỉ hợp repo NHỎ (≤ PRUNE_MAX_REPLAY commit trong cửa sổ, mặc định 60). Repo lớn: github-actions/prune-history.yml.
 // Dùng bởi: scripts/prune-history.js (chạy tay) và GET /api/github/prune-history (Vercel Cron hằng ngày, xem vercel.json).
 //
@@ -7,7 +7,7 @@
 // phát lại các commit trong N ngày lên trên (giữ cây, message, tác giả, ngày), KIỂM TRA cây đầu nhánh mới == cũ rồi mới force-update.
 // Nội dung file không đổi; không có gì để cắt thì bỏ qua → chạy lại nhiều lần an toàn.
 //
-// Biến môi trường (đều tuỳ chọn): PRUNE_HISTORY=off (tắt cron) · PRUNE_HISTORY_DAYS=10 · PRUNE_HISTORY_BACKUP=on (tạo nhánh backup/pre-prune-…,
+// Biến môi trường (đều tuỳ chọn): PRUNE_HISTORY=off (tắt cron) · PRUNE_HISTORY_DAYS=5 · PRUNE_HISTORY_BACKUP=on (tạo nhánh backup/pre-prune-…,
 // mặc định TẮT khi chạy cron vì nhánh backup giữ lại object cũ) · CRON_SECRET (nếu đặt, cron phải gửi đúng Bearer).
 // Token cần quyền Contents: Read and write; nhánh không bật chặn force-push. Dung lượng trên GitHub chỉ giảm sau khi GitHub gc.
 
@@ -107,7 +107,7 @@ async function listRepos(octo, { owner, repo, branch, onlyMain }, env = process.
 
 
 /** Cắt tất cả repo: repo chính + các repo -1, -2… (sổ github/repos/index.json). */
-async function pruneAll({ apply = false, days = 10, backup = false, onlyMain = false, deadlineMs = 0, log = console.log, env = process.env, octo } = {}) {
+async function pruneAll({ apply = false, days = 5, backup = false, onlyMain = false, deadlineMs = 0, log = console.log, env = process.env, octo } = {}) {
   const token = env.GITHUB_TOKEN, owner = env.GITHUB_OWNER, repo = env.GITHUB_REPO, branch = env.GITHUB_BRANCH || 'main';
   if (!token || !owner || !repo) throw new Error('Cần GITHUB_TOKEN + GITHUB_OWNER + GITHUB_REPO');
   if (!(days >= 1)) throw new Error('days phải >= 1');
@@ -132,7 +132,7 @@ async function pruneHandler(req, res) {
     const lines = [];
     const results = await pruneAll({
       apply: !(req.query && req.query.dry),
-      days: Number(process.env.PRUNE_HISTORY_DAYS || 10),
+      days: Number(process.env.PRUNE_HISTORY_DAYS || 5),
       backup: String(process.env.PRUNE_HISTORY_BACKUP || 'off').toLowerCase() === 'on',
       deadlineMs: Date.now() + 45000,           // maxDuration 60s → dừng nhận repo mới sau 45s, lần sau làm tiếp
       log: (m) => lines.push(m),
