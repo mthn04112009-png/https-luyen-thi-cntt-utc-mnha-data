@@ -569,7 +569,10 @@ exports.submit = async (req, res) => {
 };
 
 exports.status = async (req, res) => {
-  const sub = await Submission.findOne({ _id: req.params.id, userId: req.user._id, type: 'quiz' }).select('syncStatus analysisCount').lean();
+  const _isAdmin = !!(req.user && req.user.role && (req.user.role === 'admin' || req.user.role.name === 'admin'));
+  const _f = { _id: req.params.id, type: 'quiz' };
+  if (!_isAdmin) _f.userId = req.user._id;
+  const sub = await Submission.findOne(_f).select('syncStatus analysisCount').lean();
   if (!sub) return fail(res, 404, 'Không tìm thấy bài nộp.');
   res.json({ success: true, status: sub.syncStatus || 'pending', syncStatus: sub.syncStatus || 'pending', analysisCount: sub.analysisCount || 0 });
 };
@@ -652,14 +655,24 @@ async function loadDetail(sub) {
 
 exports.renderStudentDetail = async (req, res, next) => {
   try {
-    const sub = await Submission.findOne({ _id: req.params.id, userId: req.user._id, type: 'quiz' }).lean();
+    const isAdmin = !!(req.user && req.user.role && (req.user.role === 'admin' || req.user.role.name === 'admin'));
+    // ★ FIX: trước đây luôn lọc userId = người đang đăng nhập → admin mở link bài của sinh viên bị 404.
+    //   Admin được xem mọi bài trong phạm vi quyền (default admin: tất cả; admin user_key: chỉ bài thuộc môn của mình).
+    const filter = { _id: req.params.id, type: 'quiz' };
+    if (!isAdmin) filter.userId = req.user._id;
+    const sub = await Submission.findOne(filter).lean();
     if (!sub) return res.status(404).render('error', { message: 'Không tìm thấy bài nộp.' });
     const d = await loadDetail(sub);
     if (!d.lesson || !d.doc) return res.status(404).render('error', { message: 'Chưa đọc được dữ liệu bài nộp.' });
-    const keyIds = d.lesson.analysisAiKeyIds || [];
+    if (isAdmin && !A.adminCanAccess(req.user, d.lesson)) {
+      return res.status(404).render('error', { message: 'Không tìm thấy bài nộp.' });
+    }
+    // Admin chỉ xem/chấm: không cho bấm phân tích AI (sẽ trừ lượt của sinh viên)
+    const keyIds = isAdmin ? [] : (d.lesson.analysisAiKeyIds || []);
     const ais = keyIds.length ? await AIKey.find(Object.assign({ _id: { $in: keyIds } }, AI_KEY_USABLE)).lean() : [];
     res.render('student/quiz-submission-detail', {
       submission: sub, lesson: d.lesson, subject: d.subject, doc: d.doc, quizConfig,
+      isAdminView: isAdmin,
       formatAiLabel: A.formatAiLabel,
       analysisAiOptions: ais.map((k) => ({ id: String(k._id), label: A.formatAiLabel(k.provider || 'gemini', k.name) })),
     });
@@ -672,8 +685,9 @@ exports.reviewPage = async (req, res, next) => {
     if (!sub) return res.status(404).render('error', { message: 'Không tìm thấy bài nộp.' });
     const d = await loadDetail(sub);
     if (!d.lesson || !A.adminCanAccess(req.user, d.lesson)) return res.status(404).render('error', { message: 'Không tìm thấy bài nộp.' });
+    const student = await require('../models/User').findById(sub.userId).select('name email').lean();
     res.render('admin/quiz_submission_review', {
-      submission: sub, lesson: d.lesson, subject: d.subject, doc: d.doc, formatAiLabel: A.formatAiLabel,
+      submission: sub, lesson: d.lesson, subject: d.subject, doc: d.doc, student, formatAiLabel: A.formatAiLabel,
     });
   } catch (e) { next(e); }
 };
