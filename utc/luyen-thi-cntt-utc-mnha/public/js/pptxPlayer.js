@@ -1769,8 +1769,8 @@
             } else none = true;
         }
         applyLn(ln);
-        // <a:ln/> rỗng (không fill, không lnRef từ style) = KHÔNG có viền theo PowerPoint; trước đây bị vẽ viền đen mặc định quanh mọi hộp chữ.
-        if (none || !c) return null;
+        if (none || (!c && !ln)) return null;
+        if (!c) c = { rgb: [0, 0, 0], a: 1 };
         return { w: w === null ? 1 : Math.max(w, 0.5), c: c, dash: dash, head: head, tail: tail, headSz: headSz, tailSz: tailSz };
     };
 

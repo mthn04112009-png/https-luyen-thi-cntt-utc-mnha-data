@@ -1,3 +1,4 @@
+include ../partials/otp-spam-note
 doctype html
 html(lang="vi")
     head
@@ -5,6 +6,8 @@ html(lang="vi")
         meta(name="viewport", content="width=device-width, initial-scale=1.0")
         title Xác minh OTP | AI Grading System
 
+        script(src="/js/theme.js")
+        link(rel="stylesheet", href="/css/theme.css")
         script(src="https://cdn.tailwindcss.com")
         script(src="https://unpkg.com/lucide@latest")
 
@@ -48,6 +51,8 @@ html(lang="vi")
                         span(class="font-semibold text-gray-700")
                             = ' ' + email
                         | . Mã có hiệu lực trong 10 phút.
+
+                    +otpSpamNote()
 
                     if debugOtp
                         div(class="mt-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl")

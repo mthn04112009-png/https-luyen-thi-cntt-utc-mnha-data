@@ -1,0 +1,9 @@
+//- Thông báo ở màn hình nhập OTP: thư mã có thể rơi vào mục Spam / Thư rác.
+mixin otpSpamNote()
+    div(class="mt-4 mb-4 flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm leading-6" role="note")
+        i(data-lucide="inbox", class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5")
+        div
+            b Chưa thấy thư chứa mã OTP?
+            |  Thư có thể nằm trong mục 
+            b Thư rác / Spam
+            |  (hoặc tab Quảng cáo, Cập nhật). Vui lòng kiểm tra các mục này sau khi đã gửi mã.

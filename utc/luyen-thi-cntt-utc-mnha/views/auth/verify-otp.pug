@@ -1,4 +1,5 @@
 extends ../layout
+include ../partials/otp-spam-note
 
 block content
     div(class="min-h-[calc(100vh-145px)] flex items-center justify-center px-4 py-12")
@@ -18,6 +19,8 @@ block content
 
                     p(class="mt-1 text-sm font-semibold text-blue-600 break-all")
                         | #{email}
+
+                +otpSpamNote()
 
                 //- // ✅ DEBUG: Hiện OTP ở dev để khỏi phải nhìn console
                 //- if debugOtp

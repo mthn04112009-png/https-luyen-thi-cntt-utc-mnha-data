@@ -1,0 +1,40 @@
+/* ============================================================
+   theme.css — giao diện TỐI (mặc định là sáng).
+   Site dùng Tailwind CDN + CSS inline trong từng trang nên không thể thêm `dark:` cho từng class;
+   thay vào đó đảo màu cả trang bằng filter rồi "đảo ngược lại" ảnh/video/canvas để chúng giữ màu gốc.
+     F(html) = invert(.92) → hue-rotate(180deg)      (trắng → #141414, đen → #ebebeb, giữ nguyên tông màu)
+     G(media) = F⁻¹ = hue-rotate(180deg) → invert(1) → contrast(1.19)
+   ============================================================ */
+html[data-theme="dark"] {
+    filter: invert(0.92) hue-rotate(180deg);
+    background: #fff;                         /* nền canvas → sau khi đảo thành nền tối */
+}
+html[data-theme="dark"] img,
+html[data-theme="dark"] video,
+html[data-theme="dark"] canvas,
+html[data-theme="dark"] iframe,
+html[data-theme="dark"] picture,
+html[data-theme="dark"] embed,
+html[data-theme="dark"] object,
+html[data-theme="dark"] [style*="background-image"],
+html[data-theme="dark"] .no-dark {
+    filter: hue-rotate(180deg) invert(1) contrast(1.19);
+}
+/* ảnh lồng ảnh / ảnh trong .no-dark không đảo thêm lần nữa */
+html[data-theme="dark"] .no-dark img,
+html[data-theme="dark"] .no-dark video,
+html[data-theme="dark"] .no-dark canvas,
+html[data-theme="dark"] img img,
+html[data-theme="dark"] picture img,
+html[data-theme="dark"] [style*="background-image"] img { filter: none; }
+
+/* Nút đổi giao diện */
+.theme-fab {
+    position: fixed; right: 16px; bottom: 16px; z-index: 9999;
+    width: 44px; height: 44px; border-radius: 9999px;
+    border: 1px solid #d1d5db; background: #ffffff; color: #111827;
+    box-shadow: 0 6px 18px rgba(0,0,0,.15); font-size: 20px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.theme-fab:hover { background: #f3f4f6; }
+@media print { .theme-fab { display: none; } }

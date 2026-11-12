@@ -536,7 +536,7 @@ const resendOtp = async (req, res) => {
             title: 'Xác minh OTP',
             email,
             error: null,
-            success: 'Đã gửi lại mã mới. Vui lòng kiểm tra email (hoặc console).',
+            success: 'Đã gửi lại mã mới. Vui lòng kiểm tra email — nếu chưa thấy, hãy xem cả mục Thư rác / Spam.',
             debugOtp: IS_DEV ? code : null
         });
     } catch (error) {
@@ -844,7 +844,7 @@ const resendResetOtp = async (req, res) => {
             title: 'Xác minh OTP',
             email,
             error: null,
-            success: 'Đã gửi lại mã mới. Vui lòng kiểm tra email.',
+            success: 'Đã gửi lại mã mới. Vui lòng kiểm tra email — nếu chưa thấy, hãy xem cả mục Thư rác / Spam.',
             debugOtp: IS_DEV ? code : null
         });
     } catch (error) {
