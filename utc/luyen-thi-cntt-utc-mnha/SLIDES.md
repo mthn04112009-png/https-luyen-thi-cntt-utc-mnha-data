@@ -57,3 +57,13 @@ Vercel cắt request/response > 4.5MB nên PDF **không đi 1 lần**:
 - Thanh công cụ có `− 100% +`; các mức: 50 · 75 · 100 · 115 · **135** · 150 · 175 · 200 · 300%. 100% = vừa khung. Bấm số % để về 100%.
 - Phím `+` / `-` / `0`, hoặc `Ctrl` + lăn chuột. Khi > 100%: lăn chuột để cuộn, kéo chuột (hoặc vuốt trên điện thoại) để di chuyển; bấm không kéo vẫn là "tiếp".
 - Mức zoom được nhớ (localStorage `slPptxZoom`) cho lần xem sau. API: `player.setZoom(1.35)`.
+
+## ⚠️ Sửa lỗi viền đen quanh mọi khung chữ (2026-11-12) — `public/js/pptxPlayer.js` › `Ctx.prototype.lineSpec` — **KHÔNG CHỈNH LẠI**
+- **Triệu chứng:** xem PPTX (vd. slide "Round Robin q = 2" có biểu đồ Gantt), mọi hộp chữ (tiêu đề, đề bài, nhãn thời gian 0·2·3·5…, khung "Chờ = CT − AT − BT") đều bị **viền đen mảnh**; các nhãn sát nhau (2|3, 7|8, 16|17) nhìn như bị chồng/đè lên nhau.
+- **Nguyên nhân:** file PPTX (tạo bằng html2pptx/pptxgenjs) ghi `<a:ln/>` **RỖNG** cho hộp chữ/hình (không màu, không `<a:noFill/>`, không `<p:style>`). Theo chuẩn OOXML và PowerPoint, `<a:ln/>` rỗng = **không có viền**. Code cũ gán màu **đen mặc định** khi không có màu (`if (!c) c = { rgb: [0,0,0] }`) nên vẽ viền.
+- **Cách sửa:** `lineSpec` chỉ vẽ viền khi có **màu thật** (từ `<a:ln><a:solidFill|gradFill>` hoặc `<p:style><a:lnRef idx>0>`); không có màu → `return null` (`if (none || !c) return null;`).
+- **QUY TẮC cho lần sửa sau:**
+  1. **Không** thêm lại màu đen mặc định / không coi `<a:ln/>` rỗng là "có viền".
+  2. Đường kẻ thật (`prst="line"`, connector) vẫn có viền vì có `<a:solidFill>` trong `<a:ln>`; nhánh vẽ đường trong `shapeGeometry` (`var ln2 = line || {…đen…}`) giữ nguyên.
+  3. Sau khi sửa `lineSpec`/`shapeGeometry`/`fillSpec`, mở lại slide "Round Robin q = 2" (hoặc file bất kỳ do pptxgenjs tạo) và kiểm tra: **không** có viền quanh khung chữ, thanh Gantt P1/P2/P3… hiện đủ, nhãn thời gian không có ô viền.
+- Comment cảnh báo tương ứng nằm ngay trong code `lineSpec` (tìm chuỗi `ĐỪNG SỬA LẠI`).

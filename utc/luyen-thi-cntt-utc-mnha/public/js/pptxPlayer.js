@@ -1769,8 +1769,12 @@
             } else none = true;
         }
         applyLn(ln);
-        if (none || (!c && !ln)) return null;
-        if (!c) c = { rgb: [0, 0, 0], a: 1 };
+        // ⚠️ ĐỪNG SỬA LẠI (lỗi viền đen quanh mọi khung chữ, đã sửa 2026-11-12):
+        // PPTX do html2pptx/pptxgenjs tạo ra ghi `<a:ln/>` RỖNG (không màu, không <a:noFill/>, không <p:style>) cho hộp chữ/hình.
+        // Theo chuẩn OOXML + PowerPoint, `<a:ln/>` rỗng = KHÔNG CÓ VIỀN. Bản cũ chỉ `return null` khi `!c && !ln`
+        // rồi gán màu ĐEN mặc định khi `!c` → mọi khung chữ bị viền đen (chồng nhãn 2|3, 7|8, 16|17 trên biểu đồ Gantt, khung tiêu đề, đề bài…).
+        // Quy tắc: chỉ vẽ viền khi CÓ MÀU thật (từ <a:ln><a:solidFill|gradFill> hoặc <p:style><a:lnRef idx>0). Không có màu → null. KHÔNG tự thêm màu đen.
+        if (none || !c) return null;
         return { w: w === null ? 1 : Math.max(w, 0.5), c: c, dash: dash, head: head, tail: tail, headSz: headSz, tailSz: tailSz };
     };
 
