@@ -1,6 +1,6 @@
 /* theme.js — chuyển giao diện Sáng / Tối cho toàn site. MẶC ĐỊNH: SÁNG.
    - Nạp ở <head> (đồng bộ) nên đặt data-theme trên <html> trước khi vẽ trang → không bị nháy màu.
-   - Lựa chọn lưu ở localStorage('theme'). Nút 🌙/☀️ nổi ở góc phải-dưới (tự chèn, trừ khi trang có sẵn [data-theme-toggle]).
+   - Lựa chọn lưu ở localStorage('theme'). Nút 🌙/☀️ có sẵn trên thanh menu (layout.pug) hoặc tự chèn nổi ở góc phải-dưới nếu trang không có [data-theme-toggle].
    - CSS tương ứng: /css/theme.css */
 (function () {
     var KEY = 'theme';
@@ -24,6 +24,10 @@
     window.__setTheme = function (t) { try { localStorage.setItem(KEY, t === 'dark' ? 'dark' : 'light'); } catch (e) { /* bỏ qua */ } apply(get()); };
     apply(get());                                           // chạy ngay trong <head>
     document.addEventListener('DOMContentLoaded', function () {
+        if (!document.getElementById('theme-dark-layer')) {        // lớp phủ đảo màu (xem css/theme.css)
+            var layer = document.createElement('div'); layer.id = 'theme-dark-layer'; layer.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(layer);
+        }
         var have = document.querySelectorAll('[data-theme-toggle]');
         if (!have.length) {
             var b = document.createElement('button');
