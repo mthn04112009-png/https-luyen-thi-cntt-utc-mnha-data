@@ -75,8 +75,8 @@ async function ensureRegistered({ req, force = false } = {}) {
     if (req && req.session) {
         req.session.nodeSetup = {
             id, url, name, created: true, at: new Date().toISOString(),
-            // Khoá vừa tạo — chỉ giữ trong session để hiện MỘT LẦN ở /connect.
-            key
+            // ★ KHÔNG lưu khoá gốc vào session (session lưu ở GitHub, lộ khoá nếu session bị đọc).
+            //   Khoá chỉ xem lại được ở /connect/key sau khi nhập lại mật khẩu admin.
         };
     }
     return { ok: true, created: true, node: r.node, key };
@@ -257,7 +257,7 @@ function createRouter() {
     });
 
     // ---- trang KHOÁ KẾT NỐI: xem/sao chép khoá (hỏi lại mật khẩu), tự kiểm tra khoá có đúng không
-    const revealFails = new Map();            // userId → { n, until }
+    // ★ Giới hạn nhập sai mật khẩu khi xem khoá: lưu ở DB (loginThrottle) — Map trong RAM bị reset mỗi lần Vercel cold start.
     async function keyPage(req, res, o = {}) {
         let node = null, selfCheck = null, error = o.error || null;
         try {
@@ -282,18 +282,20 @@ function createRouter() {
     router.get('/connect/key', requireDefaultAdmin, (req, res, next) => keyPage(req, res).catch(next));
     router.post('/connect/key/reveal', requireDefaultAdmin, async (req, res, next) => {
         try {
-            const uid = String(req.user._id || req.user.id), st = revealFails.get(uid) || { n: 0, until: 0 };
-            if (st.until > Date.now()) return keyPage(req, res, { status: 429, error: 'Nhập sai quá nhiều lần — thử lại sau ít phút.' });
+            const uid = String(req.user._id || req.user.id);
+            const loginThrottle = require('../../services/loginThrottleService');
+            const dev = loginThrottle.identify(req, 'reveal-key:' + uid);
+            const gate = await loginThrottle.check(dev);
+            if (gate.locked) return keyPage(req, res, { status: 429, error: 'Nhập sai quá nhiều lần — thử lại sau ' + gate.seconds + ' giây.' });
             const User = require('../../models/User');
             const bcrypt = require('bcrypt');
             const u = await User.findById(uid).select('+password');
             const ok = u && await bcrypt.compare(String((req.body || {}).password || ''), u.password);
             if (!ok) {
-                st.n += 1; if (st.n >= 5) { st.until = Date.now() + 10 * 60 * 1000; st.n = 0; }
-                revealFails.set(uid, st);
+                await loginThrottle.recordFailure(dev, { userId: u ? u._id : null });
                 return keyPage(req, res, { status: 403, error: 'Mật khẩu không đúng.' });
             }
-            revealFails.delete(uid);
+            await loginThrottle.clear(dev);
             const doc = await registry.load();
             const node = doc.nodes.find((n) => n && (n.id === nodeId() || n.url === nodeUrl(req)));
             res.set('Cache-Control', 'no-store');
@@ -312,7 +314,7 @@ function createRouter() {
         try {
             _keyCache = null;
             const r = await ensureRegistered({ req, force: true });
-            if (req.session) req.session.nodeSetup = { id: nodeId(), url: nodeUrl(req), name: nodeName(), created: true, at: new Date().toISOString(), key: r.key };
+            if (req.session) req.session.nodeSetup = { id: nodeId(), url: nodeUrl(req), name: nodeName(), created: true, at: new Date().toISOString() };
             res.redirect('/connect');
         } catch (e) { next(e); }
     });

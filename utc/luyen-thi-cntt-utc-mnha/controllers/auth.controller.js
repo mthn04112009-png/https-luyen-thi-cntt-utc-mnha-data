@@ -14,7 +14,9 @@ const { OTP_TTL_MS } = OTP;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 
-const IS_DEV = process.env.NODE_ENV !== 'production';
+// ★ BẢO MẬT: chỉ bật chế độ dev khi NODE_ENV === 'development' (đặt rõ). Trước đây `!== 'production'`:
+//   chạy ở nơi không đặt NODE_ENV là OTP bị in ra trang web / log → chiếm được tài khoản.
+const IS_DEV = process.env.NODE_ENV === 'development';
 const isDataNode = () => String(process.env.DATA_NODE || '').toLowerCase() === 'on';
 
 // ============================================================
@@ -22,6 +24,21 @@ const isDataNode = () => String(process.env.DATA_NODE || '').toLowerCase() === '
 // ============================================================
 function genOTP() {
     return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+// So sánh chuỗi không rò thông tin qua thời gian
+function safeEqual(a, b) {
+    const x = Buffer.from(String(a));
+    const y = Buffer.from(String(b));
+    return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+// Hash giả: email không tồn tại vẫn tốn 1 lần bcrypt.compare → không dò được email bằng thời gian phản hồi.
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-only', 10);
+
+// Tăng số lần thử OTP NGUYÊN TỬ ($inc) — cách cũ (đọc → +1 → save) cho phép gửi song song vượt giới hạn 5 lần.
+async function bumpOtpAttempts(otpDoc) {
+    return OTP.findOneAndUpdate({ _id: otpDoc._id }, { $inc: { attempts: 1 } }, { new: true });
 }
 
 function normalizeEmail(e) {
@@ -114,7 +131,7 @@ const login = async (req, res) => {
             email: normalizeEmail(email)
         }).select('+password');
 
-        const validPassword = user ? await bcrypt.compare(password, user.password) : false;
+        const validPassword = (await bcrypt.compare(String(password), user ? user.password : DUMMY_HASH)) && !!user;
 
         if (!user || !validPassword) {
             const fail = await loginThrottle.recordFailure(device, { userId: user ? user._id : null });
@@ -157,6 +174,10 @@ const login = async (req, res) => {
             });
         }
 
+        // ★ Chống SESSION FIXATION: cấp session id MỚI khi đăng nhập (giữ returnTo nếu có).
+        const returnTo = req.session.returnTo;
+        await new Promise((resolve, reject) => req.session.regenerate((err) => (err ? reject(err) : resolve())));
+        if (returnTo) req.session.returnTo = returnTo;
         req.session.user = buildSessionUser(user);
 
         // ★ Web dữ liệu: lần đăng nhập đầu của admin mặc định → tự tạo khoá kết nối + ghi v-s/index.json.
@@ -297,7 +318,7 @@ const register = async (req, res) => {
         // ★ FIX: lưu session trước khi redirect
         await saveSession(req);
 
-        console.log(`[register] Đã tạo OTP cho ${normalizedEmail}: ${code}`);
+        if (IS_DEV) console.log(`[register] Đã tạo OTP cho ${normalizedEmail}: ${code}`);
 
         return res.redirect('/auth/verify-otp');
     } catch (error) {
@@ -414,16 +435,16 @@ const verifyOtp = async (req, res) => {
             );
         }
 
-        const dbCode = normalizeCode(otpDoc.code);
+        // ★ Tăng bộ đếm NGUYÊN TỬ trước khi so sánh (chống thử song song vượt 5 lần)
+        const bumped = await bumpOtpAttempts(otpDoc);
+        if (!bumped || bumped.attempts > OTP_MAX_ATTEMPTS) {
+            await OTP.deleteOne({ _id: otpDoc._id });
+            return renderErr('Bạn đã nhập sai quá nhiều lần. Vui lòng đăng ký lại.', 429, null);
+        }
 
-        if (dbCode !== code) {
-            otpDoc.attempts += 1;
-            await otpDoc.save();
-
+        if (!safeEqual(normalizeCode(otpDoc.code), code)) {
             return renderErr(
-                `Mã không đúng. Còn ${
-                    OTP_MAX_ATTEMPTS - otpDoc.attempts
-                } lần thử.`
+                `Mã không đúng. Còn ${Math.max(0, OTP_MAX_ATTEMPTS - bumped.attempts)} lần thử.`
             );
         }
 
@@ -530,7 +551,7 @@ const resendOtp = async (req, res) => {
 
         await sendOTP(email, code, 'register');
 
-        console.log(`[resendOtp] Đã gửi lại OTP cho ${email}: ${code}`);
+        if (IS_DEV) console.log(`[resendOtp] Đã gửi lại OTP cho ${email}: ${code}`);
 
         return res.render('auth/verify-otp', {
             title: 'Xác minh OTP',
@@ -653,7 +674,7 @@ const forgotPassword = async (req, res) => {
         // ★ FIX: lưu session TRƯỚC khi redirect
         await saveSession(req);
 
-        console.log(`[forgotPassword] Đã tạo OTP reset cho ${normalizedEmail}: ${code}`);
+        if (IS_DEV) console.log(`[forgotPassword] Đã tạo OTP reset cho ${normalizedEmail}: ${code}`);
 
         return res.redirect('/auth/reset-verify');
     } catch (error) {
@@ -758,18 +779,24 @@ const verifyResetOtp = async (req, res) => {
             });
         }
 
-        const dbCode = normalizeCode(otpDoc.code);
+        // ★ Tăng bộ đếm NGUYÊN TỬ trước khi so sánh (chống thử song song vượt 5 lần)
+        const bumped = await bumpOtpAttempts(otpDoc);
+        if (!bumped || bumped.attempts > OTP_MAX_ATTEMPTS) {
+            await OTP.deleteOne({ _id: otpDoc._id });
+            return res.status(429).render('auth/reset-verify', {
+                title: 'Xác minh OTP',
+                email,
+                error: 'Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới.',
+                success: null,
+                debugOtp: null
+            });
+        }
 
-        if (dbCode !== code) {
-            otpDoc.attempts += 1;
-            await otpDoc.save();
-
+        if (!safeEqual(normalizeCode(otpDoc.code), code)) {
             return res.status(400).render('auth/reset-verify', {
                 title: 'Xác minh OTP',
                 email,
-                error: `Mã không đúng. Còn ${
-                    OTP_MAX_ATTEMPTS - otpDoc.attempts
-                } lần thử.`,
+                error: `Mã không đúng. Còn ${Math.max(0, OTP_MAX_ATTEMPTS - bumped.attempts)} lần thử.`,
                 success: null,
                 debugOtp: IS_DEV ? otpDoc.code : null
             });
@@ -838,7 +865,7 @@ const resendResetOtp = async (req, res) => {
 
         await sendOTP(email, code, 'reset');
 
-        console.log(`[resendResetOtp] Đã gửi lại OTP reset cho ${email}: ${code}`);
+        if (IS_DEV) console.log(`[resendResetOtp] Đã gửi lại OTP reset cho ${email}: ${code}`);
 
         return res.render('auth/reset-verify', {
             title: 'Xác minh OTP',
