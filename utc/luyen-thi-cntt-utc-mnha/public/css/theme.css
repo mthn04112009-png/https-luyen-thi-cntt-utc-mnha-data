@@ -33,6 +33,37 @@ html[data-theme="dark"] .no-dark video,
 html[data-theme="dark"] .no-dark canvas,
 html[data-theme="dark"] picture img,
 html[data-theme="dark"] [style*="background-image"] img { filter: none; }
+/* TOÀN MÀN HÌNH: phần tử fullscreen nằm ở "top layer" nên lớp phủ #theme-dark-layer KHÔNG đảo màu được nữa;
+   nếu vẫn giữ filter đảo ngược trên iframe/video/ảnh thì video bị đen/đảo màu → bỏ filter cho mọi thứ trong (và chính) phần tử fullscreen.
+   (Viết tách :fullscreen / :-webkit-full-screen vì gộp chung 1 danh sách thì trình duyệt không hiểu 1 loại sẽ bỏ cả luật.) */
+html[data-theme="dark"] :fullscreen img,
+html[data-theme="dark"] :fullscreen video,
+html[data-theme="dark"] :fullscreen canvas,
+html[data-theme="dark"] :fullscreen iframe,
+html[data-theme="dark"] :fullscreen picture,
+html[data-theme="dark"] :fullscreen embed,
+html[data-theme="dark"] :fullscreen object,
+html[data-theme="dark"] :fullscreen [style*="background-image"],
+html[data-theme="dark"] :fullscreen .no-dark,
+html[data-theme="dark"] img:fullscreen,
+html[data-theme="dark"] video:fullscreen,
+html[data-theme="dark"] canvas:fullscreen,
+html[data-theme="dark"] iframe:fullscreen,
+html[data-theme="dark"] .no-dark:fullscreen { filter: none; }
+html[data-theme="dark"] :-webkit-full-screen img,
+html[data-theme="dark"] :-webkit-full-screen video,
+html[data-theme="dark"] :-webkit-full-screen canvas,
+html[data-theme="dark"] :-webkit-full-screen iframe,
+html[data-theme="dark"] :-webkit-full-screen picture,
+html[data-theme="dark"] :-webkit-full-screen embed,
+html[data-theme="dark"] :-webkit-full-screen object,
+html[data-theme="dark"] :-webkit-full-screen [style*="background-image"],
+html[data-theme="dark"] :-webkit-full-screen .no-dark,
+html[data-theme="dark"] img:-webkit-full-screen,
+html[data-theme="dark"] video:-webkit-full-screen,
+html[data-theme="dark"] canvas:-webkit-full-screen,
+html[data-theme="dark"] iframe:-webkit-full-screen,
+html[data-theme="dark"] .no-dark:-webkit-full-screen { filter: none; }
 /* Trình duyệt không có backdrop-filter → nền tối tối thiểu để chữ không biến mất */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     html[data-theme="dark"] #theme-dark-layer { background: rgba(0,0,0,.0); }
