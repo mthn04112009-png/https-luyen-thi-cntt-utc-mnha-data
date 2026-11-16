@@ -10,7 +10,8 @@
  *   • HIỆU ỨNG: entrance / exit / emphasis / motion path — appear, fly in/out, fade, wipe, zoom, box, circle, diamond, split, spin,
  *     grow/shrink, pulse… theo ĐÚNG thứ tự click / cùng lúc / sau hiệu ứng trước và độ trễ, độ dài trong file; hiệu ứng theo đoạn văn
  *   • Tự chuyển slide theo thời gian (advTm) — tuỳ chọn
- * Chưa hỗ trợ (hiển thị khung trống/gần đúng): biểu đồ, SmartArt, video/âm thanh nhúng, WordArt, hiệu ứng blinds/checker/strips/wheel/wedge
+ * [BỔ SUNG] Biểu đồ (c:chart): cột/thanh (clustered/stacked/percent), đường, vùng, tròn, vành khuyên → vẽ thành SVG nhúng trong slide (vd. slide 42, 59).
+ * Chưa hỗ trợ (hiển thị khung trống/gần đúng): biểu đồ dạng radar/scatter/bubble/3D, SmartArt, video/âm thanh nhúng, WordArt, hiệu ứng blinds/checker/strips/wheel/wedge
  * (được thay bằng fade), một số hình hiếm.
  *
  * Dùng:  var deck = await PptxPlayer.load(arrayBuffer, JSZip);
@@ -2026,6 +2027,357 @@
         this.attachYouTube(pic, holder);
     };
 
+    // ============================================================
+    // [BỔ SUNG] BIỂU ĐỒ (c:chart) → vẽ thành SVG nhúng ngay trong slide
+    //   Trước đây biểu đồ chỉ hiện khung "(Biểu đồ — chưa hỗ trợ hiển thị)" (vd. slide 42, 59).
+    //   Hỗ trợ: cột/thanh (clustered, stacked, percentStacked, gapWidth, overlap), đường, vùng, tròn, vành khuyên;
+    //   màu từng chuỗi / từng cột (dPt), nhãn số liệu, tiêu đề, chú giải, lưới, min/max/majorUnit, định dạng số.
+    //   Loại khác (radar, scatter, bubble, 3D…) vẫn hiện khung báo như cũ.
+    // ============================================================
+    var CHART_PALETTE = ['accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'];
+    var _measureCtx = null;
+    function chartTextW(str, px, bold, face) {
+        try {
+            if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
+            _measureCtx.font = (bold ? 'bold ' : '') + px + 'px ' + (face || 'sans-serif');
+            return _measureCtx.measureText(str).width;
+        } catch (e) { return String(str).length * px * 0.56; }
+    }
+    function chartFmt(v, code) {
+        if (v === null || v === undefined || isNaN(v)) return '';
+        code = code || 'General';
+        var pct = /%/.test(code);
+        var m = /0(?:\.(0+))?/.exec(code.replace(/"[^"]*"/g, ''));
+        var dec = m && m[1] ? m[1].length : (code === 'General' || !m ? null : 0);
+        var x = pct ? v * 100 : v, s;
+        if (dec === null) s = String(Math.round(x * 1e6) / 1e6);
+        else s = x.toFixed(dec);
+        if (/#,##0|,#/.test(code)) { var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
+        return s + (pct ? '%' : '');
+    }
+    function chartNice(min, max, maxTicks) {
+        if (max === min) { max = min + 1; }
+        var span = max - min, rough = span / Math.max(2, maxTicks || 6);
+        var pow = Math.pow(10, Math.floor(Math.log(rough) / Math.LN10)), f = rough / pow;
+        var step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow;
+        return { min: Math.floor(min / step + 1e-9) * step, max: Math.ceil(max / step - 1e-9) * step, step: step };
+    }
+    function chartTxPr(node, fallbackPx, fallbackClr) {
+        var d = node ? desc(node, 'defRPr')[0] : null;
+        var o = { px: fallbackPx, bold: false, clr: fallbackClr, ital: false };
+        if (d) {
+            if (d.hasAttribute('sz')) o.px = attrNum(d, 'sz', 1200) / 100 * PT;
+            if (d.getAttribute('b') === '1') o.bold = true;
+            if (d.getAttribute('i') === '1') o.ital = true;
+            o.sf = kid(d, NS_A, 'solidFill');
+        }
+        return o;
+    }
+
+    Ctx.prototype.chartSvg = function (cs, W, H) {
+        var self = this, T = this.T();
+        var face = (this.theme && this.theme.minor) ? ('"' + this.theme.minor + '",') : '';
+        face += 'system-ui,"Segoe UI",Arial,sans-serif';
+        function v(n, name, d) { var c = n && kid(n, null, name); return c && c.hasAttribute('val') ? c.getAttribute('val') : d; }
+        function color(sf, fb) { var c = sf ? readColor(sf, T) : null; return c ? css(c) : fb; }
+        function palette(i) { return css(readColor({ localName: 'schemeClr', firstElementChild: null, getAttribute: function () { return CHART_PALETTE[i % 6]; }, hasAttribute: function () { return true; } }, T)); }
+        function fillOf(spPr) { var sf = spPr && kid(spPr, NS_A, 'solidFill'); return sf ? css(readColor(sf, T)) : null; }
+        function strokeOf(spPr) {
+            var ln = spPr && kid(spPr, NS_A, 'ln'); if (!ln) return null;
+            var sf = kid(ln, NS_A, 'solidFill'); if (!sf) return kid(ln, NS_A, 'noFill') ? { none: true } : null;
+            return { c: css(readColor(sf, T)), w: ln.hasAttribute('w') ? attrNum(ln, 'w', 9525) / EMU : 1 };
+        }
+
+        var chart = kid(cs, null, 'chart'); if (!chart) return null;
+        var plot = kid(chart, null, 'plotArea'); if (!plot) return null;
+        var base = chartTxPr(kid(cs, null, 'txPr'), 12 * PT, null);
+        var baseClr = color(base.sf, '#404040');
+
+        // --- nhóm biểu đồ ---
+        var TYPES = ['barChart', 'bar3DChart', 'lineChart', 'line3DChart', 'areaChart', 'area3DChart', 'pieChart', 'pie3DChart', 'doughnutChart'];
+        var groups = kids(plot).filter(function (n) { return TYPES.indexOf(n.localName) >= 0; });
+        if (!groups.length) return null;
+        var unsupported = kids(plot).filter(function (n) { return /Chart$/.test(n.localName) && TYPES.indexOf(n.localName) < 0; });
+        if (unsupported.length) return null;
+        var g0 = groups[0], kind = g0.localName.replace('3D', '');
+        var isPie = kind === 'pieChart' || kind === 'doughnutChart';
+
+        function ptsOf(cache) {
+            var out = [], n = cache ? attrNum(kid(cache, null, 'ptCount'), 'val', 0) : 0;
+            kids(cache, null, 'pt').forEach(function (p) { var i = attrNum(p, 'idx', 0); var t = kid(p, null, 'v'); out[i] = t ? t.textContent : null; n = Math.max(n, i + 1); });
+            out.length = n; return out;
+        }
+        function cacheOf(ref) { if (!ref) return null; var r = kid(ref, null, 'strRef') || kid(ref, null, 'numRef') || kid(ref, null, 'multiLvlStrRef'); var c = r && (kid(r, null, 'strCache') || kid(r, null, 'numCache') || kid(r, null, 'multiLvlStrCache')); return c; }
+        var series = [];
+        groups.forEach(function (g) {
+            kids(g, null, 'ser').forEach(function (s) {
+                var nameC = cacheOf(kid(s, null, 'tx')), nm = nameC ? (ptsOf(nameC)[0] || '') : '';
+                var catC = cacheOf(kid(s, null, 'cat')), valC = cacheOf(kid(s, null, 'val'));
+                var vals = ptsOf(valC).map(function (x) { var f = parseFloat(x); return x === null || x === undefined || isNaN(f) ? null : f; });
+                var cats = ptsOf(catC);
+                var dpt = {}; kids(s, null, 'dPt').forEach(function (d) { dpt[attrNum(kid(d, null, 'idx'), 'val', 0)] = kid(d, null, 'spPr'); });
+                series.push({ g: g, kind: g.localName.replace('3D', ''), node: s, name: nm, vals: vals, cats: cats, dpt: dpt, spPr: kid(s, null, 'spPr'), dl: kid(s, null, 'dLbls'), order: series.length });
+            });
+        });
+        if (!series.length) return null;
+        var nCat = 0; series.forEach(function (s) { nCat = Math.max(nCat, s.vals.length, s.cats.length); });
+        var cats = []; for (var ci = 0; ci < nCat; ci++) { var cv = null; series.forEach(function (s) { if (cv === null && s.cats[ci] != null) cv = s.cats[ci]; }); cats.push(cv === null ? String(ci + 1) : cv); }
+        var varyColors = v(g0, 'varyColors', '1') === '1';
+        var single = series.length === 1;
+        function colorOf(s, i, isPt) {
+            var pt = s.dpt[i], f = pt ? fillOf(pt) : null; if (f) return f;
+            var sf = fillOf(s.spPr);
+            if (isPie || (single && varyColors && !sf && s.kind === 'barChart')) return palette(i);
+            if (sf) return sf;
+            if (s.kind === 'lineChart') { var st = strokeOf(s.spPr); if (st && st.c) return st.c; }
+            return palette(s.order);
+        }
+
+        // --- SVG + vùng bố trí ---
+        var svg = svgEl('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+        svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible';
+        var csSp = kid(cs, null, 'spPr'), bg = fillOf(csSp);
+        if (bg) svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, fill: bg }));
+        function text(str, x, y, o) {
+            var t = svgEl('text', { x: x, y: y, 'font-size': o.px, 'text-anchor': o.anchor || 'middle', fill: o.clr || baseClr, 'font-family': face });
+            if (o.bold) t.setAttribute('font-weight', '700'); if (o.ital) t.setAttribute('font-style', 'italic');
+            if (o.dy) t.setAttribute('dy', o.dy); if (o.rot) t.setAttribute('transform', 'rotate(' + o.rot + ' ' + x + ' ' + y + ')');
+            t.textContent = str; svg.appendChild(t); return t;
+        }
+        var pad = 8, top = pad, bottom = H - pad, left = pad, right = W - pad;
+
+        // tiêu đề
+        var titleNode = kid(chart, null, 'title'), titleStr = null, tpx = 16 * PT, tb = false, tclr = baseClr;
+        if (titleNode) {
+            var rich = kid(kid(titleNode, null, 'tx'), null, 'rich');
+            if (rich) {
+                titleStr = desc(rich, 't').map(function (t) { return t.textContent; }).join('');
+                var tp = chartTxPr(rich, 18.6 * PT / PT * (PT / PT) * 1, null); var rp = desc(rich, 'rPr')[0] || desc(rich, 'defRPr')[0];
+                tpx = rp && rp.hasAttribute('sz') ? attrNum(rp, 'sz', 1400) / 100 * PT : 14 * PT * 1.0; tb = rp ? rp.getAttribute('b') === '1' : true;
+                tclr = color(rp && kid(rp, NS_A, 'solidFill'), baseClr);
+            }
+        } else if (v(chart, 'autoTitleDeleted', '0') !== '1' && single && !isPie) { titleStr = series[0].name; tpx = 18 * PT; tb = false; }
+        if (titleStr) { text(titleStr, W / 2, top + tpx, { px: tpx, bold: tb, clr: tclr }); top += tpx * 1.5 + 4; }
+
+        // chú giải
+        var legend = kid(chart, null, 'legend'), lpos = legend ? v(legend, 'legendPos', 'r') : null;
+        if (legend) {
+            var lt = chartTxPr(kid(legend, null, 'txPr'), base.px, baseClr), lclr = color(lt.sf, baseClr), lpx = lt.px;
+            var items = (isPie || (single && varyColors && series[0].kind === 'barChart' && !fillOf(series[0].spPr))) ? cats.map(function (c, i) { return { n: c, c: colorOf(series[0], i) }; })
+                : series.map(function (s, i) { return { n: s.name, c: colorOf(s, 0) }; });
+            var sw = lpx * 0.9, gap = lpx * 1.2;
+            if (lpos === 'b' || lpos === 't') {
+                var widths = items.map(function (it) { return sw + 6 + chartTextW(it.n, lpx, false, face) + gap; });
+                var tot = widths.reduce(function (a, b) { return a + b; }, 0) - gap, x0 = (W - Math.min(tot, W - 2 * pad)) / 2, y0 = lpos === 'b' ? bottom - lpx * 0.3 : top + lpx;
+                if (tot > W - 2 * pad) x0 = pad;
+                items.forEach(function (it, i) {
+                    svg.appendChild(svgEl('rect', { x: x0, y: y0 - sw + 1, width: sw, height: sw, fill: it.c }));
+                    text(it.n, x0 + sw + 6, y0, { px: lpx, clr: lclr, anchor: 'start' }); x0 += widths[i];
+                });
+                if (lpos === 'b') bottom -= lpx * 1.9; else top += lpx * 1.9;
+            } else {
+                var lw = Math.max.apply(null, items.map(function (it) { return chartTextW(it.n, lpx, false, face); })) + sw + 14;
+                var xx = lpos === 'l' ? left : right - lw, yy = top + (bottom - top) / 2 - items.length * lpx * 0.8;
+                items.forEach(function (it, i) {
+                    svg.appendChild(svgEl('rect', { x: xx, y: yy + i * lpx * 1.6 - sw + 1, width: sw, height: sw, fill: it.c }));
+                    text(it.n, xx + sw + 6, yy + i * lpx * 1.6, { px: lpx, clr: lclr, anchor: 'start' });
+                });
+                if (lpos === 'l') left += lw + 8; else right -= lw + 8;
+            }
+        }
+
+        function dlOf(s) { return s.dl || kid(s.g, null, 'dLbls'); }
+        function dlShow(dl) { if (!dl) return false; if (kid(dl, null, 'delete') && v(dl, 'delete', '0') === '1') return false; return v(dl, 'showVal', '0') === '1' || v(dl, 'showPercent', '0') === '1' || v(dl, 'showCatName', '0') === '1'; }
+
+        // ================= TRÒN / VÀNH KHUYÊN =================
+        if (isPie) {
+            var s0 = series[0], total = 0; s0.vals.forEach(function (x) { if (x > 0) total += x; });
+            var cx = (left + right) / 2, cy = (top + bottom) / 2, R = Math.min(right - left, bottom - top) / 2 - 6;
+            var hole = kind === 'doughnutChart' ? attrNum(kid(g0, null, 'holeSize'), 'val', 50) / 100 : 0;
+            var first = attrNum(kid(g0, null, 'firstSliceAng'), 'val', 0) * Math.PI / 180, a0 = first - Math.PI / 2;
+            var dl0 = dlOf(s0);
+            s0.vals.forEach(function (x, i) {
+                if (!(x > 0)) return;
+                var a1 = a0 + x / total * Math.PI * 2, large = a1 - a0 > Math.PI ? 1 : 0;
+                function P(r, a) { return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+                var p0 = P(R, a0), p1 = P(R, a1), d;
+                if (x === total) { d = 'M' + (cx - R) + ',' + cy + 'a' + R + ',' + R + ' 0 1,0 ' + 2 * R + ',0a' + R + ',' + R + ' 0 1,0 ' + (-2 * R) + ',0'; if (hole) { var rr = R * hole; d += 'M' + (cx - rr) + ',' + cy + 'a' + rr + ',' + rr + ' 0 1,1 ' + 2 * rr + ',0a' + rr + ',' + rr + ' 0 1,1 ' + (-2 * rr) + ',0'; } }
+                else if (hole) { var q0 = P(R * hole, a0), q1 = P(R * hole, a1); d = 'M' + p0 + 'A' + R + ',' + R + ' 0 ' + large + ',1 ' + p1 + 'L' + q1 + 'A' + R * hole + ',' + R * hole + ' 0 ' + large + ',0 ' + q0 + 'Z'; }
+                else d = 'M' + cx + ',' + cy + 'L' + p0 + 'A' + R + ',' + R + ' 0 ' + large + ',1 ' + p1 + 'Z';
+                var sl = svgEl('path', { d: d, fill: colorOf(s0, i), stroke: '#fff', 'stroke-width': 1.5, 'fill-rule': 'evenodd' }); svg.appendChild(sl);
+                if (dlShow(dl0)) {
+                    var am = (a0 + a1) / 2, rl = hole ? R * (1 + hole) / 2 : R * 0.65, lp = P(rl, am), parts = [];
+                    if (v(dl0, 'showCatName', '0') === '1') parts.push(cats[i]);
+                    if (v(dl0, 'showVal', '0') === '1') parts.push(chartFmt(x, kid(dl0, null, 'numFmt') ? kid(dl0, null, 'numFmt').getAttribute('formatCode') : 'General'));
+                    if (v(dl0, 'showPercent', '0') === '1') parts.push(Math.round(x / total * 100) + '%');
+                    var dt = chartTxPr(kid(dl0, null, 'txPr'), base.px, baseClr);
+                    text(parts.join(', '), lp[0], lp[1] + dt.px * 0.35, { px: dt.px, bold: dt.bold, clr: color(dt.sf, '#fff') });
+                }
+                a0 = a1;
+            });
+            return svg;
+        }
+
+        // ================= TRỤC =================
+        var catAx = kid(plot, null, 'catAx') || kid(plot, null, 'dateAx'), valAx = kid(plot, null, 'valAx');
+        var horiz = kind === 'barChart' && v(g0, 'barDir', 'col') === 'bar';
+        var grouping = v(g0, 'grouping', kind === 'barChart' ? 'clustered' : 'standard');
+        var stacked = /tacked/i.test(grouping), pctStack = /percentStacked/i.test(grouping);
+        var barSeries = series.filter(function (s) { return s.kind === 'barChart'; });
+
+        // phạm vi giá trị
+        var dmin = 0, dmax = 0, any = false;
+        if (stacked) {
+            for (var i2 = 0; i2 < nCat; i2++) { var pos = 0, neg = 0; series.forEach(function (s) { var x = s.vals[i2]; if (x == null) return; any = true; if (x >= 0) pos += x; else neg += x; }); dmax = Math.max(dmax, pctStack ? 1 : pos); dmin = Math.min(dmin, pctStack ? 0 : neg); }
+        } else series.forEach(function (s) { s.vals.forEach(function (x) { if (x == null) return; any = true; dmax = Math.max(dmax, x); dmin = Math.min(dmin, x); }); });
+        if (pctStack) dmax = 1;
+        var sc = valAx && kid(valAx, null, 'scaling');
+        var smin = sc && kid(sc, null, 'min') ? attrNum(kid(sc, null, 'min'), 'val', 0) : null, smax = sc && kid(sc, null, 'max') ? attrNum(kid(sc, null, 'max'), 'val', 0) : null;
+        var vmin = smin, vmax = smax, vstep = valAx && kid(valAx, null, 'majorUnit') ? attrNum(kid(valAx, null, 'majorUnit'), 'val', 0) : 0;
+        if (vmin === null || vmax === null || !vstep) {
+            var nn = chartNice(vmin !== null ? vmin : dmin, vmax !== null ? vmax : dmax * (kind === 'barChart' || true ? 1.0 : 1), 6);
+            if (vmin === null) vmin = nn.min; if (vmax === null) vmax = nn.max; if (!vstep) vstep = nn.step;
+        }
+        if (vmax <= vmin) vmax = vmin + 1;
+
+        var vTx = chartTxPr(valAx && kid(valAx, null, 'txPr'), base.px, baseClr), cTx = chartTxPr(catAx && kid(catAx, null, 'txPr'), base.px, baseClr);
+        var vClr = color(vTx.sf, baseClr), cClr = color(cTx.sf, baseClr);
+        var vCode = valAx && kid(valAx, null, 'numFmt') ? kid(valAx, null, 'numFmt').getAttribute('formatCode') : 'General';
+        var vDel = valAx && v(valAx, 'delete', '0') === '1', cDel = catAx && v(catAx, 'delete', '0') === '1';
+        var ticks = []; for (var tv = vmin; tv <= vmax + vstep * 1e-6; tv += vstep) ticks.push(Math.round(tv / vstep * 1e6) / 1e6 * vstep);
+        var vLabW = vDel ? 0 : Math.max.apply(null, ticks.map(function (t) { return chartTextW(chartFmt(t, vCode), vTx.px, false, face); })) + 8;
+
+        // chiều rộng/cao vùng vẽ
+        var gapTop = 4, catLabH = 0, catLines = [];
+        var pl, pr, pt, pb;
+        if (!horiz) {
+            pl = left + vLabW + 2; pr = right - 4; pt = top + gapTop + 4;
+            var slotW = (pr - pl) / Math.max(1, nCat), maxW = Math.max(20, slotW - 6);
+            catLines = cats.map(function (c) {            // tự xuống dòng nhãn nhóm cho vừa bề rộng
+                var words = String(c).split(/\s+/), lines = [], cur = '';
+                words.forEach(function (w) { var tt = cur ? cur + ' ' + w : w; if (cur && chartTextW(tt, cTx.px, cTx.bold, face) > maxW) { lines.push(cur); cur = w; } else cur = tt; });
+                if (cur) lines.push(cur); return lines;
+            });
+            var nl = Math.max.apply(null, catLines.map(function (l) { return l.length; }).concat([1]));
+            catLabH = cDel ? 0 : nl * cTx.px * 1.2 + 8;
+            pb = bottom - catLabH - 2;
+        } else {
+            var cw = Math.max.apply(null, cats.map(function (c) { return chartTextW(String(c), cTx.px, cTx.bold, face); })) + 10;
+            pl = left + (cDel ? 0 : cw); pr = right - 8; pt = top + gapTop + 4; pb = bottom - (vDel ? 0 : vTx.px * 1.4 + 6);
+        }
+        var plotW = pr - pl, plotH = pb - pt;
+        function Vp(val) { var f = (val - vmin) / (vmax - vmin); return horiz ? pl + f * plotW : pb - f * plotH; }   // giá trị → toạ độ
+        var catSlot = (horiz ? plotH : plotW) / Math.max(1, nCat);
+        function Cp(i) { return horiz ? pt + plotH - (i + 0.5) * catSlot : pl + (i + 0.5) * catSlot; }
+
+        // lưới + nhãn trục giá trị
+        var mg = valAx && kid(valAx, null, 'majorGridlines');
+        ticks.forEach(function (t) {
+            var p = Vp(t);
+            if (mg) { var st = strokeOf(kid(mg, null, 'spPr')) || { c: '#d9d9d9', w: 1 }; if (!st.none) svg.appendChild(svgEl(horiz ? 'line' : 'line', horiz ? { x1: p, y1: pt, x2: p, y2: pb, stroke: st.c, 'stroke-width': st.w } : { x1: pl, y1: p, x2: pr, y2: p, stroke: st.c, 'stroke-width': st.w })); }
+            if (!vDel) { if (horiz) text(chartFmt(t, vCode), p, pb + vTx.px * 1.2 + 2, { px: vTx.px, clr: vClr }); else text(chartFmt(t, vCode), pl - 6, p + vTx.px * 0.35, { px: vTx.px, clr: vClr, anchor: 'end' }); }
+        });
+        // trục: đường nền (tại giá trị 0 hoặc đáy)
+        var zero = Vp(Math.max(vmin, Math.min(0, vmax)));
+        var axSt = strokeOf(catAx && kid(catAx, null, 'spPr')) || { c: '#8a8a8a', w: 1 };
+        if (!axSt.none) svg.appendChild(svgEl('line', horiz ? { x1: zero, y1: pt, x2: zero, y2: pb, stroke: axSt.c, 'stroke-width': axSt.w } : { x1: pl, y1: zero, x2: pr, y2: zero, stroke: axSt.c, 'stroke-width': axSt.w }));
+        // nhãn nhóm
+        if (!cDel) cats.forEach(function (c, i) {
+            if (horiz) text(String(c), pl - 6, Cp(i) + cTx.px * 0.35, { px: cTx.px, bold: cTx.bold, clr: cClr, anchor: 'end' });
+            else catLines[i].forEach(function (ln, k) { text(ln, Cp(i), pb + 4 + cTx.px * 1.0 + k * cTx.px * 1.2, { px: cTx.px, bold: cTx.bold, clr: cClr }); });
+        });
+
+        // ================= VẼ CHUỖI =================
+        var posAcc = [], negAcc = [], labels = [];
+        function addLabel(s, i, x, y, val, pos, shapeBox) {
+            var dl = dlOf(s); if (!dlShow(dl)) return;
+            var nf = kid(dl, null, 'numFmt'), code = nf ? nf.getAttribute('formatCode') : 'General';
+            var dt = chartTxPr(kid(dl, null, 'txPr'), base.px, baseClr);
+            var parts = []; if (v(dl, 'showSerName', '0') === '1') parts.push(s.name); if (v(dl, 'showCatName', '0') === '1') parts.push(cats[i]);
+            if (v(dl, 'showVal', '0') === '1') parts.push(chartFmt(pctStack ? val : val, code));
+            labels.push({ str: parts.join(', '), x: x, y: y, dt: dt, pos: v(dl, 'dLblPos', pos), clr: color(dt.sf, baseClr), shape: shapeBox });
+        }
+        var bGap = barSeries.length && kid(barSeries[0].g, null, 'gapWidth') ? attrNum(kid(barSeries[0].g, null, 'gapWidth'), 'val', 150) / 100 : 1.5;
+        var bOv = barSeries.length && kid(barSeries[0].g, null, 'overlap') ? attrNum(kid(barSeries[0].g, null, 'overlap'), 'val', 0) / 100 : (stacked ? 1 : 0);
+        var nB = stacked ? 1 : barSeries.length;
+        var bw = catSlot / (nB - (nB - 1) * bOv + bGap), clusterW = bw * (nB - (nB - 1) * bOv);
+        var lineIdx = 0;
+        series.forEach(function (s) {
+            if (s.kind === 'barChart') {
+                var bi = stacked ? 0 : barSeries.indexOf(s);
+                s.vals.forEach(function (x, i) {
+                    if (x == null) return;
+                    var a, b, val = x;
+                    if (stacked) {
+                        var tot = pctStack ? series.reduce(function (acc, q) { return acc + Math.abs(q.vals[i] || 0); }, 0) || 1 : 1;
+                        val = pctStack ? x / tot : x;
+                        if (val >= 0) { a = posAcc[i] || 0; b = a + val; posAcc[i] = b; } else { a = negAcc[i] || 0; b = a + val; negAcc[i] = b; }
+                    } else { a = 0; b = x; }
+                    var c0 = Cp(i) + (horiz ? -1 : 1) * 0;   // tâm nhóm
+                    var off = -clusterW / 2 + bi * bw * (1 - bOv);
+                    var pa = Vp(Math.max(vmin, Math.min(vmax, a))), pbv = Vp(Math.max(vmin, Math.min(vmax, b)));
+                    var rect;
+                    if (horiz) { var yTop = Cp(i) - (-off) - bw; rect = { x: Math.min(pa, pbv), y: Cp(i) - (off + bw), w: Math.abs(pbv - pa), h: bw }; }
+                    else rect = { x: Cp(i) + off, y: Math.min(pa, pbv), w: bw, h: Math.abs(pbv - pa) };
+                    var fill = colorOf(s, i), st = strokeOf(s.dpt[i] || s.spPr);
+                    var r = svgEl('rect', { x: rect.x, y: rect.y, width: Math.max(0, rect.w), height: Math.max(0, rect.h), fill: fill });
+                    if (st && !st.none) { r.setAttribute('stroke', st.c); r.setAttribute('stroke-width', st.w); }
+                    svg.appendChild(r);
+                    var lx = rect.x + rect.w / 2, ly = rect.y + rect.h / 2;
+                    addLabel(s, i, lx, ly, x, stacked ? 'ctr' : 'outEnd', { rect: rect, neg: val < 0, horiz: horiz });
+                });
+            } else if (s.kind === 'lineChart' || s.kind === 'areaChart') {
+                var pts = [], col = colorOf(s, 0), st2 = strokeOf(s.spPr), lw = st2 && st2.w ? st2.w : 2.25 * PT;
+                s.vals.forEach(function (x, i) { if (x == null) { pts.push(null); return; } pts.push([horiz ? Vp(x) : Cp(i), horiz ? Cp(i) : Vp(x)]); });
+                if (s.kind === 'areaChart') {
+                    var d = '', run = []; pts.concat([null]).forEach(function (p) { if (p) run.push(p); else if (run.length) { d += 'M' + run[0][0] + ',' + zero + run.map(function (q) { return 'L' + q[0] + ',' + q[1]; }).join('') + 'L' + run[run.length - 1][0] + ',' + zero + 'Z'; run = []; } });
+                    svg.appendChild(svgEl('path', { d: d, fill: col, 'fill-opacity': 0.75 }));
+                } else {
+                    var dd = '', pen = false; pts.forEach(function (p) { if (!p) { pen = false; return; } dd += (pen ? 'L' : 'M') + p[0] + ',' + p[1]; pen = true; });
+                    var smooth = v(s.node, 'smooth', '0') === '1'; void smooth;
+                    svg.appendChild(svgEl('path', { d: dd, fill: 'none', stroke: col, 'stroke-width': lw, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+                    var mk = kid(s.node, null, 'marker'), msym = mk ? v(mk, 'symbol', 'circle') : (kid(s.g, null, 'marker') && v(s.g, 'marker', '1') === '0' ? 'none' : 'circle');
+                    if (msym !== 'none') pts.forEach(function (p) { if (p) svg.appendChild(svgEl('circle', { cx: p[0], cy: p[1], r: Math.max(3, lw * 1.4), fill: col, stroke: '#fff', 'stroke-width': 1 })); });
+                }
+                s.vals.forEach(function (x, i) { if (x != null && pts[i]) addLabel(s, i, pts[i][0], pts[i][1], x, 't', { rect: { x: pts[i][0], y: pts[i][1], w: 0, h: 0 }, neg: false, horiz: false }); });
+                lineIdx++;
+            }
+        });
+        // nhãn số liệu vẽ sau cùng để nằm trên các cột
+        labels.forEach(function (L) {
+            var px = L.dt.px, r = L.shape.rect, pos = L.pos, x = L.x, y = L.y, anchor = 'middle', dy = px * 0.35;
+            if (L.shape.horiz) {
+                if (pos === 'outEnd') { x = L.shape.neg ? r.x - 4 : r.x + r.w + 4; anchor = L.shape.neg ? 'end' : 'start'; }
+                else if (pos === 'inEnd') { x = L.shape.neg ? r.x + 4 : r.x + r.w - 4; anchor = L.shape.neg ? 'start' : 'end'; }
+                else if (pos === 'inBase') { x = L.shape.neg ? r.x + r.w - 4 : r.x + 4; anchor = L.shape.neg ? 'end' : 'start'; }
+            } else {
+                if (pos === 'outEnd' || pos === 't') { y = L.shape.neg ? r.y + r.h + px * 1.0 : r.y - 5; dy = 0; }
+                else if (pos === 'inEnd') { y = L.shape.neg ? r.y + r.h - 4 : r.y + px * 1.1; dy = 0; }
+                else if (pos === 'inBase') { y = L.shape.neg ? r.y + px * 1.1 : r.y + r.h - 4; dy = 0; }
+                else if (pos === 'b') { y = r.y + px * 1.4; dy = 0; }
+            }
+            if (!L.str) return;
+            text(L.str, x, y, { px: px, bold: L.dt.bold, clr: L.clr, anchor: anchor, dy: dy });
+        });
+        return svg;
+    };
+
+    Ctx.prototype.renderChart = function (gf, gd, box, inner, fallback) {
+        var self = this;
+        var cn = desc(gd, 'chart')[0], rid = cn && cn.getAttributeNS(NS_R, 'id');
+        var rel = rid && this.slideRels && this.slideRels[rid];
+        if (!rel) { fallback(); return; }
+        var holder = document.createElement('div');
+        holder.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible';
+        inner.appendChild(holder);
+        this.pending.push(this.deck.zip.xml(rel.target).then(function (cs) {
+            var svg = null;
+            try { svg = cs ? self.chartSvg(cs, box.w, box.h) : null; } catch (e) { if (window.console) console.error('[pptx] chart:', e && e.message); }
+            if (svg) holder.appendChild(svg); else { holder.parentNode && holder.parentNode.removeChild(holder); fallback(); }
+        }).catch(function () { holder.parentNode && holder.parentNode.removeChild(holder); fallback(); }));
+    };
+    // ============================================================ [HẾT PHẦN BỔ SUNG BIỂU ĐỒ]
+
     Ctx.prototype.renderFrame = function (gf, box, inner) {
         var gd = path(gf, 'a:graphic', 'a:graphicData');
         var tbl = gd && kid(gd, NS_A, 'tbl');
@@ -2034,11 +2386,16 @@
         // (trước đây hiện khung xám "Đối tượng nhúng — chưa hỗ trợ").
         var oPic = gd && desc(gd, 'pic')[0];
         if (oPic) { this.renderPicture(oPic, box, inner); return; }
-        var ph = document.createElement('div');
-        ph.style.cssText = 'position:absolute;inset:0;border:1px dashed rgba(100,100,100,.5);background:rgba(240,240,240,.6);display:flex;align-items:center;justify-content:center;color:#6b7280;font:14px sans-serif;text-align:center;padding:8px';
         var uri = gd ? (gd.getAttribute('uri') || '') : '';
-        ph.textContent = /chart/.test(uri) ? '(Biểu đồ — chưa hỗ trợ hiển thị)' : /diagram/.test(uri) ? '(SmartArt — chưa hỗ trợ hiển thị)' : '(Đối tượng nhúng — chưa hỗ trợ hiển thị)';
-        inner.appendChild(ph);
+        var showBox = function () {
+            var ph = document.createElement('div');
+            ph.style.cssText = 'position:absolute;inset:0;border:1px dashed rgba(100,100,100,.5);background:rgba(240,240,240,.6);display:flex;align-items:center;justify-content:center;color:#6b7280;font:14px sans-serif;text-align:center;padding:8px';
+            ph.textContent = /chart/.test(uri) ? '(Biểu đồ — chưa hỗ trợ hiển thị)' : /diagram/.test(uri) ? '(SmartArt — chưa hỗ trợ hiển thị)' : '(Đối tượng nhúng — chưa hỗ trợ hiển thị)';
+            inner.appendChild(ph);
+        };
+        // [BỔ SUNG] biểu đồ → vẽ SVG; không vẽ được thì rơi về khung báo như cũ
+        if (/chart/.test(uri)) { this.renderChart(gf, gd, box, inner, showBox); return; }
+        showBox();
     };
 
     Ctx.prototype.renderTable = function (tbl, box, inner) {
