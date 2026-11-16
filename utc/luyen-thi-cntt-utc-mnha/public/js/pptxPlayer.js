@@ -1489,6 +1489,10 @@
             ds.textAlign = algn === 'ctr' ? 'center' : algn === 'r' ? 'right' : algn === 'just' ? 'justify' : 'left';
             var marL = num(pp.marL, 0) / EMU, indent = num(pp.indent, 0) / EMU;
             ds.paddingLeft = marL + 'px'; ds.textIndent = indent + 'px';
+            ds.position = 'relative';                                  // ★ để đo vị trí tab (offsetLeft tính từ mép đoạn)
+            var tabStops = [];                                         // ★ tab stop (px) của đoạn: <a:tabLst><a:tab pos algn/>
+            (function () { var tl = pPr && kid(pPr, NS_A, 'tabLst'); if (!tl) return; kids(tl, NS_A, 'tab').forEach(function (tb2) { var ps = num(tb2.getAttribute('pos'), -1); if (ps >= 0) tabStops.push(ps / EMU); }); tabStops.sort(function (a, b) { return a - b; }); })();
+            div.__tabStops = tabStops;
             var baseSz = pp.r.sz ? num(pp.r.sz, 1800) / 100 : 18;
             // khoảng cách
             function spc(n) { if (!n) return 0; var pc = path(n, 'a:spcPct'), pt = path(n, 'a:spcPts'); return pc ? { pct: num(pc.getAttribute('val'), 0) / 100000 } : pt ? { px: num(pt.getAttribute('val'), 0) / 100 * PT } : 0; }
@@ -1558,7 +1562,13 @@
                 var span = document.createElement('span');
                 var t = (path(r, 'a:t') || {}).textContent || '';
                 if (r.localName === 'fld' && /slidenum/i.test(r.getAttribute('type') || '')) t = String(self.slide.number);
-                span.textContent = t; span.style.whiteSpace = 'pre-wrap';
+                span.style.whiteSpace = 'pre-wrap';
+                if (t.indexOf('\t') >= 0) {                        // ★ ký tự Tab: thay bằng khoảng trống co giãn tới tab stop kế tiếp
+                    t.split('\t').forEach(function (part, pidx) {
+                        if (pidx > 0) { var tabEl = document.createElement('span'); tabEl.className = 'pp-tab'; tabEl.style.display = 'inline-block'; tabEl.style.width = '0'; tabEl.style.whiteSpace = 'pre'; span.appendChild(tabEl); div.__hasTab = true; }
+                        if (part) span.appendChild(document.createTextNode(part));
+                    });
+                } else span.textContent = t;
                 runStyle(span, rp);
                 var hl = kid(kid(r, NS_A, 'rPr'), NS_A, 'hlinkClick');
                 if (hl) {                                           // ★ chữ có liên kết ngoài: bấm mở tab mới
@@ -2482,7 +2492,25 @@
     };
 
     /** Chữ nội dung (không phải tiêu đề): co cho vừa khung (như PowerPoint) rồi nhân thêm cỡ chữ người dùng chọn (A− / A+). Tiêu đề giữ nguyên. */
+    /** ★ Dàn Tab theo tab stop của đoạn (mặc định mỗi 96px = 914400 EMU như PowerPoint). Gọi khi slide đã nằm trong DOM. */
+    function layoutTabs(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll('.pp-p').forEach(function (div) {
+            if (!div.__hasTab) return;
+            var tabs = div.querySelectorAll('.pp-tab');
+            for (var i = 0; i < tabs.length; i++) tabs[i].style.width = '0';
+            var stops = div.__tabStops || [], DEF = 914400 / EMU;
+            for (var j = 0; j < tabs.length; j++) {
+                var x = tabs[j].offsetLeft, target = 0, found = false;
+                for (var q = 0; q < stops.length; q++) if (stops[q] > x + 1) { target = stops[q]; found = true; break; }
+                if (!found) target = (Math.floor((x + 1) / DEF) + 1) * DEF;
+                tabs[j].style.width = Math.max(0, target - x) + 'px';
+            }
+        });
+    }
+
     Player.prototype._autoFit = function (rs) {
+        try { layoutTabs(rs.el); if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { try { layoutTabs(rs.el); } catch (e) { } }); } catch (e) { if (window.console) console.error('[pptx] tab:', e && e.message); }
         if (!rs.fits) {
             rs.fits = [];
             var root = rs.el, H = this.deck.height, rr = root.getBoundingClientRect(), sc = this.scale || 1;
