@@ -1497,6 +1497,7 @@
             // khoảng cách
             function spc(n) { if (!n) return 0; var pc = path(n, 'a:spcPct'), pt = path(n, 'a:spcPts'); return pc ? { pct: num(pc.getAttribute('val'), 0) / 100000 } : pt ? { px: num(pt.getAttribute('val'), 0) / 100 * PT } : 0; }
             var sb = spc(pp.spcBef), sa = spc(pp.spcAft), ls = spc(pp.lnSpc);
+            var exactLs = !!(ls && ls.px !== undefined);               // ★ giãn dòng cố định (spcPts): cần strut cùng font với chữ để dòng không phình
             ds.marginTop = pi === 0 ? '0' : (sb ? (sb.px !== undefined ? sb.px : sb.pct * baseSz * fs * PT * 1.2) : 0) + 'px';
             ds.marginBottom = (sa ? (sa.px !== undefined ? sa.px : sa.pct * baseSz * fs * PT * 1.2) : 0) + 'px';
             ds.lineHeight = ls ? (ls.px !== undefined ? ls.px + 'px' : Math.max(0.5, (ls.pct - lnRed)) * 1.2) : (1.2 - lnRed * 1.2);
@@ -1578,12 +1579,13 @@
                         span.addEventListener('click', function (e) { e.stopPropagation(); window.open(hrel.target, '_blank', 'noopener,noreferrer'); });
                     }
                 }
+                if (!any && exactLs) { ds.fontFamily = span.style.fontFamily; ds.fontSize = span.style.fontSize; }   // ★ strut của dòng cùng font/cỡ với chữ → dòng không bị cao hơn line-height (không phụ thuộc CSS trang nhúng)
                 div.appendChild(span); any = true;
             });
             if (!any) {                          // đoạn trống: giữ chiều cao theo endParaRPr
                 var rp2 = {}; for (var k2 in pp.r) rp2[k2] = pp.r[k2];
                 mergeRPr(rp2, kid(p, NS_A, 'endParaRPr'));
-                var sp = document.createElement('span'); sp.innerHTML = '&nbsp;'; runStyle(sp, rp2); div.appendChild(sp);
+                var sp = document.createElement('span'); sp.innerHTML = '&nbsp;'; runStyle(sp, rp2); if (exactLs) { ds.fontFamily = sp.style.fontFamily; ds.fontSize = sp.style.fontSize; } div.appendChild(sp);
             }
             wrap.appendChild(div);
         });
@@ -2509,31 +2511,87 @@
         });
     }
 
+    /** ★ Hình nền có tô màu (ô chứa chữ): .pp-sh có svg với fill thật (không 'none') — bỏ qua hình xoay. */
+    function shapeIsFilled(sh) {
+        var inn = sh.firstElementChild;
+        if (!inn || inn.className !== 'pp-in') return false;
+        if (/rotate/.test(inn.style.transform || '')) return false;
+        var g = inn.firstElementChild;
+        if (!g || String(g.tagName).toLowerCase() !== 'svg') return false;
+        var els = g.querySelectorAll('path,rect,ellipse,polygon,circle');
+        for (var i = 0; i < els.length; i++) {
+            if (els[i].closest && els[i].closest('defs')) continue;
+            var f = els[i].getAttribute('fill');
+            if (f && f !== 'none' && f !== 'transparent' && els[i].getAttribute('fill-opacity') !== '0') return true;
+        }
+        return false;
+    }
+
     Player.prototype._autoFit = function (rs) {
         try { layoutTabs(rs.el); if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { try { layoutTabs(rs.el); } catch (e) { } }); } catch (e) { if (window.console) console.error('[pptx] tab:', e && e.message); }
         if (!rs.fits) {
             rs.fits = [];
-            var root = rs.el, H = this.deck.height, rr = root.getBoundingClientRect(), sc = this.scale || 1;
-            root.querySelectorAll('.pp-text[data-ts]').forEach(function (wrap) {
+            var root = rs.el, H = this.deck.height, rr = root.getBoundingClientRect();
+            var sc = (root.offsetWidth && rr.width) ? rr.width / root.offsetWidth : (this.scale || 1);
+            // ★ danh sách ô (hình có tô màu) trên slide, toạ độ px gốc
+            var conts = [];
+            root.querySelectorAll('.pp-sh').forEach(function (sh) {
+                if (!shapeIsFilled(sh)) return;
+                var r = sh.getBoundingClientRect();
+                var c = { l: (r.left - rr.left) / sc, t: (r.top - rr.top) / sc, r: (r.right - rr.left) / sc, b: (r.bottom - rr.top) / sc, el: sh };
+                c.a = (c.r - c.l) * (c.b - c.t);
+                if (c.a > 100) conts.push(c);
+            });
+            function pickCont(l, t, w, h) {                           // ô nhỏ nhất chứa TRỌN khung chữ (khung trải qua nhiều ô thì không coi là thuộc ô nào)
+                var best = null;
+                conts.forEach(function (c) {
+                    if (c.l <= l + 2 && c.t <= t + 2 && c.r >= l + w - 4 && c.b >= t + h - 4 && c.b - t >= 20 && (!best || c.a < best.a)) best = c;
+                });
+                return best;
+            }
+            root.querySelectorAll('.pp-text').forEach(function (wrap) {
+                var ts = wrap.hasAttribute('data-ts'), autofit = wrap.hasAttribute('data-autofit');
                 if (!wrap.textContent.trim() || getComputedStyle(wrap).writingMode !== 'horizontal-tb') return;
                 var cs = getComputedStyle(wrap);
                 var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0, padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
-                var top = (wrap.getBoundingClientRect().top - rr.top) / sc;           // đỉnh khung chữ trong slide (px gốc)
-                var availH = Math.min(wrap.clientHeight, H - top) - padT - padB;
+                var wr = wrap.getBoundingClientRect();
+                var wl = (wr.left - rr.left) / sc, top = (wr.top - rr.top) / sc;
+                var availH = Math.min(wrap.clientHeight, H - top) - padT - padB;       // theo khung chữ (cách cũ)
                 var availW = wrap.clientWidth - padL - padR;
                 if (availH < 20 || availW < 20 || !wrap.firstChild) return;
+                var cont = pickCont(wl, top, wr.width / sc, wr.height / sc);
+                var limH = availH, limRw = null, allow = autofit;
+                if (cont) {                                                            // ★ ô chứa: chữ không được vượt đáy / mép phải của ô
+                    var availHc = cont.b - 3 - top - padT;
+                    limH = autofit ? Math.min(availH, availHc) : availHc;
+                    limRw = cont.r - 3 - wl - padL;
+                    allow = true;
+                }
+                if (!allow) { if (!ts) return; }
+                if (!ts) {                                                             // khung không chỉnh cỡ (tiêu đề…): chỉ xử lý khi thật sự tràn ô
+                    var cb = 0, cr = 0;
+                    wrap.querySelectorAll('.pp-p').forEach(function (pe) {
+                        var pr = pe.getBoundingClientRect();
+                        cb = Math.max(cb, (pr.bottom - rr.top) / sc);
+                        cr = Math.max(cr, (pr.left - rr.left) / sc + pe.scrollWidth);
+                    });
+                    var overH = cb > top + padT + limH + 1, overW = limRw != null && cr > wl + padL + limRw + 1;
+                    if (!overH && !overW) return;
+                }
+                if (limRw != null) availW = Math.max(20, Math.min(availW, limRw));
                 var inner = document.createElement('div');
                 inner.className = 'pp-fit';
                 while (wrap.firstChild) inner.appendChild(wrap.firstChild);
                 wrap.appendChild(inner);
                 inner.style.cssText = 'transform-origin:0 0;flex:none;width:' + availW + 'px';
-                var k = 1, h = inner.offsetHeight;
-                while (wrap.hasAttribute('data-autofit') && h > availH + 1 && k > 0.4) {                                   // co dần đến khi vừa
-                    k = Math.max(0.4, k - 0.025);
+                var kmin = autofit ? 0.4 : 0.5;
+                var k = 1, h = inner.offsetHeight, nw = inner.scrollWidth;
+                while (allow && (h > limH + 1 || (limRw != null && nw * k > limRw + 1)) && k > kmin) {     // co dần đến khi vừa
+                    k = Math.max(kmin, k - 0.025);
                     inner.style.width = (availW / k) + 'px';
-                    h = inner.offsetHeight * k;
+                    h = inner.offsetHeight * k; nw = inner.scrollWidth;
                 }
-                rs.fits.push({ inner: inner, availW: availW, k0: k });
+                rs.fits.push({ inner: inner, availW: availW, k0: k, ts: ts });
             });
         }
         this._applyTextScale();
@@ -2543,7 +2601,7 @@
         var rs = this._rs; if (!rs || !rs.fits) return;
         var t = this.textScale || 1, H0 = this.deck.height;
         rs.fits.forEach(function (f) {
-            var k = f.k0 * t;
+            var k = f.k0 * (f.ts ? t : 1);
             f.inner.style.width = (f.availW / k) + 'px';
             f.inner.style.transform = k === 1 ? '' : 'scale(' + k + ')';
             f.inner.style.marginBottom = k === 1 ? '' : (-(f.inner.offsetHeight * (1 - k))) + 'px';
