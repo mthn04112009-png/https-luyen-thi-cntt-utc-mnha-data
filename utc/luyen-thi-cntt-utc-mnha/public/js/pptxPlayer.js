@@ -1994,18 +1994,100 @@
     };
 
     // ============================================================
+    // [BỔ SUNG] TỔNG HỢP ÂM ĐƠN LẺ (IPA) bằng Web Audio — dùng cho nút "Nghe riêng âm /…/".
+    //   Web Speech chỉ đọc được CHỮ (đọc "uh", "puh" thành tên chữ cái) nên âm riêng phải tự tạo:
+    //   nguyên âm = sóng thanh quản qua 3 bộ cộng hưởng (formant); âm xát = nhiễu lọc; âm tắc = nổ + nguyên âm ngắn; v.v.
+    //   Không phụ thuộc giọng của máy/trình duyệt.
+    // ============================================================
+    var PH = (function () {
+        var V = { 'iː': [280, 2250, 2890], 'ɪ': [400, 1920, 2560], 'e': [550, 1770, 2490], 'æ': [690, 1660, 2490], 'ɑː': [710, 1100, 2540], 'ɒ': [590, 880, 2540],
+            'ɔː': [450, 740, 2640], 'ʊ': [450, 1030, 2380], 'uː': [310, 870, 2250], 'ʌ': [640, 1190, 2390], 'ɜː': [500, 1350, 1700], 'ə': [500, 1500, 2500], 'a': [720, 1300, 2500] };
+        var D = { 'ɪə': ['ɪ', 'ə'], 'eɪ': ['e', 'ɪ'], 'ʊə': ['ʊ', 'ə'], 'ɔɪ': ['ɔː', 'ɪ'], 'əʊ': ['ə', 'ʊ'], 'eə': ['e', 'ə'], 'aɪ': ['a', 'ɪ'], 'aʊ': ['a', 'ʊ'] };
+        var LONG = { 'iː': 1, 'uː': 1, 'ɜː': 1, 'ɔː': 1, 'ɑː': 1 };
+        // [kiểu lọc, tần số, Q, âm lượng, hữu thanh?]
+        var FR = { s: ['highpass', 5500, 0.7, 1, 0], z: ['highpass', 5500, 0.7, 1, 1], 'ʃ': ['bandpass', 3200, 0.9, 1, 0], 'ʒ': ['bandpass', 3200, 0.9, 1, 1],
+            f: ['bandpass', 5000, 0.3, 0.5, 0], v: ['bandpass', 5000, 0.3, 0.5, 1], 'θ': ['bandpass', 6500, 0.3, 0.4, 0], 'ð': ['bandpass', 6500, 0.3, 0.4, 1] };
+        var ST = { p: [800, 0], b: [800, 1], t: [4500, 0], d: [4000, 1], k: [1800, 0], g: [1800, 1] };
+        var NA = { m: [250, 1100, 2100], n: [250, 1500, 2600], 'ŋ': [250, 1000, 2300] };
+        var nbuf = null;
+        function noiseBuf(ctx) {
+            if (nbuf && nbuf.sampleRate === ctx.sampleRate) return nbuf;
+            var n = ctx.sampleRate, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+            for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+            return (nbuf = b);
+        }
+        /** Lên lịch phát âm ph vào nút dest. Trả về thời lượng (giây) kể từ lúc gọi, hoặc 0 nếu không có âm đó. */
+        function render(ctx, ph, dest) {
+            var base = ctx.currentTime, T = base + 0.03, end = T;
+            function env(t0, dur, peak) {
+                var g = ctx.createGain(), a = Math.min(0.04, dur / 3), r = Math.min(0.09, dur / 3);
+                g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + a);
+                g.gain.setValueAtTime(peak, Math.max(t0 + a, t0 + dur - r)); g.gain.linearRampToValueAtTime(0, t0 + dur);
+                g.connect(dest); if (t0 + dur > end) end = t0 + dur; return g;
+            }
+            function voiced(t0, dur, fa, fb, peak, f0a, f0b) {
+                var o = ctx.createOscillator(); o.type = 'sawtooth';
+                o.frequency.setValueAtTime(f0a || 128, t0); o.frequency.linearRampToValueAtTime(f0b || 110, t0 + dur);
+                var g = env(t0, dur, peak), Q = [9, 11, 13], W = [1, 0.55, 0.3];
+                for (var k = 0; k < 3; k++) {
+                    var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = Q[k];
+                    f.frequency.setValueAtTime(fa[k], t0); f.frequency.linearRampToValueAtTime(fb[k], t0 + dur * 0.9);
+                    var w = ctx.createGain(); w.gain.value = W[k]; o.connect(f); f.connect(w); w.connect(g);
+                }
+                o.start(t0); o.stop(t0 + dur + 0.05);
+            }
+            function noise(t0, dur, type, freq, Q, peak) {
+                var s = ctx.createBufferSource(); s.buffer = noiseBuf(ctx); s.loop = true;
+                var f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = Q;
+                s.connect(f); f.connect(env(t0, dur, peak)); s.start(t0); s.stop(t0 + dur + 0.05);
+            }
+            function buzz(t0, dur, peak) { voiced(t0, dur, [180, 900, 2500], [180, 900, 2500], peak, 125, 112); }   // "thanh âm" thấp của âm hữu thanh
+            var s = V[ph], d, a, b, q, st, t1, vc, n;
+            if (s) { d = LONG[ph] ? 0.95 : 0.55; voiced(T, d, s, s, 1.0, 130, 105); }
+            else if (D[ph]) { a = V[D[ph][0]]; b = V[D[ph][1]]; voiced(T, 1.0, a, b, 1.0, 130, 105); }
+            else if (FR[ph]) { q = FR[ph]; noise(T, 0.8, q[0], q[1], q[2], q[3]); if (q[4]) buzz(T, 0.8, 0.5); }
+            else if (ph === 'h') noise(T, 0.7, 'bandpass', 1500, 0.8, 0.9);
+            else if (ST[ph]) {
+                st = ST[ph]; t1 = T + 0.12;
+                if (st[1]) buzz(T, 0.1, 0.25);
+                noise(t1, 0.025, 'bandpass', st[0], 1.2, 1.5);
+                if (!st[1]) noise(t1 + 0.02, 0.07, 'bandpass', 1500, 0.8, 0.5);
+                voiced(t1 + 0.03, 0.28, V['ə'], V['ə'], 0.7, 125, 105);
+            }
+            else if (ph === 'tʃ' || ph === 'dʒ') {
+                vc = ph === 'dʒ'; t1 = T + 0.1;
+                if (vc) buzz(T, 0.1, 0.25);
+                noise(t1, 0.02, 'bandpass', 3500, 1, 1.2);
+                noise(t1 + 0.015, 0.2, 'bandpass', 3200, 0.9, 1.0); if (vc) buzz(t1 + 0.015, 0.2, 0.4);
+                voiced(t1 + 0.18, 0.25, V['ə'], V['ə'], 0.6, 125, 105);
+            }
+            else if (NA[ph]) { n = NA[ph]; voiced(T, 0.85, n, n, 1.0, 125, 110); }
+            else if (ph === 'l') { n = [360, 1300, 2900]; voiced(T, 0.8, n, n, 1.0, 125, 110); }
+            else if (ph === 'r') { n = [420, 1250, 1650]; voiced(T, 0.8, n, n, 1.0, 125, 110); }
+            else if (ph === 'w') voiced(T, 0.6, [300, 700, 2200], V['ə'], 1.0, 125, 108);
+            else if (ph === 'j') voiced(T, 0.6, [270, 2250, 3000], V['ə'], 1.0, 125, 108);
+            else return 0;
+            return end + 0.1 - base;
+        }
+        function ok(ph) { return !!(V[ph] || D[ph] || FR[ph] || ST[ph] || NA[ph] || /^(h|tʃ|dʒ|l|r|w|j)$/.test(ph)); }
+        return { render: render, ok: ok };
+    })();
+
+    // ============================================================
     // [BỔ SUNG] NÚT PHÁT ÂM (biểu tượng loa / nút ▶ trong slide)
     //   Ảnh có  <p:cNvPr title='tts:{...}'>  → bấm là ĐỌC TO bằng giọng đọc của trình duyệt (Web Speech API, ưu tiên en-GB):
     //     {"t":"sheep","r":0.9}                  đọc 1 từ/câu, r = tốc độ (1 = bình thường, 0.5 = chậm)
     //     {"t":"Hi!","v":"m"}                    v = m (giọng nam, vd. Ryan) | f (giọng nữ, vd. Sonia)
     //     {"seq":[{"t":"Hi!","v":"m"},{...}]}    đọc lần lượt nhiều câu (hội thoại); bấm lần nữa để dừng
+    //     {"t":"uh","ph":"ə"}                    ph = âm IPA đơn lẻ → TỰ TỔNG HỢP bằng Web Audio (không đọc chữ). Không có ph thì lấy từ nhãn "Nghe riêng âm /ə/"
     //   Ảnh có hlinkClick tới tệp âm thanh trực tiếp (.mp3 .wav .ogg .m4a…) → phát tệp đó bằng <audio>.
     //   Bấm nút KHÔNG làm chuyển slide (chặn click/chạm/phím lan ra khung trình chiếu).
     // ============================================================
     var Speech = (function () {
         var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
         var keep = [];                       // giữ tham chiếu utterance (Chrome có thể thu dọn → mất onend)
-        var cur = { token: 0, holder: null, audio: null };
+        var cur = { token: 0, holder: null, audio: null, ac: null, gain: null, timer: 0 };
+        var AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext) || null;
         var MALE = /ryan|daniel|george|oliver|thomas|arthur|james|alfie|\bmale\b|\bman\b/i;
         var FEMALE = /sonia|libby|hazel|susan|serena|kate|maisie|mia|olivia|female|woman/i;
         function voiceList() { try { return synth ? synth.getVoices() || [] : []; } catch (e) { return []; } }
@@ -2037,8 +2119,30 @@
             cur.token++;
             try { if (synth && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* bỏ qua */ }
             if (cur.audio) { try { cur.audio.pause(); } catch (e) { /* bỏ qua */ } cur.audio = null; }
+            if (cur.timer) { clearTimeout(cur.timer); cur.timer = 0; }
+            if (cur.gain) { try { cur.gain.gain.cancelScheduledValues(0); cur.gain.gain.value = 0; cur.gain.disconnect(); } catch (e) { /* bỏ qua */ } cur.gain = null; }
             keep.length = 0;
             mark(cur.holder, false); cur.holder = null;
+        }
+        /** Âm đơn lẻ: spec.ph (IPA) hoặc suy ra từ nhãn "Nghe riêng âm /ɜː/". Không phải âm đơn → null. */
+        function phonemeOf(spec) {
+            var ph = spec && typeof spec.ph === 'string' ? spec.ph : '';
+            if (!ph && spec && typeof spec.label === 'string') { var m = /riêng âm\s*\/([^\/]+)\//i.exec(spec.label); if (m) ph = m[1]; }
+            ph = ph.replace(/^\/|\/$/g, '').trim();
+            return ph && PH.ok(ph) ? ph : null;
+        }
+        function playPhoneme(ph, holder) {
+            if (!AC) return false;
+            try {
+                if (!cur.ac || cur.ac.state === 'closed') cur.ac = new AC();
+                var ac = cur.ac; if (ac.state === 'suspended' && ac.resume) ac.resume();
+                var g = ac.createGain(); g.gain.value = 0.55; g.connect(ac.destination);
+                var dur = PH.render(ac, ph, g); if (!dur) { g.disconnect(); return false; }
+                cur.gain = g; cur.holder = holder; mark(holder, true);
+                var token = cur.token;
+                cur.timer = setTimeout(function () { if (token === cur.token) { cur.timer = 0; mark(holder, false); cur.holder = null; if (cur.gain === g) { try { g.disconnect(); } catch (e) { /* bỏ qua */ } cur.gain = null; } } }, Math.ceil(dur * 1000));
+                return true;
+            } catch (e) { if (global.console) console.warn('[pptxPlayer] Không tổng hợp được âm /' + ph + '/', e); return false; }
         }
         function utter(item, token, done) {
             var u = new window.SpeechSynthesisUtterance(String(item.t || ''));
@@ -2054,6 +2158,8 @@
         function speak(spec, holder) {
             if (cur.holder === holder && cur.holder) { stop(); return; }   // bấm lại chính nút đang đọc → dừng
             stop();
+            var ph1 = phonemeOf(spec);                                   // ★ âm đơn lẻ → tự tổng hợp, KHÔNG nhờ Web Speech (nó đọc thành tên chữ cái)
+            if (ph1 && playPhoneme(ph1, holder)) return;
             if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') {
                 if (holder) holder.title = 'Trình duyệt này không hỗ trợ đọc to (Web Speech). Hãy dùng Chrome / Edge / Safari.';
                 if (global.console) console.warn('[pptxPlayer] Trình duyệt không hỗ trợ speechSynthesis');
