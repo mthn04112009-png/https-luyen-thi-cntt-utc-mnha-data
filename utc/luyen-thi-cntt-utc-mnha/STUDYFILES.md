@@ -19,7 +19,7 @@ subjects/<môn>/<slides|documents>/<tên>_<timestamp>.pdf         nếu file ≤
 subjects/<môn>/<slides|documents>/<tên>_<timestamp>-1.pdf       nếu file > 23MB: chia nhỏ -1, -2, -3, …
                                                     -2.pdf      mỗi file lưu trên GitHub ≤ 23.000.000 byte
 ```
-Mọi file đều **mã hoá AES-256-GCM** (`services/slideCryptoService.js`, khoá `ENCRYPTION_MASTER_KEY`). Khi xem/tải, server giải mã từng
+Mọi file đều **mã hoá AES-256-GCM**. Khi up, **trình duyệt tự mã hoá** (Web Crypto, `public/js/studyFileForm.js`); khoá từng khung = HKDF(`ENCRYPTION_MASTER_KEY`, salt) do server cấp qua `POST …/dashboard/upload-keys` (khoá gốc không rời server). Định dạng `SLD2` không đổi nên file cũ giải mã y như trước (`services/slideCryptoService.js`). Khi xem/tải, server giải mã từng
 file-phần rồi **nối liền mạch** thành file gốc. RAM chỉ giữ chỉ mục (`models/Slide.js`, `models/Document.js` ← `githubStore.js`).
 JSON bản đầu (chỉ có `pdfFile`/`pdfSize`) vẫn đọc được.
 
@@ -29,7 +29,7 @@ JSON bản đầu (chỉ có `pdfFile`/`pdfSize`) vẫn đọc được.
 
 ## Vì sao up/xem đi theo từng phần (chạy được trên Vercel)
 Vercel cắt request/response > 4.5MB, và mỗi function chạy tối đa 60s (`vercel.json`).
-1. **Up** (`public/js/studyFileForm.js`): cắt file thành phần 2MB → `POST …/dashboard/upload-chunk` (server mã hoá 1 khung, lưu tạm thành blob GitHub)
+1. **Up** (`public/js/studyFileForm.js`): cắt file thành phần 2MB → xin khoá ở `POST …/dashboard/upload-keys` (lô ≤ 16 salt) → **mã hoá ngay trong trình duyệt** → `POST …/dashboard/upload-chunk?index=&total=&ext=` (body nhị phân `application/octet-stream`; server KHÔNG mã hoá, chỉ kiểm tra cấu trúc rồi lưu tạm thành blob GitHub; khung 0 được giải mã thử để bắt sớm khoá/định dạng sai)
    → gom các khung thành file-phần ≤ 23MB, mỗi file-phần 1 request `POST …/dashboard/upload-part` (server kiểm tra, ghi `*.pdf` hoặc `*-n.pdf`, trả chữ ký HMAC)
    → `POST …/dashboard` ghi JSON (server kiểm tra chữ ký nên client không thể khai man đường dẫn/kích thước).
 2. **Xem/tải** (`public/js/studyFileViewer.js`): `GET …/file/:id?chunk=i` trả từng phần ≤ 4MB, trình duyệt ghép lại.
@@ -65,3 +65,10 @@ Tự đọc file .pptx bằng JSZip và dựng lại slide trong trình duyệt 
   trình duyệt khác gom thành `Blob`; file nhỏ đang có sẵn trong RAM thì dùng lại.
 - Mọi lỗi (GitHub/CORS/token hết hạn/trình duyệt cũ) → tự quay về đường cũ `GET {base}/file/:sid?chunk=i` (server giải mã).
 - Token gắn tài khoản + file (HMAC), hết hạn sau 2 giờ; mỗi lần cấp khoá ghi `console.log` (xem ở Vercel Logs).
+
+## Bảo mật khoá (cập nhật)
+- `POST {base}/keys/:sid` chỉ cấp khoá cho salt **thuộc đúng file đó**: server quét header các khung (Range request lên raw GitHub, dự phòng đọc cả file-phần), cache RAM 30 phút. Salt lạ → 403 (log `TỪ CHỐI`). Lý do: repo public nên salt của mọi file đều đọc được.
+- Giới hạn tần suất (`express-rate-limit`, theo tài khoản): `/keys/:sid` 300 lần/phút, `/dashboard/upload-keys` 120 lần/phút.
+- Đường cũ "server mã hoá" (`upload-chunk` nhận JSON `{data:base64}`) mặc định TẮT → trả 410; bật tạm bằng biến môi trường `ALLOW_SERVER_ENCRYPT=1`.
+- Up qua "web kết nối" (data node): khung mã hoá gửi thẳng web kết nối như trước; xin khoá luôn ở web chính. **`ENCRYPTION_MASTER_KEY` của web chính và web kết nối phải giống nhau.**
+- Test: `node test/studyfiles.browser-encrypt.js`.

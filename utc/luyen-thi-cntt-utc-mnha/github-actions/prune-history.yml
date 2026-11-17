@@ -1,6 +1,7 @@
 # Đặt file này vào repo DỮ LIỆU CHÍNH (GITHUB_REPO) tại: .github/workflows/prune-history.yml
 # Mỗi ngày 03:30 giờ VN: giữ commit N ngày gần nhất của repo chính + mọi repo -1, -2… (đọc github/repos/index.json), phần cũ gộp thành 1 commit gốc.
-# Cần 1 secret trong repo này: PRUNE_TOKEN = token GitHub có quyền Contents: Read and write cho TẤT CẢ các repo dữ liệu (dùng lại GITHUB_TOKEN của web cũng được).
+# Cần 1 secret trong repo này: PRUNE_TOKEN = token GitHub có quyền Contents: Read and write cho TẤT CẢ các repo dữ liệu.
+# ★ Nên dùng fine-grained token RIÊNG (không dùng lại GITHUB_TOKEN của web): chỉ chọn đúng các repo dữ liệu, chỉ quyền Contents (Read and write), đặt hạn ngắn và gia hạn định kỳ — token này ghi đè được lịch sử mọi repo đó.
 # Chạy ngay: tab Actions → "Prune history" → Run workflow (chọn dry = true để chỉ xem trước).
 name: Prune history
 on:

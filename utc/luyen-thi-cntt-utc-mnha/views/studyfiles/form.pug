@@ -10,7 +10,7 @@ block content
         div(class="mt-3 mb-6")
             h1(class="text-3xl font-bold text-gray-900")= editing ? ('Sửa ' + app.noun) : ('Up ' + app.noun)
             p(class="mt-1 text-gray-500")
-                | Định dạng: #{app.accept.replace(/,/g, ', ')} (tối đa #{maxMb}MB). File được mã hoá AES-256 trước khi lưu lên GitHub; chỉ khi xem / tải xuống qua web mới được giải mã. File lớn hơn #{partMb}MB được chia nhỏ (-1, -2, …) để lưu và tự nối lại khi xem.
+                | Định dạng: #{app.accept.replace(/,/g, ', ')} (tối đa #{maxMb}MB). File được mã hoá AES-256 NGAY TRONG TRÌNH DUYỆT của bạn trước khi gửi đi (máy chủ không mã hoá, chỉ nhận dữ liệu đã mã hoá rồi lưu lên GitHub); chỉ khi xem / tải xuống qua web mới được giải mã. File lớn hơn #{partMb}MB được chia nhỏ (-1, -2, …) để lưu và tự nối lại khi xem.
 
         div(id="slMsg", class="hidden mb-4 p-4 rounded-xl text-sm")
 

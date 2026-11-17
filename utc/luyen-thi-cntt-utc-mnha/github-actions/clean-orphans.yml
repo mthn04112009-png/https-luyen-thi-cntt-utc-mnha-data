@@ -1,0 +1,112 @@
+# Đặt file này vào repo DỮ LIỆU CHÍNH (GITHUB_REPO) tại: .github/workflows/clean-orphans.yml
+# Dọn FILE MỒ CÔI (file mã hoá trong subjects/*/slides|documents/ không còn JSON nào tham chiếu, cũ hơn HOURS giờ) ở repo chính + mọi repo -1, -2…
+# MẶC ĐỊNH CHỈ LIỆT KÊ (dry = true), kể cả khi chạy theo lịch. Muốn xoá thật: tab Actions → "Clean orphans" → Run workflow → dry = false.
+# Secret PRUNE_TOKEN (dùng chung với prune-history): nên là fine-grained token RIÊNG, chỉ chọn đúng các repo dữ liệu,
+#   quyền Contents: Read and write (không thêm quyền nào khác), đặt hạn ngắn (vd 90 ngày) và nhớ gia hạn.
+# Lịch sử commit của các file đã xoá sẽ biến mất ở lượt "Prune history" kế tiếp (giữ N ngày gần nhất).
+name: Clean orphans
+on:
+  schedule:
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 'Chỉ dọn file cũ hơn bao nhiêu giờ'
+        default: '48'
+      dry:
+        description: 'Chỉ liệt kê, không xoá (true/false)'
+        default: 'true'
+permissions:
+  contents: read
+concurrency:
+  group: prune-history        # cùng nhóm với prune-history để hai việc không ghi repo cùng lúc
+  cancel-in-progress: false
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Clean orphans
+        env:
+          TOKEN: ${{ secrets.PRUNE_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          MAIN: ${{ github.event.repository.name }}
+          HOURS: ${{ inputs.hours || '48' }}
+          DRY: ${{ inputs.dry || 'true' }}
+        run: |
+          #!/usr/bin/env bash
+          # Dọn FILE MỒ CÔI: file mã hoá trong subjects/<môn>/(slides|documents)/ mà KHÔNG JSON nào (ở bất kỳ repo dữ liệu nào) còn tham chiếu,
+          # và đã cũ hơn $HOURS giờ (tính theo timestamp trong TÊN file: <slug>_<unix>[-n].<ext>) → xoá bằng 1 commit mới (không động tới file khác).
+          # Env: TOKEN · OWNER · MAIN · HOURS=48 · DRY=true|false (mặc định TRUE = chỉ liệt kê) · REMOTE_BASE/EXTRA_REPOS (chỉ để test)
+          # An toàn: JSON nào đọc lỗi / không có tham chiếu nào mà vẫn có file → HUỶ cả lượt, không xoá gì. File không đọc được timestamp → bỏ qua.
+          set -uo pipefail
+          HOURS="${HOURS:-48}"; DRY="${DRY:-true}"
+          CUT=$(( $(date -u +%s) - HOURS * 3600 ))
+          BASE="${REMOTE_BASE:-https://x-access-token:${TOKEN:-}@github.com/${OWNER:-}}"
+          export GIT_TERMINAL_PROMPT=0
+          if [ -z "${TOKEN:-}" ] && [ -z "${REMOTE_BASE:-}" ]; then echo "❌ Thiếu secret PRUNE_TOKEN."; exit 1; fi
+          DIRS_RE='^subjects/[^/]+/(slides|documents)/[^/]+$'
+          W="$(mktemp -d)"; REFS="$W/refs.txt"; : > "$REFS"
+
+          repos=("$MAIN")
+          if [ -n "${TOKEN:-}" ] && [ -z "${REMOTE_BASE:-}" ]; then
+            while read -r n; do [ -n "$n" ] && repos+=("$n"); done < <(GH_TOKEN="$TOKEN" gh api "repos/$OWNER/$MAIN/contents/github/repos/index.json" -q .content 2>/dev/null | base64 -d 2>/dev/null | jq -r '.repos[]?.repo' 2>/dev/null)
+          elif [ -n "${EXTRA_REPOS:-}" ]; then read -ra more <<< "$EXTRA_REPOS"; repos+=("${more[@]}"); fi
+
+          # ---- lượt 1: clone từng repo, gom MỌI đường dẫn đang được JSON tham chiếu ----
+          for r in "${repos[@]}"; do
+            git clone -q --bare --single-branch --filter=blob:none "$BASE/$r.git" "$W/$r.git" || { echo "❌ $r: không clone được — HUỶ."; exit 1; }
+            ( cd "$W/$r.git" && git ls-tree -r --name-only HEAD | grep -E "$DIRS_RE" > "$W/$r.files" ) || true
+            while read -r j; do
+              [ -z "$j" ] && continue
+              out="$(git -C "$W/$r.git" show "HEAD:$j" | jq -r '(.parts[]?.path // empty), (.pdfFile // empty)')" || { echo "❌ $r:$j đọc/parse lỗi — HUỶ, không xoá gì."; exit 1; }
+              [ -n "$out" ] && printf '%s\n' "$out" >> "$REFS"
+            done < <(grep -E '\.json$' "$W/$r.files" 2>/dev/null)
+          done
+          sort -u "$REFS" -o "$REFS"
+          nbin=0; for r in "${repos[@]}"; do nbin=$(( nbin + $(grep -vcE '\.json$' "$W/$r.files" 2>/dev/null || true) )); done
+          if [ "$nbin" -gt 0 ] && [ ! -s "$REFS" ]; then echo "❌ Có $nbin file nhưng không JSON nào tham chiếu — nghi lỗi đọc dữ liệu, HUỶ."; exit 1; fi
+
+          # ---- lượt 2: tìm & xoá mồ côi ở từng repo ----
+          fail=0; total=0
+          for r in "${repos[@]}"; do
+            orphans=()
+            while read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in *.json) continue;; esac
+              grep -Fxq -- "$f" "$REFS" && continue
+              ts="$(basename "$f" | sed -nE 's/.*_([0-9]{10})(-[0-9]+)?\.[A-Za-z0-9]+$/\1/p')"
+              [ -z "$ts" ] && { echo "  ? $r:$f — không đọc được timestamp, bỏ qua."; continue; }
+              [ "$ts" -gt "$CUT" ] && continue
+              orphans+=("$f")
+            done < "$W/$r.files"
+            [ "${#orphans[@]}" -eq 0 ] && { echo "• $r: không có file mồ côi."; continue; }
+            echo "• $r: ${#orphans[@]} file mồ côi (cũ hơn ${HOURS}h):"; printf '    - %s\n' "${orphans[@]}"
+            total=$(( total + ${#orphans[@]} ))
+            [ "$DRY" = "true" ] && continue
+            (
+              cd "$W/$r.git" || exit 1
+              BR="$(git symbolic-ref --short HEAD)"; head="$(git rev-parse HEAD)"
+              for try in 1 2 3 4 5; do
+                export GIT_INDEX_FILE="$W/$r.idx"; rm -f "$GIT_INDEX_FILE"
+                git read-tree "$head" || exit 1
+                : > "$W/$r.rm"; n=0
+                for f in "${orphans[@]}"; do
+                  if [ -n "$(git ls-tree "$head" -- "$f")" ]; then printf '0 0000000000000000000000000000000000000000\t%s\n' "$f" >> "$W/$r.rm"; n=$((n+1)); fi
+                done
+                [ "$n" -eq 0 ] && { echo "  ↳ $r: đã sạch."; exit 0; }
+                git update-index --index-info < "$W/$r.rm" || { echo "❌ $r: không gỡ được file khỏi chỉ mục."; exit 1; }
+                tree="$(git write-tree)"
+                # kiểm chứng TRƯỚC khi đẩy: chỉ đúng $n file biến mất, mọi file khác còn nguyên
+                before="$(git ls-tree -r --name-only "$head" | wc -l)"; after="$(git ls-tree -r --name-only "$tree" | wc -l)"
+                [ "$((before - after))" -eq "$n" ] || { echo "❌ $r: số file giảm $((before - after)) ≠ $n — HUỶ."; exit 1; }
+                new="$(printf 'Dọn %s file mồ côi (không còn JSON tham chiếu)\n' "$n" | git commit-tree "$tree" -p "$head")"
+                if git push -q origin "$new:refs/heads/$BR" 2>/dev/null; then echo "  ↳ xong $r: xoá $n file → ${new:0:7}"; exit 0; fi
+                git fetch -q origin "+refs/heads/$BR:refs/orphans/remote" || exit 1
+                head="$(git rev-parse refs/orphans/remote)"      # web vừa ghi thêm → làm lại trên head mới
+              done
+              echo "❌ $r: đẩy lỗi nhiều lần"; exit 1
+            ) || fail=1
+          done
+          echo "Tổng: $total file mồ côi$( [ "$DRY" = "true" ] && echo ' (DRY-RUN: chưa xoá gì)')."
+          exit $fail

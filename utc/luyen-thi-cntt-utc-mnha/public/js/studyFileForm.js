@@ -2,7 +2,8 @@
  * studyFileForm.js — Trang UP / SỬA  Slide bài học (/slides)  và  Tài liệu học tập (/documents)
  *
  *  File lớn không gửi được 1 request (Vercel cắt > 4.5MB) và mỗi file lưu trên GitHub phải ≤ 23MB, nên:
- *   1. Cắt file thành phần 2MB  → POST {base}/dashboard/upload-chunk  (server mã hoá 1 khung, lưu tạm thành blob, trả sha)
+ *   1. Cắt file thành phần 2MB → xin khoá khung ở {base}/dashboard/upload-keys → MÃ HOÁ NGAY TRONG TRÌNH DUYỆT (Web Crypto, AES-256-GCM)
+ *      → POST {base}/dashboard/upload-chunk (khung nhị phân đã mã hoá; server KHÔNG mã hoá, chỉ lưu tạm thành blob, trả sha)
  *   2. Gom các khung thành file-phần ≤ 23MB (cùng công thức với server: config/studyFileConfig.js groupFrames)
  *      → POST {base}/dashboard/upload-part  (mỗi file-phần 1 request: *.pdf  hoặc  *-1.pdf, *-2.pdf, …)
  *   3. POST {base}/dashboard (tạo) | {base}/dashboard/:id (sửa) kèm danh sách file-phần → server ghi JSON
@@ -28,7 +29,43 @@
         return out;
     }
 
-    var api = { groupFrames: groupFrames, frameSizes: frameSizes };
+    // ------------------------------------------------------------
+    // MÃ HOÁ NGAY TRONG TRÌNH DUYỆT (Web Crypto, AES-256-GCM) — cùng định dạng "SLD2" với services/slideCryptoService.js
+    //   khung = index(4,BE) | total(4,BE) | ctLen(4,BE) | salt(16) | iv(12) | authTag(16) | ciphertext
+    //   AAD   = "SLD2" | index(4,BE) | total(4,BE)
+    //   khoá khung = HKDF(master, salt) do SERVER tính rồi trả về (POST /dashboard/upload-keys); khoá gốc không rời server.
+    // ------------------------------------------------------------
+    var SUBTLE = (function () { var c = (typeof window !== 'undefined' ? window.crypto : globalThis.crypto); return c && c.subtle ? c : null; })();
+    var MAGIC = [0x53, 0x4c, 0x44, 0x32];   // "SLD2"
+    function putU32(a, o, n) { a[o] = n >>> 24; a[o + 1] = (n >>> 16) & 255; a[o + 2] = (n >>> 8) & 255; a[o + 3] = n & 255; }
+    function toB64u(u8) {
+        var s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+        return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function fromB64u(str) {
+        var b = atob(String(str).replace(/-/g, '+').replace(/_/g, '/'));
+        var u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+        return u;
+    }
+    function frameAad(index, total) {
+        var a = new Uint8Array(12); a.set(MAGIC, 0); putU32(a, 4, index); putU32(a, 8, total); return a;
+    }
+    function newSalt() { var s = new Uint8Array(16); SUBTLE.getRandomValues(s); return s; }
+    /** plain: ArrayBuffer | Uint8Array; keyB64u: khoá 32 byte của salt này → Promise<Uint8Array khung hoàn chỉnh> */
+    function encryptFrame(plain, index, total, salt, keyB64u) {
+        var iv = new Uint8Array(12); SUBTLE.getRandomValues(iv);
+        return SUBTLE.subtle.importKey('raw', fromB64u(keyB64u), { name: 'AES-GCM' }, false, ['encrypt']).then(function (k) {
+            return SUBTLE.subtle.encrypt({ name: 'AES-GCM', iv: iv, additionalData: frameAad(index, total), tagLength: 128 }, k, plain);
+        }).then(function (buf) {
+            var out = new Uint8Array(buf), ctLen = out.length - 16;     // Web Crypto trả ciphertext || tag
+            var frame = new Uint8Array(12 + 16 + 12 + 16 + ctLen);
+            putU32(frame, 0, index); putU32(frame, 4, total); putU32(frame, 8, ctLen);
+            frame.set(salt, 12); frame.set(iv, 28); frame.set(out.subarray(ctLen), 40); frame.set(out.subarray(0, ctLen), 56);
+            return frame;
+        });
+    }
+
+    var api = { groupFrames: groupFrames, frameSizes: frameSizes, encryptFrame: encryptFrame, newSalt: newSalt, toB64u: toB64u, fromB64u: fromB64u };
     if (typeof window !== 'undefined') window.StudyFileForm = api;
     var stateEl = typeof document !== 'undefined' && document.getElementById('slState');
     if (!stateEl) return;
@@ -83,15 +120,6 @@
         els.info.textContent = f.name + ' — ' + mbText(f.size) + (n > 1 ? ' → sẽ lưu thành ' + n + ' file (-1 … -' + n + ')' : '');
     });
 
-    function blobToBase64(blob) {
-        return new Promise(function (resolve, reject) {
-            var r = new FileReader();
-            r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
-            r.onerror = function () { reject(new Error('Không đọc được file.')); };
-            r.readAsDataURL(blob);
-        });
-    }
-
     // Đọc phản hồi an toàn: Vercel có thể trả HTML/text (413, 504…) thay vì JSON
     function readJson(res) {
         return res.text().then(function (txt) {
@@ -118,6 +146,27 @@
             body: JSON.stringify(body)
         }).then(readJson);
     }
+    // Gửi 1 khung ĐÃ MÃ HOÁ (nhị phân) — đi THẲNG web kết nối nếu có, giống upload-part
+    function postFrame(index, total, ext, frame) {
+        var path = S.base + '/dashboard/upload-chunk?index=' + index + '&total=' + total + '&ext=' + encodeURIComponent(ext);
+        var f = window.MnhaData ? window.MnhaData.fetch : function (u, o) { return fetch(u, o); };
+        return f(path, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/octet-stream', 'Accept': 'application/json' },
+            body: frame
+        }).then(readJson);
+    }
+    // Xin khoá cho một lô salt (web chính cấp; khoá gốc ở server, chỉ nhận khoá riêng từng khung)
+    function requestUploadKeys(salts) {
+        return fetch(S.base + '/dashboard/upload-keys', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ salts: salts.map(toB64u) })
+        }).then(readJson).then(function (d) {
+            if (!d.keys || d.keys.length !== salts.length) throw new Error('Máy chủ trả khoá không đủ.');
+            return d.keys;
+        });
+    }
     // thử lại tối đa 3 lần với lỗi mạng / 5xx (không thử lại lỗi 4xx)
     function withRetry(fn) {
         var attempt = 0;
@@ -138,17 +187,30 @@
     }
 
     function uploadFile(file, ext, body) {
+        if (!SUBTLE) return Promise.reject(new Error('Trình duyệt không hỗ trợ Web Crypto (cần mở trang bằng HTTPS hoặc localhost) nên chưa mã hoá được file.'));
         var sizes = frameSizes(file.size, S), total = sizes.length;
         var groups = groupFrames(sizes, S);
         var uid = randomHex(16), ts = Math.floor(Date.now() / 1000);
         var shas = [], parts = [];
 
+        var KEY_BATCH = 16, pre = {};      // pre[i] = { salt, key } — khoá xin theo lô để đỡ phải gọi từng khung
+        function ensureKeys(i) {
+            if (pre[i]) return Promise.resolve();
+            var n = Math.min(KEY_BATCH, total - i), salts = [];
+            for (var j = 0; j < n; j++) salts.push(newSalt());
+            return withRetry(function () { return requestUploadKeys(salts); }).then(function (keys) {
+                for (var j = 0; j < n; j++) pre[i + j] = { salt: salts[j], key: keys[j] };
+            });
+        }
         function chunkStep(i) {
             if (i >= total) return Promise.resolve();
-            setProgress(Math.round(i / total * 80), '⏳ Đang mã hoá và tải phần ' + (i + 1) + '/' + total + '…');
+            setProgress(Math.round(i / total * 80), '⏳ Đang mã hoá (trong trình duyệt) và tải phần ' + (i + 1) + '/' + total + '…');
             var blob = file.slice(i * S.frameBytes, Math.min(file.size, (i + 1) * S.frameBytes));
-            return blobToBase64(blob).then(function (b64) {
-                return withRetry(function () { return postJson(S.base + '/dashboard/upload-chunk', { index: i, total: total, ext: ext, data: b64 }); });
+            return ensureKeys(i).then(function () { return blob.arrayBuffer(); }).then(function (plain) {
+                return encryptFrame(plain, i, total, pre[i].salt, pre[i].key);
+            }).then(function (frame) {
+                delete pre[i];
+                return withRetry(function () { return postFrame(i, total, ext, frame); });
             }).then(function (d) { shas.push(d.sha); return chunkStep(i + 1); });
         }
         function partStep(k) {

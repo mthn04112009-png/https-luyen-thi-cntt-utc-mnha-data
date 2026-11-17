@@ -125,6 +125,32 @@ function cacheSet(key, plain) {
 }
 
 /**
+ * Quét header các khung của 1 file-phần mã hoá → danh sách salt (base64url).
+ *   readAt(start, len) → Promise<{ buf: Buffer, total: number }>   (total = kích thước cả file-phần)
+ * Chỉ đọc 56 byte header mỗi khung rồi nhảy qua ciphertext (ctLen) → không tải cả file.
+ */
+async function scanFrameSalts(readAt, maxFrames) {
+    const MAGIC_LEN = slideCrypto.MAGIC.length, HEAD = slideCrypto.FRAME_HEAD;
+    const salts = [];
+    let off = MAGIC_LEN, total = null;
+    while (total === null || off < total) {
+        if (salts.length >= maxFrames) throw new Error('Quá nhiều khung.');
+        const r = await readAt(off, HEAD);
+        if (total === null) total = r.total;
+        if (!r.buf || r.buf.length < HEAD) throw new Error('File mã hoá bị cắt cụt.');
+        const ctLen = r.buf.readUInt32BE(8);
+        salts.push(r.buf.subarray(12, 28).toString('base64url'));
+        off += HEAD + ctLen;
+        if (off > total) throw new Error('File mã hoá bị cắt cụt.');
+    }
+    return salts;
+}
+
+// Cache RAM: danh sách salt HỢP LỆ của từng file (chỉ trong instance, 30 phút)
+const _saltCache = new Map();   // key → { at, set }
+const SALT_TTL_MS = 30 * 60 * 1000;
+
+/**
  * Tạo controller cho 1 ứng dụng.
  *   app   : phần tử của cfg.APPS
  *   Model : Slide | Document (models/…)
@@ -341,6 +367,51 @@ function createController(app, Model) {
         return Buffer.concat(out);
     }
 
+    /** URL raw GitHub của 1 file-phần (repo public) — null nếu không xác định được. */
+    async function rawUrlOf(p) {
+        try {
+            const r = typeof githubService.repoFor === 'function'
+                ? await githubService.repoFor(p.path)
+                : { owner: ghCfg.owner, repo: ghCfg.repo, branch: ghCfg.branch };
+            if (!r || !r.owner || !r.repo || !r.branch) return null;
+            return `https://raw.githubusercontent.com/${r.owner}/${r.repo}/${r.branch}/${String(p.path).split('/').map(encodeURIComponent).join('/')}`;
+        } catch (_) { return null; }
+    }
+
+    /** Salt của 1 file-phần: ưu tiên đọc header qua Range (nhẹ); lỗi → đọc cả file-phần rồi quét. */
+    async function saltsOfPart(p) {
+        const url = await rawUrlOf(p);
+        if (url) {
+            try {
+                const readAt = async (start, len) => {
+                    const r = await fetch(url, { headers: { Range: `bytes=${start}-${start + len - 1}` }, signal: AbortSignal.timeout(10000) });
+                    if (r.status !== 206) throw new Error(`Range HTTP ${r.status}`);
+                    const m = /\/(\d+)$/.exec(r.headers.get('content-range') || '');
+                    if (!m) throw new Error('Thiếu Content-Range');
+                    return { buf: Buffer.from(await r.arrayBuffer()), total: Number(m[1]) };
+                };
+                return await scanFrameSalts(readAt, L.MAX_FRAMES);
+            } catch (_) { /* rơi xuống đường dự phòng */ }
+        }
+        const enc = await githubService.readBinaryFileLarge(p.path);
+        if (!enc) throw new Error('Không đọc được file trên GitHub.');
+        return scanFrameSalts(async (start, len) => ({ buf: enc.subarray(start, start + len), total: enc.length }), L.MAX_FRAMES);
+    }
+
+    /** Tập salt HỢP LỆ của file (mọi file-phần). Khoá chỉ được cấp cho salt nằm trong tập này. */
+    async function allowedSalts(rec) {
+        const key = `${rec._id}|${(rec.parts || []).map((p) => p.path).join(',')}|${rec.githubSha || ''}`;
+        const hit = _saltCache.get(key);
+        if (hit && Date.now() - hit.at < SALT_TTL_MS) return hit.set;
+        const lists = await Promise.all((rec.parts || []).map(saltsOfPart));
+        const set = new Set([].concat(...lists));
+        const now = Date.now();
+        for (const [k, v] of _saltCache) if (now - v.at > SALT_TTL_MS) _saltCache.delete(k);
+        if (_saltCache.size > 200) _saltCache.clear();
+        _saltCache.set(key, { at: now, set });
+        return set;
+    }
+
     /** POST {base}/keys/:sid  body { token, salts: [base64url(16 byte), …] } → { keys: [base64url(32 byte), …] } */
     ctrl.keys = async (req, res) => {
         res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -363,6 +434,17 @@ function createController(app, Model) {
             if (!salts || !salts.length || salts.length > maxFrames
                 || !salts.every((s) => typeof s === 'string' && /^[A-Za-z0-9_-]{22}$/.test(s))) {
                 return fail(res, 400, 'Danh sách salt không hợp lệ.');
+            }
+
+            // ★ Chỉ cấp khoá cho salt THUỘC ĐÚNG file này (repo public → salt của file khác ai cũng đọc được)
+            let allowed;
+            try { allowed = await allowedSalts(rec); } catch (e) {
+                console.error(`[${app.key}.keys] không đọc được salt của file ${rec._id}:`, e.message);
+                return fail(res, 503, 'Chưa kiểm tra được salt — dùng đường tải qua máy chủ.');
+            }
+            if (!salts.every((s) => allowed.has(s))) {
+                console.warn(`[${app.key}.keys] TỪ CHỐI user=${uidOf(req)} file=${rec._id}: salt không thuộc file`);
+                return fail(res, 403, 'Salt không thuộc file này.');
             }
 
             const keys = slideCrypto.deriveFrameKeys(salts);
@@ -496,29 +578,78 @@ function createController(app, Model) {
     };
 
     // ------------------------------------------------------------
-    // UP: bước 1 — 1 phần 2MB → 1 khung mã hoá → blob GitHub tạm
+    // UP: bước 0 — cấp khoá khung cho TRÌNH DUYỆT tự mã hoá (admin)
+    //   Trình duyệt tự sinh salt (16 byte) + IV; server chỉ tính khoá khung = HKDF(master, salt) rồi trả về.
+    //   Server KHÔNG nhận file gốc ở bước này và không mã hoá gì cả.
+    // ------------------------------------------------------------
+    const UPLOAD_KEYS_MAX = 16;
+    ctrl.uploadKeys = async (req, res) => {
+        res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+        try {
+            if (!slideCrypto.isConfigured()) return fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa cấp được khoá mã hoá.');
+            const salts = req.body && req.body.salts;
+            if (!Array.isArray(salts) || !salts.length || salts.length > UPLOAD_KEYS_MAX
+                || !salts.every((x) => typeof x === 'string' && /^[A-Za-z0-9_-]{22}$/.test(x))) {
+                return fail(res, 400, 'Danh sách salt không hợp lệ.');
+            }
+            if (new Set(salts).size !== salts.length) return fail(res, 400, 'Salt bị trùng.');
+            return res.json({ success: true, keys: slideCrypto.deriveFrameKeys(salts) });
+        } catch (e) {
+            console.error(`[${app.key}.uploadKeys]`, e.message);
+            return fail(res, 500, 'Không cấp được khoá.');
+        }
+    };
+
+    // ------------------------------------------------------------
+    // UP: bước 1 — nhận 1 KHUNG ĐÃ MÃ HOÁ SẴN ở trình duyệt (octet-stream) → blob GitHub tạm
+    //   POST ...?index=&total=&ext=   body = khung nhị phân (index|total|ctLen|salt|iv|tag|ciphertext)
+    //   Server không mã hoá: chỉ kiểm tra cấu trúc; khung 0 được giải mã thử để bắt sớm lỗi khoá / định dạng sai.
+    //   (Đường cũ — gửi JSON {data:base64} để server mã hoá — mặc định TẮT; bật bằng ALLOW_SERVER_ENCRYPT=1.)
     // ------------------------------------------------------------
     ctrl.uploadChunk = async (req, res) => {
         try {
+            const q = req.query || {};
             const b = req.body || {};
-            const index = Number(b.index), total = Number(b.total);
-            const ext = String(b.ext || '').toLowerCase();
+            const isFrame = Buffer.isBuffer(req.body);
+            const index = Number(isFrame ? q.index : b.index), total = Number(isFrame ? q.total : b.total);
+            const ext = String((isFrame ? q.ext : b.ext) || '').toLowerCase();
             if (!app.exts.includes(ext)) return fail(res, 400, `Chỉ nhận định dạng: ${app.exts.map((x) => '.' + x).join(', ')}.`);
             if (!Number.isInteger(total) || total < 1 || total > L.MAX_FRAMES) return fail(res, 413, tooBig());
             if (!Number.isInteger(index) || index < 0 || index >= total) return fail(res, 400, 'Số thứ tự phần không hợp lệ.');
+            if (!githubService.isConfigured) return fail(res, 503, 'GitHub chưa cấu hình nên chưa lưu được file.');
+            if (!slideCrypto.isConfigured()) return fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex).');
+
+            if (isFrame) {
+                const buf = req.body;
+                const HEAD = slideCrypto.FRAME_HEAD;
+                if (buf.length <= HEAD) return fail(res, 400, 'Khung dữ liệu rỗng.');
+                if (buf.length > L.FRAME_PLAIN_BYTES + L.FRAME_OVERHEAD) return fail(res, 413, 'Khung dữ liệu vượt quá kích thước cho phép.');
+                const fIndex = buf.readUInt32BE(0), fTotal = buf.readUInt32BE(4), ctLen = buf.readUInt32BE(8);
+                if (fIndex !== index || fTotal !== total) return fail(res, 400, 'Thông tin khung không khớp thứ tự.');
+                if (ctLen < 1 || buf.length !== HEAD + ctLen) return fail(res, 400, 'Khung dữ liệu sai cấu trúc.');
+                if (index === 0) {
+                    let d;
+                    try { d = slideCrypto.decryptFrame(buf); }
+                    catch (e) { return fail(res, 400, 'Khung đầu không giải mã được — khoá/định dạng mã hoá ở trình duyệt không khớp máy chủ.'); }
+                    if (!magicOk(d.plain, ext)) return fail(res, 400, `File gửi lên không phải .${ext} hợp lệ.`);
+                }
+                const sha = await githubService.createBlob(buf);
+                return res.json({ success: true, sha });
+            }
+
+            // ----- đường cũ: server mã hoá (mặc định tắt) -----
+            if (process.env.ALLOW_SERVER_ENCRYPT !== '1') {
+                return fail(res, 410, 'Bản trang cũ đã hết hỗ trợ (mã hoá nay chạy trong trình duyệt). Hãy tải lại trang (Ctrl+F5) rồi up lại.');
+            }
             if (typeof b.data !== 'string' || !b.data) return fail(res, 400, 'Phần dữ liệu rỗng.');
             const b64 = b.data.replace(/\s+/g, '');
             if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) return fail(res, 400, 'Dữ liệu gửi lên không hợp lệ.');
             if (Math.floor(b64.length * 3 / 4) > L.FRAME_PLAIN_BYTES + 3) return fail(res, 413, 'Phần dữ liệu vượt quá kích thước cho phép.');
-
-            const buf = Buffer.from(b64, 'base64');
-            if (!buf.length) return fail(res, 400, 'Phần dữ liệu rỗng.');
-            if (buf.length > L.FRAME_PLAIN_BYTES) return fail(res, 413, 'Phần dữ liệu vượt quá kích thước cho phép.');
-            if (index === 0 && !magicOk(buf, ext)) return fail(res, 400, `File gửi lên không phải .${ext} hợp lệ.`);
-            if (!githubService.isConfigured) return fail(res, 503, 'GitHub chưa cấu hình nên chưa lưu được file.');
-            if (!slideCrypto.isConfigured()) return fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa mã hoá được file.');
-
-            const sha = await githubService.createBlob(slideCrypto.encryptFrame(buf, index, total));
+            const plainBuf = Buffer.from(b64, 'base64');
+            if (!plainBuf.length) return fail(res, 400, 'Phần dữ liệu rỗng.');
+            if (plainBuf.length > L.FRAME_PLAIN_BYTES) return fail(res, 413, 'Phần dữ liệu vượt quá kích thước cho phép.');
+            if (index === 0 && !magicOk(plainBuf, ext)) return fail(res, 400, `File gửi lên không phải .${ext} hợp lệ.`);
+            const sha = await githubService.createBlob(slideCrypto.encryptFrame(plainBuf, index, total));
             return res.json({ success: true, sha });
         } catch (e) {
             console.error(`[${app.key}.uploadChunk]`, e);
@@ -801,4 +932,4 @@ function createController(app, Model) {
     return ctrl;
 }
 
-module.exports = { createController, _test: { slugify, cleanName, magicOk, partPath, readForm, cacheGet, cacheSet } };
+module.exports = { createController, _test: { slugify, cleanName, magicOk, partPath, readForm, cacheGet, cacheSet, scanFrameSalts } };

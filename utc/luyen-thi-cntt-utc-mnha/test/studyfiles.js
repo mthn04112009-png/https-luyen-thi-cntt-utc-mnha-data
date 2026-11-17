@@ -3,6 +3,7 @@
 //  - toàn bộ luồng: upload-chunk → upload-part → create → xem (?chunk) → tải xuống → sửa (thay file) → xoá
 //  - kho GitHub (KINDS.slides / documents), tương thích JSON cũ
 process.env.ENCRYPTION_MASTER_KEY = 'a'.repeat(32) + 'b'.repeat(32);
+process.env.ALLOW_SERVER_ENCRYPT = '1';   // các test cũ bên dưới gửi JSON {data:base64} (server mã hoá). Đường mới (trình duyệt mã hoá): test/studyfiles.browser-encrypt.js
 const h = require('./harness');
 const assert = require('assert');
 const crypto = require('crypto');
