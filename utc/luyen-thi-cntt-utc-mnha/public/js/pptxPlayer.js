@@ -1955,6 +1955,10 @@
         if (!yt && rid2 && rels[rid2]) { url = rels[rid2].target; yt = parseYouTube(url); }
         if (!yt) {                                                   // ★ ảnh có liên kết thường (vd. biểu tượng loa → Google Drive): bấm mở tab mới
             var link = rid1 && rels[rid1] ? rels[rid1].target : '';
+            if (/^https?:\/\/[^#]*\.(mp3|wav|ogg|oga|m4a|aac)(\?|#|$)/i.test(link)) {   // ★ liên kết tới tệp âm thanh trực tiếp → phát tại chỗ
+                makeButton(holder, 'Nghe âm thanh', function () { Speech.audio(link, holder); });
+                return;
+            }
             if (/^https?:\/\//i.test(link)) {
                 holder.style.cursor = 'pointer'; holder.setAttribute('role', 'link');
                 holder.setAttribute('aria-label', 'Mở liên kết: ' + link); holder.title = 'Mở liên kết: ' + link;
@@ -1987,6 +1991,123 @@
             holder.innerHTML = ''; holder.appendChild(ifr);
             holder.style.cursor = 'default'; holder.removeAttribute('title'); holder.removeAttribute('role');
         });
+    };
+
+    // ============================================================
+    // [BỔ SUNG] NÚT PHÁT ÂM (biểu tượng loa / nút ▶ trong slide)
+    //   Ảnh có  <p:cNvPr title='tts:{...}'>  → bấm là ĐỌC TO bằng giọng đọc của trình duyệt (Web Speech API, ưu tiên en-GB):
+    //     {"t":"sheep","r":0.9}                  đọc 1 từ/câu, r = tốc độ (1 = bình thường, 0.5 = chậm)
+    //     {"t":"Hi!","v":"m"}                    v = m (giọng nam, vd. Ryan) | f (giọng nữ, vd. Sonia)
+    //     {"seq":[{"t":"Hi!","v":"m"},{...}]}    đọc lần lượt nhiều câu (hội thoại); bấm lần nữa để dừng
+    //   Ảnh có hlinkClick tới tệp âm thanh trực tiếp (.mp3 .wav .ogg .m4a…) → phát tệp đó bằng <audio>.
+    //   Bấm nút KHÔNG làm chuyển slide (chặn click/chạm/phím lan ra khung trình chiếu).
+    // ============================================================
+    var Speech = (function () {
+        var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
+        var keep = [];                       // giữ tham chiếu utterance (Chrome có thể thu dọn → mất onend)
+        var cur = { token: 0, holder: null, audio: null };
+        var MALE = /ryan|daniel|george|oliver|thomas|arthur|james|alfie|\bmale\b|\bman\b/i;
+        var FEMALE = /sonia|libby|hazel|susan|serena|kate|maisie|mia|olivia|female|woman/i;
+        function voiceList() { try { return synth ? synth.getVoices() || [] : []; } catch (e) { return []; } }
+        function pickVoice(kind) {
+            var all = voiceList(), vs = all.filter(function (v) { return /^en[-_]GB/i.test(v.lang); });
+            if (!vs.length) vs = all.filter(function (v) { return /^en/i.test(v.lang); });
+            if (!vs.length) return { voice: null, pitch: kind === 'm' ? 0.8 : kind === 'f' ? 1.15 : 1 };
+            var re = kind === 'm' ? MALE : kind === 'f' ? FEMALE : null, other = kind === 'm' ? FEMALE : MALE, v = null;
+            if (re) {
+                v = vs.filter(function (x) { return re.test(x.name); })[0] || null;
+                if (!v) {                                   // không có tên khớp → lấy giọng khác giọng "ngược giới" rồi chỉnh cao độ
+                    v = vs.filter(function (x) { return !other.test(x.name); })[0] || vs[0];
+                    return { voice: v, pitch: kind === 'm' ? 0.8 : 1.15 };
+                }
+                return { voice: v, pitch: 1 };
+            }
+            // không chỉ định giới: ưu tiên giọng "Natural"/"Google UK" cho tự nhiên
+            v = vs.filter(function (x) { return /natural|google uk|premium|enhanced/i.test(x.name); })[0] || vs[0];
+            return { voice: v, pitch: 1 };
+        }
+        function mark(holder, on) {
+            if (!holder) return;
+            holder.style.transition = 'transform .12s';
+            holder.style.transform = on ? 'scale(1.12)' : '';
+            holder.style.filter = on ? 'brightness(1.15) drop-shadow(0 0 6px rgba(124,58,237,.7))' : '';
+            holder.setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+        function stop() {
+            cur.token++;
+            try { if (synth && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* bỏ qua */ }
+            if (cur.audio) { try { cur.audio.pause(); } catch (e) { /* bỏ qua */ } cur.audio = null; }
+            keep.length = 0;
+            mark(cur.holder, false); cur.holder = null;
+        }
+        function utter(item, token, done) {
+            var u = new window.SpeechSynthesisUtterance(String(item.t || ''));
+            var pv = pickVoice(item.v);
+            if (pv.voice) { u.voice = pv.voice; u.lang = pv.voice.lang; } else u.lang = 'en-GB';
+            u.rate = item.r > 0 ? Math.max(0.1, Math.min(2, item.r)) : 1;
+            u.pitch = pv.pitch; u.volume = 1;
+            var fin = function () { var i = keep.indexOf(u); if (i >= 0) keep.splice(i, 1); if (token === cur.token) done(); };
+            u.onend = fin; u.onerror = fin;
+            keep.push(u);
+            synth.speak(u);
+        }
+        function speak(spec, holder) {
+            if (cur.holder === holder && cur.holder) { stop(); return; }   // bấm lại chính nút đang đọc → dừng
+            stop();
+            if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') {
+                if (holder) holder.title = 'Trình duyệt này không hỗ trợ đọc to (Web Speech). Hãy dùng Chrome / Edge / Safari.';
+                if (global.console) console.warn('[pptxPlayer] Trình duyệt không hỗ trợ speechSynthesis');
+                return;
+            }
+            var items = spec.seq && spec.seq.length ? spec.seq : [spec], token = cur.token, i = 0;
+            cur.holder = holder; mark(holder, true);
+            function next() {
+                if (token !== cur.token) return;
+                if (i >= items.length) { mark(holder, false); cur.holder = null; return; }
+                utter(items[i++], token, next);
+            }
+            // một số trình duyệt (Chrome) cần nhịp nhỏ sau cancel() mới đọc được; getVoices() có thể rỗng lần đầu
+            var go = function () { next(); };
+            if (!voiceList().length && synth.addEventListener) {
+                var fired = false, t = function () { if (fired) return; fired = true; go(); };
+                try { synth.addEventListener('voiceschanged', t, { once: true }); } catch (e) { /* bỏ qua */ }
+                setTimeout(t, 250);
+            } else go();
+        }
+        function audio(url, holder) {
+            if (cur.holder === holder && cur.holder) { stop(); return; }
+            stop();
+            var a = new Audio(url); cur.audio = a; cur.holder = holder; mark(holder, true);
+            var token = cur.token;
+            a.onended = a.onerror = function () { if (token === cur.token) { mark(holder, false); cur.holder = null; cur.audio = null; } };
+            var p = a.play(); if (p && p.catch) p.catch(function () { if (token === cur.token) { mark(holder, false); cur.holder = null; cur.audio = null; } });
+        }
+        return { speak: speak, audio: audio, stop: stop };
+    })();
+
+    /** Biến khung ảnh thành nút bấm thật: chuột, chạm, bàn phím; KHÔNG để sự kiện lan ra làm chuyển slide. */
+    function makeButton(holder, label, fn) {
+        holder.style.cursor = 'pointer'; holder.style.zIndex = '5'; holder.style.pointerEvents = 'auto';
+        holder.style.touchAction = 'manipulation';
+        holder.setAttribute('role', 'button'); holder.setAttribute('tabindex', '0');
+        holder.setAttribute('aria-label', label); holder.title = label;
+        var stopBubble = function (e) { e.stopPropagation(); };
+        ['mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup', 'dblclick'].forEach(function (n) { holder.addEventListener(n, stopBubble, { passive: true }); });
+        holder.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); fn(); });
+        holder.addEventListener('keydown', function (e) {
+            e.stopPropagation();
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+        });
+    }
+    /** Ảnh có title="tts:{json}" → nút đọc to. Trả về true nếu đã gắn. */
+    Ctx.prototype.attachSpeak = function (pic, holder) {
+        var cNv = path(pic, 'p:nvPicPr', 'p:cNvPr'), ttl = cNv && cNv.getAttribute('title');
+        if (!ttl || ttl.indexOf('tts:') !== 0) return false;
+        var spec;
+        try { spec = JSON.parse(ttl.slice(4)); } catch (e) { if (global.console) console.warn('[pptxPlayer] tts: JSON lỗi', ttl); return false; }
+        var label = spec.label || (spec.seq ? 'Nghe cả hội thoại' : 'Nghe: ' + (spec.t || ''));
+        makeButton(holder, label, function () { Speech.speak(spec, holder); });
+        return true;
     };
 
     Ctx.prototype.renderPicture = function (pic, box, inner) {
@@ -2024,7 +2145,7 @@
             img.onerror = function () { failed(rel.target); };
             this.pending.push(self.deck.zip.blobUrl(rel.target).then(function (u) { if (u) img.src = u; else failed(rel.target); }));
         }
-        this.attachYouTube(pic, holder);
+        if (!this.attachSpeak(pic, holder)) this.attachYouTube(pic, holder);
     };
 
     // ============================================================
@@ -2815,6 +2936,7 @@
         var token = this._token = (this._token || 0) + 1;
         this._finishTransition && this._finishTransition();
         this._clearTimers(); this._cancelAnims(); this.busy = false;
+        Speech.stop();                                        // đổi slide → ngừng đọc/phát âm thanh đang chạy
         var slide = deck.slides[index];
         return renderSlide(deck, slide, this).then(function (rs) {
             if (token !== self._token) return;
@@ -3027,7 +3149,7 @@
     Player.prototype.goto = function (i) { return this.show(i, { forward: i >= this.cur, transition: false }); };
     Player.prototype.setAutoAdvance = function (v) { this.autoAdvance = !!v; this._clearTimers(); if (v && this._rs) this._scheduleAuto(this.deck.slides[this.cur]); };
     Player.prototype.destroy = function () {
-        this._clearTimers(); this._cancelAnims();
+        this._clearTimers(); this._cancelAnims(); Speech.stop();
         if (this._ro) this._ro.disconnect();
         if (this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
         var z = this.deck.zip.blobs;
