@@ -7,6 +7,9 @@
  *   2. Gom các khung thành file-phần ≤ 23MB (cùng công thức với server: config/studyFileConfig.js groupFrames)
  *      → POST {base}/dashboard/upload-part  (mỗi file-phần 1 request: *.pdf  hoặc  *-1.pdf, *-2.pdf, …)
  *   3. POST {base}/dashboard (tạo) | {base}/dashboard/:id (sửa) kèm danh sách file-phần → server ghi JSON
+ *
+ *  Khi server đã cấu hình Cloudflare R2 (S.direct): bỏ bước 1–2 — trình duyệt mã hoá, ghép từng file-phần rồi PUT THẲNG lên R2 bằng URL ký sẵn
+ *  ({base}/dashboard/direct-init → PUT R2 → {base}/dashboard/direct-done), dữ liệu không đi qua Vercel. Lỗi → tự quay về cách cũ.
  * ============================================================ */
 (function () {
     'use strict';
@@ -224,8 +227,60 @@
             if (S.id) req.id = S.id; else req.subjectId = body.subjectId;
             return withRetry(function () { return postJson(S.base + '/dashboard/upload-part', req); }).then(function (d) { parts.push(d.part); return partStep(k + 1); });
         }
-        return chunkStep(0).then(function () { return partStep(0); }).then(function () {
-            return { name: file.name, ext: ext, uid: uid, ts: ts, parts: parts };
+        function legacy() {
+            shas.length = 0; parts.length = 0;
+            return chunkStep(0).then(function () { return partStep(0); }).then(function () {
+                return { name: file.name, ext: ext, uid: uid, ts: ts, parts: parts };
+            });
+        }
+
+        // ---- UP THẲNG LÊN R2 (S.direct = server đã cấu hình Cloudflare R2): mã hoá ngay trong trình duyệt, ghép từng file-phần (magic + khung)
+        //      rồi PUT THẲNG lên R2 bằng URL ký sẵn → dữ liệu KHÔNG đi qua Vercel. Lỗi (CORS, mạng, R2…) → tự quay về cách cũ (qua máy chủ → GitHub).
+        function directFlow() {
+            var req = { title: body.title, ext: ext, uid: uid, ts: ts, size: file.size };
+            if (S.id) req.id = S.id; else req.subjectId = body.subjectId;
+            setProgress(2, '⏳ Đang xin URL tải thẳng lên Cloudflare R2…');
+            return withRetry(function () { return postJson(S.base + '/dashboard/direct-init', req); }).then(function (plan) {
+                var P = plan.parts;
+                if (!P || P.length !== groups.length) throw new Error('Máy chủ chia file-phần khác trình duyệt.');
+                function putR2(url, blob) {
+                    return fetch(url, { method: 'PUT', body: blob }).then(function (r) {
+                        if (!r.ok) { var e = new Error('R2 trả HTTP ' + r.status); e.status = r.status; throw e; }
+                    });
+                }
+                function partStepR2(k) {
+                    if (k >= P.length) return Promise.resolve();
+                    var g = groups[k], pieces = [new Uint8Array(MAGIC)], end = g.startFrame + g.count;
+                    function frameStep(i) {
+                        if (i >= end) return Promise.resolve();
+                        setProgress(Math.round(i / total * 90), '⏳ Đang mã hoá (trong trình duyệt) phần ' + (i + 1) + '/' + total + '…');
+                        var blob = file.slice(i * S.frameBytes, Math.min(file.size, (i + 1) * S.frameBytes));
+                        return ensureKeys(i).then(function () { return blob.arrayBuffer(); }).then(function (plain) {
+                            return encryptFrame(plain, i, total, pre[i].salt, pre[i].key);
+                        }).then(function (frame) { delete pre[i]; pieces.push(frame); return frameStep(i + 1); });
+                    }
+                    return frameStep(g.startFrame).then(function () {
+                        var blob = new Blob(pieces);
+                        if (blob.size !== P[k].enc) throw new Error('Kích thước file-phần ' + (k + 1) + ' lệch so với máy chủ (' + blob.size + ' ≠ ' + P[k].enc + ').');
+                        setProgress(Math.round(end / total * 90), '⏳ Đang tải file ' + (k + 1) + '/' + P.length + ' THẲNG lên Cloudflare R2 (' + mbText(blob.size) + ')…');
+                        return withRetry(function () { return putR2(P[k].url, blob); });
+                    }).then(function () { return partStepR2(k + 1); });
+                }
+                return partStepR2(0);
+            }).then(function () {
+                setProgress(95, '⏳ Đang xác nhận file trên R2…');
+                var req2 = { title: body.title, ext: ext, uid: uid, ts: ts, size: file.size };
+                if (S.id) req2.id = S.id; else req2.subjectId = body.subjectId;
+                return withRetry(function () { return postJson(S.base + '/dashboard/direct-done', req2); });
+            }).then(function (d) {
+                return { name: file.name, ext: ext, uid: uid, ts: ts, parts: d.parts };
+            });
+        }
+
+        if (!S.direct) return legacy();
+        return directFlow().catch(function (e) {
+            setProgress(0, '⚠ Không up thẳng lên R2 được (' + ((e && e.message) || 'lỗi') + ') — chuyển sang up qua máy chủ…');
+            return legacy();
         });
     }
 

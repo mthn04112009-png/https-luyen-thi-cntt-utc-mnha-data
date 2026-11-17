@@ -61,6 +61,13 @@ function groupFrames(plainSizes) {
     return parts;
 }
 
+/** Kích thước PLAIN từng khung của file `total` byte (trình duyệt dùng ĐÚNG công thức này — public/js/studyFileForm.js frameSizes). */
+function frameSizes(total) {
+    const n = Math.max(1, Math.ceil(total / FRAME_PLAIN_BYTES)), out = [];
+    for (let i = 0; i < n; i++) out.push(Math.min(FRAME_PLAIN_BYTES, total - i * FRAME_PLAIN_BYTES));
+    return out;
+}
+
 /**
  * Cấu hình từng ứng dụng.
  *   dir    : thư mục trên GitHub + tên loại dữ liệu trong githubStore
@@ -81,4 +88,4 @@ const APPS = {
     }
 };
 
-module.exports = { ON_VERCEL, MB, LIMITS, EXT_MIME, APPS, groupFrames };
+module.exports = { ON_VERCEL, MB, LIMITS, EXT_MIME, APPS, groupFrames, frameSizes };

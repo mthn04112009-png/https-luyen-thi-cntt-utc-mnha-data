@@ -119,7 +119,7 @@ function studyFileKind(dir) {
             let parts = [];
             if (Array.isArray(json.parts)) {
                 parts = json.parts.filter((x) => x && okPath(x.path, prefix))
-                    .map((x) => ({ path: x.path, enc: Math.max(0, Math.round(Number(x.enc) || 0)), plain: Math.max(0, Math.round(Number(x.plain) || 0)) }));
+                    .map((x) => ({ path: x.path, enc: Math.max(0, Math.round(Number(x.enc) || 0)), plain: Math.max(0, Math.round(Number(x.plain) || 0)), ...(x.store === 'r2' ? { store: 'r2' } : {}) }));
             } else if (okPath(json.pdfFile, prefix)) {
                 parts = [{ path: json.pdfFile, enc: 0, plain: Math.max(0, Math.round(Number(json.pdfSize) || 0)) }];
             }

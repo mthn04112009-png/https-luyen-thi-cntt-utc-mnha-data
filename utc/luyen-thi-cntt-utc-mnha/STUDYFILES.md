@@ -72,3 +72,27 @@ Tự đọc file .pptx bằng JSZip và dựng lại slide trong trình duyệt 
 - Đường cũ "server mã hoá" (`upload-chunk` nhận JSON `{data:base64}`) mặc định TẮT → trả 410; bật tạm bằng biến môi trường `ALLOW_SERVER_ENCRYPT=1`.
 - Up qua "web kết nối" (data node): khung mã hoá gửi thẳng web kết nối như trước; xin khoá luôn ở web chính. **`ENCRYPTION_MASTER_KEY` của web chính và web kết nối phải giống nhau.**
 - Test: `node test/studyfiles.browser-encrypt.js`.
+
+## Up THẲNG lên Cloudflare R2 (không tốn băng thông Vercel)
+
+Luồng GitHub ở trên: mỗi byte file đi qua Vercel 2–3 lần (khung → server → tải lại blob để ghép → ghi file-phần lên GitHub). Khi cấu hình R2, up đi **thẳng từ trình duyệt lên R2**:
+
+1. `POST …/dashboard/direct-init` (JSON nhỏ): server chia file-phần (cùng `groupFrames`) và cấp **URL PUT ký sẵn** cho từng file-phần (`services/r2Service.js`; chỉ đúng 1 key, hết hạn 2 giờ, khoá R2 không rời server).
+2. Trình duyệt mã hoá khung (`SLD2`, y hệt cũ), ghép `magic + khung` thành từng file-phần ≤ 23MB rồi `PUT` thẳng lên R2.
+3. `POST …/dashboard/direct-done`: server HEAD từng file-phần, đọc vài chục byte header, **giải thử khung 0** (bắt sai khoá / không phải PDF/PPTX) rồi trả chữ ký HMAC (thêm `'r2'`) → `POST …/dashboard` ghi JSON như cũ, `parts[i].store = "r2"`.
+4. Xem/tải: `buildDirect` trả URL R2 (public nếu có `R2_PUBLIC_BASE`, không thì URL GET ký sẵn 6 giờ); trình duyệt tải + giải mã như với GitHub. Đường dự phòng `?chunk=i` đọc từ R2. Xoá / thay file cũng xoá object R2.
+
+Chỉ file mới up sau khi bật R2 nằm ở R2; file cũ trên GitHub vẫn xem/xoá bình thường (mỗi file-phần tự ghi nơi lưu).
+
+**Biến môi trường (Vercel + `.env.local`):** `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (thiếu 1 biến → dùng luồng GitHub cũ); tuỳ chọn `R2_ENDPOINT`, `R2_PUBLIC_BASE`, `R2_REGION`; `STUDYFILE_DIRECT=off` để tắt.
+Token R2 chỉ cần quyền *Object Read & Write* trên đúng bucket này.
+
+**Bắt buộc bật CORS cho bucket** (R2 → bucket → Settings → CORS policy):
+```json
+[{ "AllowedOrigins": ["https://ten-mien-cua-ban.vercel.app"], "AllowedMethods": ["GET", "PUT", "HEAD"],
+   "AllowedHeaders": ["*"], "ExposeHeaders": ["Content-Length", "Content-Range", "ETag"], "MaxAgeSeconds": 3600 }]
+```
+Chưa bật CORS / R2 lỗi: trình duyệt báo "⚠ Không up thẳng lên R2 được…" rồi tự up lại bằng luồng GitHub cũ (vẫn chạy, nhưng tốn băng thông).
+
+Test: `node test/studyfiles.direct-r2.js`.
+

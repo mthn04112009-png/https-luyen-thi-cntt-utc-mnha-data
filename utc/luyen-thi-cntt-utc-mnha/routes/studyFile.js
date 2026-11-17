@@ -36,6 +36,8 @@ module.exports = function createRouter(ctrl) {
     router.post('/dashboard/upload-keys',    ...admin, uploadKeysLimit, ctrl.uploadKeys);   // cấp khoá để TRÌNH DUYỆT tự mã hoá
     router.post('/dashboard/upload-chunk',   ...admin, rawFrame, ctrl.uploadChunk);          // nhận khung ĐÃ mã hoá (octet-stream)
     router.post('/dashboard/upload-part',    ...admin, ctrl.uploadPart);
+    router.post('/dashboard/direct-init',    ...admin, uploadKeysLimit, ctrl.directInit);    // up THẲNG lên R2: cấp URL PUT ký sẵn (không qua băng thông Vercel)
+    router.post('/dashboard/direct-done',    ...admin, uploadKeysLimit, ctrl.directDone);    // xác nhận các file-phần đã lên R2 → chữ ký
     router.post('/dashboard',                ...admin, ctrl.create);
     router.get ('/dashboard/:sid/edit',      ...admin, ctrl.editForm);
     router.post('/dashboard/:sid/publish',   ...admin, ctrl.togglePublish);

@@ -29,6 +29,7 @@ const Subject = require('../models/Subject');
 const githubService = require('../services/githubService');
 const githubSync = require('../services/githubSyncService');
 const slideCrypto = require('../services/slideCryptoService');
+const r2 = require('../services/r2Service');
 const ghCfg = require('../config/github');
 const cfg = require('../config/studyFileConfig');
 const { getContentScope } = require('../services/userKeyService');
@@ -232,6 +233,11 @@ function createController(app, Model) {
         if (!githubService.isConfigured || !slideCrypto.isConfigured()) return null;
         const parts = [];
         for (const p of rec.parts) {
+            if (p.store === 'r2') {       // file-phần nằm ở Cloudflare R2: URL public / ký sẵn
+                if (!r2.config()) return null;
+                parts.push({ path: p.path, plain: p.plain || 0, url: r2.getUrl(p.path) });
+                continue;
+            }
             let r = null;
             try {
                 r = typeof githubService.repoFor === 'function'
@@ -344,8 +350,8 @@ function createController(app, Model) {
         const key = `${part.path}@${rec.githubSha || ''}`;
         let plain = cacheGet(key);
         if (!plain) {
-            const enc = await githubService.readBinaryFileLarge(part.path);
-            if (!enc) { const e = new Error('Không đọc được file trên GitHub.'); e.code = 'MISSING'; throw e; }
+            const enc = part.store === 'r2' ? await r2.getBuffer(part.path) : await githubService.readBinaryFileLarge(part.path);
+            if (!enc) { const e = new Error(part.store === 'r2' ? 'Không đọc được file trên R2.' : 'Không đọc được file trên GitHub.'); e.code = 'MISSING'; throw e; }
             plain = slideCrypto.decryptPart(enc, null, null).plain;     // lỗi khoá / bị sửa → ném lỗi
             cacheSet(key, plain);
         }
@@ -369,6 +375,7 @@ function createController(app, Model) {
 
     /** URL raw GitHub của 1 file-phần (repo public) — null nếu không xác định được. */
     async function rawUrlOf(p) {
+        if (p.store === 'r2') { try { return r2.getUrl(p.path); } catch (_) { return null; } }
         try {
             const r = typeof githubService.repoFor === 'function'
                 ? await githubService.repoFor(p.path)
@@ -393,8 +400,8 @@ function createController(app, Model) {
                 return await scanFrameSalts(readAt, L.MAX_FRAMES);
             } catch (_) { /* rơi xuống đường dự phòng */ }
         }
-        const enc = await githubService.readBinaryFileLarge(p.path);
-        if (!enc) throw new Error('Không đọc được file trên GitHub.');
+        const enc = p.store === 'r2' ? await r2.getBuffer(p.path) : await githubService.readBinaryFileLarge(p.path);
+        if (!enc) throw new Error('Không đọc được file trên ' + (p.store === 'r2' ? 'R2.' : 'GitHub.'));
         return scanFrameSalts(async (start, len) => ({ buf: enc.subarray(start, start + len), total: enc.length }), L.MAX_FRAMES);
     }
 
@@ -549,6 +556,7 @@ function createController(app, Model) {
             maxBytes: L.MAX_FILE_BYTES, frameBytes: L.FRAME_PLAIN_BYTES, frameOverhead: L.FRAME_OVERHEAD,
             magicBytes: L.FILE_MAGIC_BYTES, partMaxBytes: L.PART_MAX_BYTES, maxFrames: L.MAX_FRAMES,
             encryptionReady: slideCrypto.isConfigured(),
+            direct: r2.isConfigured(),                                  // R2 đã cấu hình → trình duyệt up THẲNG lên R2 (không qua Vercel)
             converterUrl: process.env.PPTX_CONVERTER_URL || '',       // dịch vụ đổi PPTX → PDF (converter/server.py); rỗng = up PPTX nguyên bản
             converterToken: process.env.PPTX_CONVERTER_TOKEN || '',
             sha: rec ? ((await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null)) || {}).sha || null : null
@@ -751,6 +759,94 @@ function createController(app, Model) {
         }
     };
 
+    // ------------------------------------------------------------
+    // UP THẲNG LÊN R2 (không qua băng thông Vercel) — chỉ khi r2.isConfigured()
+    //   direct-init : server tính cách chia file-phần (cùng groupFrames với trình duyệt) rồi cấp URL PUT ký sẵn cho từng file-phần
+    //   (trình duyệt tự mã hoá SLD2, ghép magic + khung, PUT thẳng lên R2)
+    //   direct-done : server HEAD + đọc header (và giải thử khung 0 của file-phần đầu) rồi trả chữ ký như upload-part (thêm 'r2')
+    //   Sau đó create / update ghi JSON như cũ (parts[i].store = 'r2').
+    // ------------------------------------------------------------
+    async function directPlan(req, res) {
+        const b = req.body || {};
+        const ext = String(b.ext || '').toLowerCase();
+        const uid = String(b.uid || '');
+        const ts = Number(b.ts), size = Number(b.size);
+        if (!r2.isConfigured()) { fail(res, 503, 'Chưa cấu hình Cloudflare R2 (hãy dùng cách up thường).'); return null; }
+        if (!app.exts.includes(ext)) { fail(res, 400, `Chỉ nhận định dạng: ${app.exts.map((x) => '.' + x).join(', ')}.`); return null; }
+        if (!UID_RE.test(uid) || !checkTs(ts)) { fail(res, 400, 'Phiên upload không hợp lệ. Hãy tải lại trang.'); return null; }
+        if (!Number.isInteger(size) || size <= 0) { fail(res, 400, 'File rỗng hoặc kích thước không hợp lệ.'); return null; }
+        if (size > L.MAX_FILE_BYTES) { fail(res, 413, tooBig()); return null; }
+        if (!slideCrypto.isConfigured()) { fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa mã hoá được file.'); return null; }
+        const scope = await getContentScope(req);
+        const ctx = await resolveContext(req, scope);
+        if (ctx.error) { fail(res, ctx.error[0], ctx.error[1]); return null; }
+        const f = readForm(b);
+        if (f.error && !ctx.rec) { fail(res, 400, f.error); return null; }
+        await githubSync.syncKinds([app.key]);
+        const slug = await resolveSlug(ctx.subject, f.title || '', uid, ctx.rec);
+        const base = `subjects/${ctx.subject.slug}/${app.dir}/${slug}_${ts}`;
+        const sizes = cfg.frameSizes(size), total = sizes.length;
+        const groups = cfg.groupFrames(sizes);
+        const parts = groups.map((g, k) => {
+            let plain = 0, enc = L.FILE_MAGIC_BYTES;
+            for (let i = g.startFrame; i < g.startFrame + g.count; i++) { plain += sizes[i]; enc += sizes[i] + L.FRAME_OVERHEAD; }
+            return { path: partPath(base, ext, k, groups.length), enc, plain, startFrame: g.startFrame, count: g.count };
+        });
+        return { ext, uid, total, sizes, parts };
+    }
+
+    ctrl.directInit = async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try {
+            const plan = await directPlan(req, res);
+            if (!plan) return undefined;
+            return res.json({ success: true, parts: plan.parts.map((p) => ({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count, url: r2.putUrl(p.path) })) });
+        } catch (e) {
+            console.error(`[${app.key}.directInit]`, e);
+            return fail(res, 500, 'Lỗi máy chủ khi cấp URL tải lên.');
+        }
+    };
+
+    ctrl.directDone = async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try {
+            const plan = await directPlan(req, res);
+            if (!plan) return undefined;
+            const out = [];
+            for (let k = 0; k < plan.parts.length; k++) {
+                const p = plan.parts[k];
+                const h = await r2.head(p.path);
+                if (!h) return fail(res, 400, `Thiếu file-phần ${k + 1}/${plan.parts.length} trên R2. Hãy up lại.`);
+                if (h.size !== p.enc) {
+                    await r2.remove(p.path).catch(() => {});
+                    return fail(res, 422, `File-phần ${k + 1} sai kích thước (${h.size} ≠ ${p.enc}) — đã xoá. Hãy up lại.`);
+                }
+                // header: magic "SLD2" + khung đầu (index | total | ctLen) phải đúng vị trí; file-phần đầu: giải thử khung 0 để bắt khoá/định dạng sai
+                const head = await r2.readRange(p.path, 0, L.FILE_MAGIC_BYTES + 12);
+                const bad = !head || head.length < L.FILE_MAGIC_BYTES + 12 || head.subarray(0, 4).toString('latin1') !== 'SLD2'
+                    || head.readUInt32BE(4) !== p.startFrame || head.readUInt32BE(8) !== plan.total || head.readUInt32BE(12) !== plan.sizes[p.startFrame];
+                if (bad) { await r2.remove(p.path).catch(() => {}); return fail(res, 422, `File-phần ${k + 1} không đúng định dạng mã hoá — đã xoá. Hãy up lại.`); }
+                if (k === 0) {
+                    try {
+                        const buf = await r2.readRange(p.path, L.FILE_MAGIC_BYTES, plan.sizes[0] + L.FRAME_OVERHEAD);
+                        const d = slideCrypto.decryptFrame(buf);
+                        if (d.index !== 0 || d.total !== plan.total) throw new Error('khung 0 sai thứ tự');
+                        if (!magicOk(d.plain, plan.ext)) { await r2.remove(p.path).catch(() => {}); return fail(res, 400, `File gửi lên không phải .${plan.ext} hợp lệ.`); }
+                    } catch (e) {
+                        await r2.remove(p.path).catch(() => {});
+                        return fail(res, 422, 'Không xác thực được dữ liệu đã up (' + e.message + '). Hãy up lại.');
+                    }
+                }
+                const sig = slideCrypto.metaSig([app.key, plan.uid, p.path, p.startFrame, p.count, plan.total, p.enc, p.plain, 'r2']);
+                out.push({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count, sig, store: 'r2' });
+            }
+            return res.json({ success: true, parts: out });
+        } catch (e) {
+            console.error(`[${app.key}.directDone]`, e);
+            return fail(res, 500, 'Lỗi máy chủ khi xác nhận file trên R2.');
+        }
+    };
+
     /**
      * Kiểm tra danh sách file-phần mà client báo đã ghi (chữ ký HMAC + liên tục + đúng đường dẫn).
      * Không gọi mạng. Trả { error } | { parts, size, ext, base, originalName, uid, ts }
@@ -777,12 +873,13 @@ function createController(app, Model) {
             if (!vals.every(Number.isInteger) || x.startFrame !== next || vals[1] < 1) return { error: 'Các file-phần không liên tục. Hãy up lại.' };
             const expectPath = partPath(base, ext, i, list.length);
             if (x.path !== expectPath) return { error: 'Đường dẫn file-phần không hợp lệ. Hãy up lại.' };
-            if (!slideCrypto.verifyMetaSig([app.key, uid, expectPath, x.startFrame, x.count, totalFrames, x.enc, x.plain], x.sig)) {
+            const onR2 = x.store === 'r2';       // file-phần đã được trình duyệt up thẳng lên R2 (chữ ký có thêm 'r2' nên không khai man được)
+            if (!slideCrypto.verifyMetaSig([app.key, uid, expectPath, x.startFrame, x.count, totalFrames, x.enc, x.plain].concat(onR2 ? ['r2'] : []), x.sig)) {
                 return { error: 'Chữ ký file-phần không hợp lệ. Hãy up lại.' };
             }
             if (x.enc > L.PART_MAX_BYTES) return { error: 'File-phần vượt giới hạn. Hãy up lại.' };
             next += x.count; size += x.plain;
-            parts.push({ path: expectPath, enc: x.enc, plain: x.plain });
+            parts.push({ path: expectPath, enc: x.enc, plain: x.plain, ...(onR2 ? { store: 'r2' } : {}) });
         }
         if (totalFrames > L.MAX_FRAMES || size > L.MAX_FILE_BYTES) return { error: tooBig() };
         if (size <= 0) return { error: 'File rỗng.' };
@@ -790,6 +887,10 @@ function createController(app, Model) {
     }
 
     const delPaths = (paths, msg) => Promise.all(paths.map((p) => githubService.deleteFile(p, msg).catch(() => {})));
+    /** Xoá các file-phần (GitHub hoặc R2 tuỳ `store`). */
+    const delParts = (list, msg) => Promise.all((list || []).map((x) => (x.store === 'r2'
+        ? r2.remove(x.path).catch((e) => console.warn(`[${app.key}] không xoá được R2 ${x.path}:`, e.message))
+        : githubService.deleteFile(x.path, msg).catch(() => {}))));
 
     // ------------------------------------------------------------
     // UP: bước 3 — ghi JSON thông tin, tạo chỉ mục
@@ -810,7 +911,7 @@ function createController(app, Model) {
             const chk = await checkFile(Object.assign({}, req.body, { title: f.title }), ctx);
             if (chk.none) return fail(res, 400, `Vui lòng chọn file ${app.noun}.`);
             if (chk.error) return fail(res, chk.error.includes('quá nặng') ? 413 : 400, chk.error);
-            written = chk.parts.map((x) => x.path);
+            written = chk.parts;
 
             const jsonFile = `${chk.base}.json`;
             if (await githubService.fileExists(jsonFile)) return fail(res, 409, 'Đã có file trùng đường dẫn trên GitHub, hãy thử lại.');
@@ -838,7 +939,7 @@ function createController(app, Model) {
             return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
         } catch (e) {
             console.error(`[${app.key}.create]`, e);
-            if (written.length) await delPaths(written, `${app.name}: gỡ file mồ côi`);     // JSON không ghi được → gỡ file mã hoá mồ côi
+            if (written.length) await delParts(written, `${app.name}: gỡ file mồ côi`);     // JSON không ghi được → gỡ file mã hoá mồ côi
             return fail(res, 500, 'Lỗi máy chủ khi lưu.');
         }
     };
@@ -863,7 +964,7 @@ function createController(app, Model) {
             if (!file) return fail(res, 404, 'Không đọc được dữ liệu trên GitHub.');
             if (req.body.sha && req.body.sha !== file.sha) return fail(res, 409, 'Đã bị người khác sửa. Hãy tải lại trang.');
 
-            const oldPaths = (rec.parts || []).map((x) => x.path);
+            const oldParts = (rec.parts || []).map((x) => ({ path: x.path, store: x.store }));
             const fileFields = chk.none ? {} : {
                 parts: chk.parts, fileExt: chk.ext, fileSize: chk.size, originalName: chk.originalName,
                 encrypted: true, encryption: 'aes-256-gcm'
@@ -881,7 +982,7 @@ function createController(app, Model) {
             await rec.save();
 
             // File cũ không còn dùng → xoá (JSON đã trỏ sang file mới nên lỗi ở đây không làm hỏng dữ liệu)
-            if (!chk.none) await delPaths(oldPaths.filter((p) => !newPaths.includes(p)), `${app.name}: xoá file cũ`);
+            if (!chk.none) await delParts(oldParts.filter((x) => !newPaths.includes(x.path)), `${app.name}: xoá file cũ`);
             // Legacy: JSON cũ còn pdfFile/pdfSize → bỏ đi cho gọn
             return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
         } catch (e) {
@@ -916,6 +1017,7 @@ function createController(app, Model) {
             // JSON trước: nếu xoá file lỗi thì chỉ còn file mã hoá mồ côi, không có bản ghi nào "hỏng"
             await githubService.deleteFile(rec.githubFile, `${app.name}: xoá "${rec.title}"`);
             for (const p of rec.parts || []) {
+                if (p.store === 'r2') { await r2.remove(p.path).catch((e) => console.warn(`[${app.key}.remove] không xoá được R2 ${p.path}:`, e.message)); continue; }
                 await githubService.deleteFile(p.path, `${app.name}: xoá file "${rec.title}"`).catch((e) => {
                     console.warn(`[${app.key}.remove] không xoá được ${p.path}:`, e.message);
                 });
