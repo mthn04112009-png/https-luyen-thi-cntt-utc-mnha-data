@@ -10,6 +10,7 @@
 'use strict';
 const registry = require('../services/connect/registry');
 const nodes = require('../services/connect/nodes');
+const githubApp = require('../services/connect/githubApp');
 const usage = require('../services/connect/usage');
 const { envTemplate, DIFFERENT_KEYS } = require('../services/connect/envTemplate');
 
@@ -43,6 +44,24 @@ const poolSummary = () => {
     if (gh.pool && gh.pooled) return gh.pool.summary().catch(() => null);
     return Promise.resolve(gh.pool ? { enabled: false, repos: [], limit: gh.pool.LIMIT(), base: gh.repo, indexPath: gh.pool.INDEX_PATH(), totalBytes: 0 } : null);
 };
+
+// ---- GitHub App (token tạm cho trình duyệt tải thẳng lên GitHub): private key mã hoá lưu ở repo chính — services/connect/githubApp.js
+exports.githubAppSave = wrap(async (req, res) => {
+    const b = req.body || {};
+    const s = await githubApp.saveConfig({ appId: b.appId, installationId: b.installationId, privateKey: b.privateKey, enabled: b.enabled !== '0' });
+    flash(req, 'success', 'Đã lưu GitHub App ' + s.appId + ' (private key đã mã hoá, kết thúc …' + (s.keyHint || '????') + '). Bấm "Thử cấp token" để kiểm tra.');
+    res.redirect('/connect#githubApp');
+});
+exports.githubAppClear = wrap(async (req, res) => {
+    await githubApp.saveConfig({ clear: '1' });
+    flash(req, 'success', 'Đã xoá cấu hình GitHub App.');
+    res.redirect('/connect#githubApp');
+});
+exports.githubAppTest = wrap(async (req, res) => {
+    const r = await githubApp.test();
+    flash(req, 'success', 'Cấp được token tạm cho repo ' + r.repo + (r.expiresAt ? ' (hết hạn ' + r.expiresAt + ')' : '') + ' — trình duyệt có thể tải thẳng lên GitHub.');
+    res.redirect('/connect#githubApp');
+});
 
 exports.index = wrap(async (req, res) => {
     // Ghi bộ đếm đang giữ (nếu có) rồi mới đọc số liệu.
@@ -83,7 +102,8 @@ exports.index = wrap(async (req, res) => {
         mainEnv: mainEnv(), diffKeys: DIFFERENT_KEYS,
         registryPath: registry.PATH(), usagePath: usage.FILE(),
         fmt: usage.formatBytes, gb: usage.bytesToGb,
-        flash: takeFlash(req)
+        flash: takeFlash(req),
+        githubApp: await githubApp.summary().catch(() => null)
     });
 });
 

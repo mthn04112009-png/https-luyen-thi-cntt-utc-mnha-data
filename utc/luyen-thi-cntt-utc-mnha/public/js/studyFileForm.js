@@ -10,6 +10,8 @@
  *
  *  Khi server đã cấu hình Cloudflare R2 (S.direct): bỏ bước 1–2 — trình duyệt mã hoá, ghép từng file-phần rồi PUT THẲNG lên R2 bằng URL ký sẵn
  *  ({base}/dashboard/direct-init → PUT R2 → {base}/dashboard/direct-done), dữ liệu không đi qua Vercel. Lỗi → tự quay về cách cũ.
+ *  Không có R2 nhưng đã nhập GitHub App ở /connect: direct-init trả mode 'github' + TOKEN TẠM (1 giờ, 1 repo) → trình duyệt POST /git/blobs THẲNG lên api.github.com
+ *  (bản mã không qua Vercel) → direct-done gom các blob vào 1 commit. Lỗi (token hết hạn, mạng, hạn mức…) → tự quay về cách cũ.
  * ============================================================ */
 (function () {
     'use strict';
@@ -234,15 +236,39 @@
             });
         }
 
-        // ---- UP THẲNG LÊN R2 (S.direct = server đã cấu hình Cloudflare R2): mã hoá ngay trong trình duyệt, ghép từng file-phần (magic + khung)
+        // ---- Tạo BLOB file-phần THẲNG trên GitHub (api.github.com cho phép CORS) bằng TOKEN TẠM do server cấp (GitHub App) → không tốn băng thông Vercel.
+    function blobToBase64(blob) {
+        return new Promise(function (ok, no) {
+            var fr = new FileReader();
+            fr.onload = function () { var t = String(fr.result || ''); ok(t.slice(t.indexOf(',') + 1)); };
+            fr.onerror = function () { no(fr.error || new Error('Không đọc được dữ liệu')); };
+            fr.readAsDataURL(blob);
+        });
+    }
+    function putGithubBlob(gh, blob) {
+        return blobToBase64(blob).then(function (b64) {
+            return fetch('https://api.github.com/repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo) + '/git/blobs', {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + gh.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: b64, encoding: 'base64' })
+            });
+        }).then(function (r) {
+            if (r.status === 201 || r.status === 200) return r.json().then(function (j) { if (!j || !/^[0-9a-f]{40}$/.test(j.sha || '')) throw new Error('GitHub không trả mã blob'); return j.sha; });
+            var e = new Error('GitHub trả HTTP ' + r.status + (r.status === 401 || r.status === 403 ? ' (token tạm hết hạn / hết quyền / hết hạn mức)' : '')); e.status = r.status; throw e;
+        }, function (err) { throw new Error('Không gửi thẳng được lên GitHub (' + ((err && err.message) || 'mạng') + ')'); });
+    }
+
+    // ---- UP THẲNG LÊN R2 (S.direct = server đã cấu hình Cloudflare R2): mã hoá ngay trong trình duyệt, ghép từng file-phần (magic + khung)
         //      rồi PUT THẲNG lên R2 bằng URL ký sẵn → dữ liệu KHÔNG đi qua Vercel. Lỗi (CORS, mạng, R2…) → tự quay về cách cũ (qua máy chủ → GitHub).
         function directFlow() {
             var req = { title: body.title, ext: ext, uid: uid, ts: ts, size: file.size };
             if (S.id) req.id = S.id; else req.subjectId = body.subjectId;
-            setProgress(2, '⏳ Đang xin URL tải thẳng lên Cloudflare R2…');
+            var viaGh = false, shas2 = [];
+            setProgress(2, '⏳ Đang xin quyền tải thẳng lên máy lưu trữ…');
             return withRetry(function () { return postJson(S.base + '/dashboard/direct-init', req); }).then(function (plan) {
                 var P = plan.parts;
                 if (!P || P.length !== groups.length) throw new Error('Máy chủ chia file-phần khác trình duyệt.');
+                viaGh = plan.mode === 'github' && plan.gh && plan.gh.token;
                 function putR2(url, blob) {
                     return fetch(url, { method: 'PUT', body: blob }).then(function (r) {
                         if (!r.ok) { var e = new Error('R2 trả HTTP ' + r.status); e.status = r.status; throw e; }
@@ -262,14 +288,19 @@
                     return frameStep(g.startFrame).then(function () {
                         var blob = new Blob(pieces);
                         if (blob.size !== P[k].enc) throw new Error('Kích thước file-phần ' + (k + 1) + ' lệch so với máy chủ (' + blob.size + ' ≠ ' + P[k].enc + ').');
+                        if (viaGh) {
+                            setProgress(Math.round(end / total * 90), '⏳ Đang tải file ' + (k + 1) + '/' + P.length + ' THẲNG lên GitHub (' + mbText(blob.size) + ')…');
+                            return withRetry(function () { return putGithubBlob(plan.gh, blob); }).then(function (sha) { shas2[k] = sha; });
+                        }
                         setProgress(Math.round(end / total * 90), '⏳ Đang tải file ' + (k + 1) + '/' + P.length + ' THẲNG lên Cloudflare R2 (' + mbText(blob.size) + ')…');
                         return withRetry(function () { return putR2(P[k].url, blob); });
                     }).then(function () { return partStepR2(k + 1); });
                 }
                 return partStepR2(0);
             }).then(function () {
-                setProgress(95, '⏳ Đang xác nhận file trên R2…');
+                setProgress(95, viaGh ? '⏳ Đang ghi file vào GitHub và xác nhận…' : '⏳ Đang xác nhận file trên R2…');
                 var req2 = { title: body.title, ext: ext, uid: uid, ts: ts, size: file.size };
+                if (viaGh) req2.shas = shas2;
                 if (S.id) req2.id = S.id; else req2.subjectId = body.subjectId;
                 return withRetry(function () { return postJson(S.base + '/dashboard/direct-done', req2); });
             }).then(function (d) {
@@ -279,7 +310,7 @@
 
         if (!S.direct) return legacy();
         return directFlow().catch(function (e) {
-            setProgress(0, '⚠ Không up thẳng lên R2 được (' + ((e && e.message) || 'lỗi') + ') — chuyển sang up qua máy chủ…');
+            setProgress(0, '⚠ Không up thẳng được (' + ((e && e.message) || 'lỗi') + ') — chuyển sang up qua máy chủ (tốn băng thông Vercel)…');
             return legacy();
         });
     }

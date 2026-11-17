@@ -24,6 +24,39 @@ block content
 
         +reposCard(repos, fmt, true)
 
+        //- GitHub App: token TẠM cho trình duyệt tải thẳng lên GitHub (không qua Vercel); private key mã hoá lưu ở repo chính
+        section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5", id="githubApp")
+            h2(class="text-lg font-semibold text-gray-900") GitHub App — tải file thẳng từ trình duyệt lên GitHub
+            p(class="mt-1 text-sm text-gray-600")
+                | Trình duyệt mã hoá file rồi gửi <b>thẳng</b> lên GitHub nên không tốn băng thông Vercel. Để không lộ token thật, máy chủ chỉ đưa cho trình duyệt <b>token tạm</b> (hết hạn sau 1 giờ, chỉ 1 repo, chỉ quyền Contents).
+                | Private key được <b>mã hoá</b> rồi lưu trong repo chính (<code>#{githubApp ? githubApp.path : 'v-s/github-app.json'}</code>), không cần đặt vào .env.
+            if githubApp && githubApp.source === 'repo'
+                p(class="mt-3 text-sm text-emerald-700") Đang dùng cấu hình ở repo chính: App ID <b>#{githubApp.appId}</b>#{githubApp.installationId ? ' · Installation ' + githubApp.installationId : ' · tự dò Installation theo repo'} · private key kết thúc …#{githubApp.keyHint}
+            else if githubApp && githubApp.source === 'env'
+                p(class="mt-3 text-sm text-sky-700") Đang dùng GitHub App từ biến môi trường (GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY). Nhập bên dưới để chuyển sang lưu mã hoá ở repo chính.
+            else
+                p(class="mt-3 text-sm text-amber-700") Chưa cấu hình — file vẫn tải lên được nhưng đi qua web kết nối (tốn băng thông Vercel).
+            details(class="mt-3 text-xs text-gray-600")
+                summary(class="cursor-pointer text-indigo-600") Cách tạo GitHub App (1 lần)
+                ol(class="mt-2 list-decimal pl-5 space-y-1")
+                    li GitHub → Settings → Developer settings → GitHub Apps → <b>New GitHub App</b> (tắt Webhook; Homepage URL điền tuỳ ý).
+                    li Repository permissions: <b>Contents = Read and write</b> (không cần quyền khác).
+                    li Tạo xong: ghi lại <b>App ID</b>, bấm <b>Generate a private key</b> để tải file .pem.
+                    li <b>Install App</b> lên tài khoản chứa repo dữ liệu, chọn <b>All repositories</b> (để repo -1, -2… tự tạo sau này cũng được cấp token).
+                    li Dán App ID + nội dung file .pem vào form dưới. Installation ID có thể để trống (tự dò).
+            form(method="post", action="/connect/github-app", class="mt-4 grid gap-3 sm:grid-cols-2")
+                label(class="text-xs text-gray-600") App ID
+                    input(name="appId", value=(githubApp && githubApp.appId) || "", inputmode="numeric", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                label(class="text-xs text-gray-600") Installation ID (tuỳ chọn)
+                    input(name="installationId", value=(githubApp && githubApp.installationId) || "", inputmode="numeric", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                label(class="text-xs text-gray-600 sm:col-span-2") Private key (.pem) — để trống nếu giữ key đã lưu
+                    textarea(name="privateKey", rows="4", autocomplete="off", spellcheck="false", placeholder="-----BEGIN RSA PRIVATE KEY-----", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-mono")
+                div(class="sm:col-span-2 flex flex-wrap gap-2")
+                    button(type="submit", class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700") Lưu (mã hoá vào repo chính)
+                    button(type="submit", formaction="/connect/github-app/test", formnovalidate, class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50") Thử cấp token
+                    if githubApp && githubApp.source === 'repo'
+                        button(type="submit", formaction="/connect/github-app/clear", formnovalidate, class="px-4 py-2 rounded-lg border border-red-300 text-sm text-red-700 hover:bg-red-50") Xoá cấu hình
+
         //- thêm web
         section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
             h2(class="text-lg font-semibold text-gray-900") Thêm web dữ liệu

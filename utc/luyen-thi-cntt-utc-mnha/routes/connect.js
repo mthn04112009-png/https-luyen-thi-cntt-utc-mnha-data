@@ -17,5 +17,8 @@ router.post('/node/:id/toggle', c.toggle);
 router.post('/node/:id/remove', c.remove);
 router.post('/node/:id/key', c.setKey);
 router.post('/node/:id/vercel', c.vercel);
+router.post('/github-app', c.githubAppSave);
+router.post('/github-app/test', c.githubAppTest);
+router.post('/github-app/clear', c.githubAppClear);
 
 module.exports = router;

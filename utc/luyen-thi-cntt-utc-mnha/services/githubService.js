@@ -513,6 +513,64 @@ async function writeBinaryFileBig(path, buffer, commitMessage = 'Update file') {
 }
 
 /**
+ * MỘT commit gồm nhiều thay đổi (Git Data API): ghi/đè file bằng Buffer hoặc bằng sha blob đã tạo sẵn (createBlob),
+ * và/hoặc xoá file. Dùng cho media tải lên (hàng trăm đoạn m3u8 + json đánh dấu trong 1 commit).
+ *   changes: [{ path, content: Buffer } | { path, sha } | { path, remove: true }]
+ * Đường dẫn muốn xoá mà không còn trên GitHub sẽ bị bỏ qua (createTree báo lỗi nếu xoá file không tồn tại).
+ * Tranh chấp nhánh (có commit khác chen vào → 422/409) thì lấy lại đầu nhánh và thử lại.
+ */
+async function commitFiles(changes, commitMessage = 'Update files') {
+    assertConfigured();
+    if (!Array.isArray(changes) || !changes.length) throw new Error('commitFiles: không có thay đổi nào');
+
+    let known = null;
+    if (changes.some((c) => c.remove)) {
+        const t = await getRepoTree({ force: true });
+        if (!t.truncated) known = t.files;
+    }
+    const entries = [];
+    for (const c of changes) {
+        if (!c || !c.path) throw new Error('commitFiles: thiếu path');
+        if (c.remove) {
+            if (known && !known.has(c.path)) continue;
+            entries.push({ path: c.path, mode: '100644', type: 'blob', sha: null });
+        } else if (c.sha) {
+            entries.push({ path: c.path, mode: '100644', type: 'blob', sha: c.sha });
+        } else {
+            if (!Buffer.isBuffer(c.content)) throw new Error('commitFiles: content phải là Buffer');
+            entries.push({ path: c.path, mode: '100644', type: 'blob', sha: await createBlob(c.content), contentLen: c.content.length });
+        }
+    }
+    if (!entries.length) return { commitSha: null, skipped: true };
+
+    const who = { name: 'Luyen Thi CNTT Bot', email: 'bot@luyen-thi-cntt.local' };
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+            const ref = await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            const headSha = ref.data.object.sha;
+            const head = await octokit.git.getCommit({ owner, repo, commit_sha: headSha });
+            const tree = await octokit.git.createTree({ owner, repo, base_tree: head.data.tree.sha, tree: entries });
+            const commit = await octokit.git.createCommit({
+                owner, repo, message: commitMessage, tree: tree.data.sha, parents: [headSha], author: who, committer: who
+            });
+            await octokit.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: false });
+            invalidateTree();
+            noteOrigin({ out: entries.reduce((n, e) => n + (e.contentLen || 0), 0) });
+            return { commitSha: commit.data.sha };
+        } catch (e) {
+            lastErr = e;
+            const status = e.status || e.response?.status;
+            const retriable = status === 409 || status === 422 || (status >= 500 && status < 600);
+            console.warn(`⚠️ [commitFiles] lần ${attempt} lỗi: ${e.message} (status=${status})`);
+            if (!retriable || attempt === 5) throw e;
+            await sleep(BASE_DELAY * Math.pow(2, attempt - 1));
+        }
+    }
+    throw lastErr;
+}
+
+/**
  * Xoá file trên GitHub.
  */
 async function deleteFile(path, commitMessage = 'Delete file') {
@@ -560,7 +618,7 @@ function invalidate(_path) { /* no-op */ }
 return {
     writeJsonFile, readJsonFile, readJsonFileWithSha, writeJsonFileIfSha, updateJsonFile,
     writeBinaryFile, readBinaryFile, readBinaryFileLarge, createBlob, getBlobBuffer,
-    writeBinaryFileBig, deleteFile, fileExists, getFileSha, invalidate,
+    writeBinaryFileBig, commitFiles, deleteFile, fileExists, getFileSha, invalidate,
     getRepoTree, invalidateTree, uniqueJsonPath,
     isConfigured, owner, repo, branch, _octokit: octokit
 };

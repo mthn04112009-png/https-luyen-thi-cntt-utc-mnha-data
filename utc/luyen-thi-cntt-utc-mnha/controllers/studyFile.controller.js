@@ -556,7 +556,7 @@ function createController(app, Model) {
             maxBytes: L.MAX_FILE_BYTES, frameBytes: L.FRAME_PLAIN_BYTES, frameOverhead: L.FRAME_OVERHEAD,
             magicBytes: L.FILE_MAGIC_BYTES, partMaxBytes: L.PART_MAX_BYTES, maxFrames: L.MAX_FRAMES,
             encryptionReady: slideCrypto.isConfigured(),
-            direct: r2.isConfigured(),                                  // R2 đã cấu hình → trình duyệt up THẲNG lên R2 (không qua Vercel)
+            direct: r2.isConfigured() || (await ghDirectOn()),          // R2 đã cấu hình → up THẲNG lên R2; hoặc đã nhập GitHub App ở /connect → up THẲNG lên GitHub bằng token tạm (đều không qua Vercel)
             converterUrl: process.env.PPTX_CONVERTER_URL || '',       // dịch vụ đổi PPTX → PDF (converter/server.py); rỗng = up PPTX nguyên bản
             converterToken: process.env.PPTX_CONVERTER_TOKEN || '',
             sha: rec ? ((await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null)) || {}).sha || null : null
@@ -766,12 +766,44 @@ function createController(app, Model) {
     //   direct-done : server HEAD + đọc header (và giải thử khung 0 của file-phần đầu) rồi trả chữ ký như upload-part (thêm 'r2')
     //   Sau đó create / update ghi JSON như cũ (parts[i].store = 'r2').
     // ------------------------------------------------------------
+    // ---- Up THẲNG lên GitHub (không có R2): trình duyệt tạo BLOB bản mã trên api.github.com bằng TOKEN TẠM của GitHub App (1 giờ, 1 repo, Contents:write;
+    //      PAT thật không rời server) → direct-done gom các blob vào MỘT commit rồi kiểm tra header / giải thử khung 0 như đường R2.
+    const appTok = () => require('../services/githubAppToken');
+    const ghDirectOn = async () => process.env.STUDYFILE_DIRECT !== 'off' && process.env.GH_DIRECT !== 'off' && (await appTok().isConfigured().catch(() => false));
+    async function ghTicket() {
+        let rec = { owner: githubService.owner || ghCfg.owner, repo: githubService.repo || ghCfg.repo, branch: githubService.branch || ghCfg.branch };
+        try { if (githubService.pooled && githubService.pool && typeof githubService.pool.active === 'function') { const a = await githubService.pool.active(); if (a && a.owner && a.repo) rec = { owner: a.owner, repo: a.repo, branch: a.branch || rec.branch }; } } catch (_) { /* dùng repo chính */ }
+        if (!rec.owner || !rec.repo) throw new Error('Chưa xác định được repo GitHub để nhận file.');
+        const t = await appTok().mintForRepo(rec.owner, rec.repo);
+        return { owner: rec.owner, repo: rec.repo, branch: rec.branch || 'main', token: t.token, expiresAt: t.expiresAt };
+    }
+    /** Đọc [start, start+len) của file-phần vừa commit: ưu tiên raw GitHub + Range (nhẹ, repo public); không được → tải blob theo sha. */
+    async function ghReadRange(path, sha, start, len) {
+        const url = await rawUrlOf({ path });
+        if (url) {
+            for (let k = 0; k < 3; k++) {
+                try {
+                    const r = await fetch(url, { headers: { Range: `bytes=${start}-${start + len - 1}` }, signal: AbortSignal.timeout(10000) });
+                    if (r.status === 206) {
+                        const m = /\/(\d+)$/.exec((r.headers && r.headers.get && r.headers.get('content-range')) || '');
+                        return { buf: Buffer.from(await r.arrayBuffer()), total: m ? Number(m[1]) : null };
+                    }
+                } catch (_) { /* thử lại / dự phòng */ }
+                await new Promise((ok) => setTimeout(ok, 400 * (k + 1)));
+            }
+        }
+        const all = await githubService.getBlobBuffer(sha);
+        if (!all) return null;
+        return { buf: all.subarray(start, start + len), total: all.length };
+    }
+
     async function directPlan(req, res) {
         const b = req.body || {};
         const ext = String(b.ext || '').toLowerCase();
         const uid = String(b.uid || '');
         const ts = Number(b.ts), size = Number(b.size);
-        if (!r2.isConfigured()) { fail(res, 503, 'Chưa cấu hình Cloudflare R2 (hãy dùng cách up thường).'); return null; }
+        const useGh = !r2.isConfigured();
+        if (useGh && !(await ghDirectOn())) { fail(res, 503, 'Chưa cấu hình Cloudflare R2 hoặc GitHub App (nhập ở /connect) — hãy dùng cách up thường.'); return null; }
         if (!app.exts.includes(ext)) { fail(res, 400, `Chỉ nhận định dạng: ${app.exts.map((x) => '.' + x).join(', ')}.`); return null; }
         if (!UID_RE.test(uid) || !checkTs(ts)) { fail(res, 400, 'Phiên upload không hợp lệ. Hãy tải lại trang.'); return null; }
         if (!Number.isInteger(size) || size <= 0) { fail(res, 400, 'File rỗng hoặc kích thước không hợp lệ.'); return null; }
@@ -792,7 +824,7 @@ function createController(app, Model) {
             for (let i = g.startFrame; i < g.startFrame + g.count; i++) { plain += sizes[i]; enc += sizes[i] + L.FRAME_OVERHEAD; }
             return { path: partPath(base, ext, k, groups.length), enc, plain, startFrame: g.startFrame, count: g.count };
         });
-        return { ext, uid, total, sizes, parts };
+        return { ext, uid, total, sizes, parts, useGh };
     }
 
     ctrl.directInit = async (req, res) => {
@@ -800,18 +832,59 @@ function createController(app, Model) {
         try {
             const plan = await directPlan(req, res);
             if (!plan) return undefined;
-            return res.json({ success: true, parts: plan.parts.map((p) => ({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count, url: r2.putUrl(p.path) })) });
+            if (plan.useGh) {
+                let gh;
+                try { gh = await ghTicket(); } catch (e) { return fail(res, 503, 'Không cấp được token tạm cho GitHub: ' + e.message); }
+                return res.json({ success: true, mode: 'github', gh, parts: plan.parts.map((p) => ({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count })) });
+            }
+            return res.json({ success: true, mode: 'r2', parts: plan.parts.map((p) => ({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count, url: r2.putUrl(p.path) })) });
         } catch (e) {
             console.error(`[${app.key}.directInit]`, e);
             return fail(res, 500, 'Lỗi máy chủ khi cấp URL tải lên.');
         }
     };
 
+    /** direct-done (GitHub): body.shas[k] = sha blob của file-phần k (trình duyệt đã tạo). Gom vào MỘT commit → kiểm size/header/khung 0 → chữ ký. */
+    async function directDoneGithub(req, res, plan) {
+        const shas = (req.body || {}).shas;
+        if (!Array.isArray(shas) || shas.length !== plan.parts.length || !shas.every((x) => typeof x === 'string' && /^[0-9a-f]{40}$/.test(x))) {
+            return fail(res, 400, 'Danh sách blob của các file-phần không hợp lệ. Hãy up lại.');
+        }
+        await githubService.commitFiles(plan.parts.map((p, k) => ({ path: p.path, sha: shas[k] })), `${app.name}: lưu file mã hoá (${plan.parts.length} file-phần)`);
+        const out = [];
+        const drop = async (path) => { await githubService.deleteFile(path, `${app.name}: xoá file-phần lỗi`).catch(() => { }); };
+        for (let k = 0; k < plan.parts.length; k++) {
+            const p = plan.parts[k];
+            const hd = await ghReadRange(p.path, shas[k], 0, L.FILE_MAGIC_BYTES + 12);
+            if (!hd) { await drop(p.path); return fail(res, 422, `Không đọc lại được file-phần ${k + 1}/${plan.parts.length} trên GitHub. Hãy up lại.`); }
+            if (hd.total != null && hd.total !== p.enc) { await drop(p.path); return fail(res, 422, `File-phần ${k + 1} sai kích thước (${hd.total} ≠ ${p.enc}) — đã xoá. Hãy up lại.`); }
+            const head = hd.buf;
+            const bad = !head || head.length < L.FILE_MAGIC_BYTES + 12 || head.subarray(0, 4).toString('latin1') !== 'SLD2'
+                || head.readUInt32BE(4) !== p.startFrame || head.readUInt32BE(8) !== plan.total || head.readUInt32BE(12) !== plan.sizes[p.startFrame];
+            if (bad) { await drop(p.path); return fail(res, 422, `File-phần ${k + 1} không đúng định dạng mã hoá — đã xoá. Hãy up lại.`); }
+            if (k === 0) {
+                try {
+                    const fr = await ghReadRange(p.path, shas[k], L.FILE_MAGIC_BYTES, plan.sizes[0] + L.FRAME_OVERHEAD);
+                    const d = slideCrypto.decryptFrame(fr.buf);
+                    if (d.index !== 0 || d.total !== plan.total) throw new Error('khung 0 sai thứ tự');
+                    if (!magicOk(d.plain, plan.ext)) { await drop(p.path); return fail(res, 400, `File gửi lên không phải .${plan.ext} hợp lệ.`); }
+                } catch (e) {
+                    await drop(p.path);
+                    return fail(res, 422, 'Không xác thực được dữ liệu đã up (' + e.message + '). Hãy up lại.');
+                }
+            }
+            const sig = slideCrypto.metaSig([app.key, plan.uid, p.path, p.startFrame, p.count, plan.total, p.enc, p.plain]);
+            out.push({ path: p.path, enc: p.enc, plain: p.plain, startFrame: p.startFrame, count: p.count, sig });
+        }
+        return res.json({ success: true, parts: out });
+    }
+
     ctrl.directDone = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         try {
             const plan = await directPlan(req, res);
             if (!plan) return undefined;
+            if (plan.useGh) return await directDoneGithub(req, res, plan);
             const out = [];
             for (let k = 0; k < plan.parts.length; k++) {
                 const p = plan.parts[k];

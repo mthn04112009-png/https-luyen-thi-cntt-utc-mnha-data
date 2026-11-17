@@ -96,3 +96,20 @@ Chưa bật CORS / R2 lỗi: trình duyệt báo "⚠ Không up thẳng lên R2 
 
 Test: `node test/studyfiles.direct-r2.js`.
 
+## Up THẲNG lên GitHub bằng token tạm (GitHub App) — khi không có R2
+
+Không cấu hình R2 nhưng đã nhập **GitHub App** ở `/connect` (mục *GitHub App*, private key được **mã hoá** lưu ở repo chính `v-s/github-app.json`; hoặc đặt `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_INSTALLATION_ID` trong `.env`):
+
+1. `POST …/dashboard/direct-init` → `mode: 'github'` + `gh` = {owner, repo, branch, **token tạm**} của repo đang nhận file (`githubPool.active`) + kế hoạch các file-phần.
+   Token là *installation token*: **hết hạn sau 1 giờ, chỉ 1 repo, chỉ Contents:write**. PAT thật (`GITHUB_TOKEN`) và private key không bao giờ xuống trình duyệt.
+2. Trình duyệt mã hoá khung (`SLD2`), ghép `magic + khung` thành từng file-phần ≤ 23MB rồi `POST /git/blobs` **thẳng lên api.github.com** (không qua Vercel).
+3. `POST …/dashboard/direct-done` {shas:[…]} (JSON vài trăm byte): server gom các blob vào **một commit** (`githubService.commitFiles`), kiểm kích thước + header (Range trên raw GitHub, dự phòng đọc blob theo sha), **giải thử khung 0**, rồi trả chữ ký HMAC như `upload-part` (không có `store`).
+   Sai kích thước / sai định dạng / không phải PDF-PPTX → xoá file-phần vừa commit và báo lỗi.
+4. `create` / `update` ghi JSON như cũ. Xem/tải không đổi (file nằm ở GitHub như luồng thường).
+
+Lỗi (token hết hạn, hết hạn mức, CORS, mạng) → trình duyệt báo "⚠ Không up thẳng được…" rồi tự up lại bằng luồng cũ qua máy chủ. Có R2 thì R2 được ưu tiên.
+Tắt đường GitHub trực tiếp: `GH_DIRECT=off` (hoặc `STUDYFILE_DIRECT=off` để tắt mọi up thẳng).
+
+Cách tạo App: GitHub → Settings → Developer settings → GitHub Apps → New (tắt Webhook), *Repository permissions → Contents: Read and write*; tạo private key `.pem`; **Install App** lên tài khoản chứa repo, chọn *All repositories* (để repo `-1`, `-2`… cũng được cấp token).
+
+Test: `node test/studyfiles.direct-gh.js`.
