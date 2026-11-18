@@ -1179,16 +1179,45 @@
         });
         return deck._layouts[p];
     }
+    /** [BỔ SUNG] LỜI GIẢNG trong Ghi chú (Notes) của slide. Mỗi đoạn có dạng:
+     *    [Mở slide – …] nội dung…     → đọc khi slide vừa hiện (chưa bấm)
+     *    [Click 3 – …] nội dung…      → đọc khi bấm hiệu ứng thứ 3
+     *  Đoạn không có "[...]" ở đầu (tiêu đề, ghi chú thường) bị bỏ qua. Trả về { 0:…, 1:…, … } hoặc null. */
+    function loadNarration(deck, rels) {
+        var nr = Object.keys(rels).map(function (k) { return rels[k]; }).filter(function (r) { return r.type === 'notesSlide'; })[0];
+        if (!nr) return Promise.resolve(null);
+        return deck.zip.xml(nr.target).then(function (root) {
+            if (!root) return null;
+            var out = {}, any = false;
+            desc(root, 'sp').forEach(function (sp) {
+                var ph = path(sp, 'p:nvSpPr', 'p:nvPr', 'p:ph');
+                if (!ph || ph.getAttribute('type') !== 'body') return;
+                desc(sp, 'p').forEach(function (pp) {
+                    var t = desc(pp, 't').map(function (x) { return x.textContent; }).join('');
+                    var m = /^\s*\[([^\]]*)\]\s*([\s\S]*)$/.exec(t);
+                    if (!m || !m[2].trim()) return;
+                    var c = /Click\s*(\d+)/i.exec(m[1]);
+                    var key = c ? parseInt(c[1], 10) : (/M[ởo]\s*(slide|đầu)|Intro/i.test(m[1]) ? 0 : null);
+                    if (key === null) return;
+                    out[key] = m[2].trim(); any = true;
+                });
+            });
+            return any ? out : null;
+        }).catch(function () { return null; });
+    }
     function loadSlide(deck, p, n) {
         return Promise.all([deck.zip.xml(p), deck.zip.rels(p)]).then(function (r) {
             var root = r[0], rels = r[1];
             var lRel = Object.keys(rels).map(function (k) { return rels[k]; }).filter(function (x) { return x.type === 'slideLayout'; })[0];
             return loadLayout(deck, lRel.target).then(function (layout) {
-                return {
-                    path: p, root: root, rels: rels, layout: layout, master: layout.master, number: n,
-                    hidden: root.getAttribute('show') === '0',
-                    transition: parseTransition(root), timing: parseTiming(root), rendered: null
-                };
+                return loadNarration(deck, rels).then(function (narr) {
+                    return {
+                        path: p, root: root, rels: rels, layout: layout, master: layout.master, number: n,
+                        hidden: root.getAttribute('show') === '0',
+                        transition: parseTransition(root), timing: parseTiming(root), rendered: null,
+                        narr: narr                                   // [BỔ SUNG] lời giảng theo bước: { 0: mở slide, 1: bấm 1, 2: bấm 2… } hoặc null
+                    };
+                });
             });
         });
     }
@@ -2910,8 +2939,46 @@
     // ------------------------------------------------------------
     // Player
     // ------------------------------------------------------------
+    // ============================================================
+    // [BỔ SUNG] ĐỌC LỜI GIẢNG TIẾNG VIỆT khi chạy từng hiệu ứng (Web Speech API, giọng vi-VN của trình duyệt)
+    //   Lời giảng lấy từ Ghi chú slide (xem loadNarration). Chia câu để Chrome không cắt giữa chừng khi đoạn dài.
+    // ============================================================
+    var Narrator = (function () {
+        var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
+        var keep = [], tok = 0, warned = false;
+        function pickVi() {
+            var vs = []; try { vs = synth.getVoices() || []; } catch (e) { /* bỏ qua */ }
+            var vi = vs.filter(function (v) { return /^vi/i.test(v.lang); });
+            if (!vi.length) return null;
+            return vi.filter(function (v) { return /natural|online|google|hoaimy|namminh/i.test(v.name); })[0] || vi[0];
+        }
+        function stop() {
+            tok++; keep.length = 0;
+            try { if (synth && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* bỏ qua */ }
+        }
+        function speak(text) {
+            stop();
+            if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined' || !text) return false;
+            var my = tok, voice = pickVi();
+            if (!voice && !warned) { warned = true; if (global.console) console.warn('[pptxPlayer] Không thấy giọng tiếng Việt (vi-VN) trong trình duyệt — dùng giọng mặc định, có thể đọc sai. Hãy dùng Chrome/Edge hoặc cài giọng Vietnamese.'); }
+            var parts = (String(text).match(/[^.!?:;\n]+[.!?:;]?/g) || [String(text)]).map(function (x) { return x.trim(); }).filter(Boolean);
+            setTimeout(function () {                      // Chrome: cancel() rồi speak() ngay dễ bị nuốt → hoãn nhẹ
+                if (my !== tok) return;
+                parts.forEach(function (x) {
+                    var u = new window.SpeechSynthesisUtterance(x);
+                    u.lang = 'vi-VN'; if (voice) u.voice = voice; u.rate = 0.95;
+                    keep.push(u); synth.speak(u);
+                });
+            }, 80);
+            return true;
+        }
+        return { speak: speak, stop: stop, supported: !!synth };
+    })();
+
     function Player(container, deck, opts) {
         this.container = container; this.deck = deck; this.opts = opts || {};
+        this.narration = this.opts.narration !== false;                 // [BỔ SUNG] false = tắt đọc lời giảng ngay từ đầu
+        try { if (global.localStorage && global.localStorage.getItem('pp_narration') === '0') this.narration = false; } catch (e) { /* bỏ qua */ }
         this.cur = -1; this.step = 0; this.live = []; this.busy = false; this.timers = [];
         this.autoAdvance = !!this.opts.autoAdvance;
         container.classList.add('pp-container');
@@ -2921,12 +2988,42 @@
         this.fh = deck.height; this.textScale = Number(this.opts.textScale) || 1;   // fh: chiều cao khung (cao hơn slide khi chữ phóng to quá khung)
         this.frame.style.width = deck.width + 'px'; this.frame.style.height = deck.height + 'px';
         container.appendChild(this.frame);
+        this._mkNarrBtn();
         this.scale = 1; this.zoom = Math.max(0.25, Math.min(4, Number(this.opts.zoom) || 1));
         this.resize();
         var self = this;
         this._ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(function () { self.resize(); }) : null;
         if (this._ro) this._ro.observe(container);
     }
+
+    /** [BỔ SUNG] Nút 🔊/🔇 bật–tắt đọc lời giảng (chỉ hiện khi file có lời giảng trong Ghi chú). Bấm nút không làm chuyển slide. */
+    Player.prototype._mkNarrBtn = function () {
+        var self = this, has = this.deck.slides.some(function (sl) { return !!sl.narr; });
+        if (!has || !Narrator.supported) return;
+        var b = document.createElement('div');
+        b.style.cssText = 'position:absolute;right:16px;bottom:14px;width:46px;height:46px;border-radius:50%;background:rgba(27,42,71,.85);color:#fff;font:22px/46px sans-serif;text-align:center;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,.35)';
+        makeButton(b, 'Bật/tắt đọc lời giảng', function () { self.setNarration(!self.narration); });
+        b.style.zIndex = '50';
+        this._narrBtn = b; this.frame.appendChild(b); this._paintNarrBtn();
+    };
+    Player.prototype._paintNarrBtn = function () {
+        if (!this._narrBtn) return;
+        this._narrBtn.textContent = this.narration ? '🔊' : '🔇';
+        this._narrBtn.title = this.narration ? 'Đang bật đọc lời giảng (bấm để tắt)' : 'Đang tắt đọc lời giảng (bấm để bật)';
+    };
+    Player.prototype.setNarration = function (on) {
+        this.narration = !!on;
+        try { if (global.localStorage) global.localStorage.setItem('pp_narration', on ? '1' : '0'); } catch (e) { /* bỏ qua */ }
+        this._paintNarrBtn();
+        if (!on) Narrator.stop(); else this._narrate(this.step);
+        return this.narration;
+    };
+    /** Đọc lời giảng của bước `key` (0 = mở slide, N = bấm lần N) trên slide hiện tại. Không có lời → dừng tiếng cũ. */
+    Player.prototype._narrate = function (key) {
+        var sl = this.deck.slides[this.cur];
+        if (!this.narration || !sl || !sl.narr || !sl.narr[key]) { Narrator.stop(); return; }
+        Narrator.speak(sl.narr[key]);
+    };
 
     Player.prototype.resize = function () {
         var c = this.container, W = this.deck.width, H = this.fh || this.deck.height;
@@ -3043,6 +3140,7 @@
         this._finishTransition && this._finishTransition();
         this._clearTimers(); this._cancelAnims(); this.busy = false;
         Speech.stop();                                        // đổi slide → ngừng đọc/phát âm thanh đang chạy
+        Narrator.stop();
         var slide = deck.slides[index];
         return renderSlide(deck, slide, this).then(function (rs) {
             if (token !== self._token) return;
@@ -3211,6 +3309,7 @@
     Player.prototype._afterShown = function (slide, rs, k) {
         var self = this;
         // hiệu ứng tự chạy khi slide bắt đầu ("After previous"/"With previous" ở bước đầu)
+        if (k === 0) this._narrate(slide.timing.auto && slide.timing.steps.length ? 1 : 0);      // [BỔ SUNG] đọc lời giảng mở slide
         if (k === 0 && slide.timing.auto && slide.timing.steps.length) {
             this.step = 1; this._emit();
             this._playStep(slide.timing.steps[0], rs, function () { self._emit(); self._scheduleAuto(slide); });
@@ -3234,6 +3333,7 @@
         if (slide && this.step < slide.timing.steps.length) {
             var self = this, st = slide.timing.steps[this.step];
             this.step++; this._emit();
+            this._narrate(this.step);
             this._playStep(st, this._rs, function () { self._emit(); self._scheduleAuto(slide); });
             return Promise.resolve();
         }
@@ -3242,6 +3342,7 @@
     };
 
     Player.prototype.prev = function () {
+        Narrator.stop();
         if (this._finishTransition) this._finishTransition();
         if (this.busy && this._stepDone) this._stepDone();
         if (this.step > 0) { this._clearTimers(); this._cancelAnims(); this._setState(this._rs, this.deck.slides[this.cur], this.step - 1); this.step--; this._emit(); return Promise.resolve(); }
@@ -3255,7 +3356,7 @@
     Player.prototype.goto = function (i) { return this.show(i, { forward: i >= this.cur, transition: false }); };
     Player.prototype.setAutoAdvance = function (v) { this.autoAdvance = !!v; this._clearTimers(); if (v && this._rs) this._scheduleAuto(this.deck.slides[this.cur]); };
     Player.prototype.destroy = function () {
-        this._clearTimers(); this._cancelAnims(); Speech.stop();
+        this._clearTimers(); this._cancelAnims(); Speech.stop(); Narrator.stop();
         if (this._ro) this._ro.disconnect();
         if (this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
         var z = this.deck.zip.blobs;
