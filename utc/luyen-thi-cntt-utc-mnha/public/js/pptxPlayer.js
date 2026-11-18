@@ -1182,7 +1182,8 @@
     /** [BỔ SUNG] LỜI GIẢNG trong Ghi chú (Notes) của slide. Mỗi đoạn có dạng:
      *    [Mở slide – …] nội dung…     → đọc khi slide vừa hiện (chưa bấm)
      *    [Click 3 – …] nội dung…      → đọc khi bấm hiệu ứng thứ 3
-     *  Đoạn không có "[...]" ở đầu (tiêu đề, ghi chú thường) bị bỏ qua. Trả về { 0:…, 1:…, … } hoặc null. */
+     *  Thêm "| vi" hoặc "| en" cuối ngoặc để chỉ rõ ngôn ngữ đọc, vd. [Click 2 – dòng 2 | vi].
+     *  Đoạn không có "[...]" ở đầu (tiêu đề, ghi chú thường) bị bỏ qua. Trả về { 0:{t,lang}, 1:{t,lang}, … } hoặc null. */
     function loadNarration(deck, rels) {
         var nr = Object.keys(rels).map(function (k) { return rels[k]; }).filter(function (r) { return r.type === 'notesSlide'; })[0];
         if (!nr) return Promise.resolve(null);
@@ -1199,7 +1200,10 @@
                     var c = /Click\s*(\d+)/i.exec(m[1]);
                     var key = c ? parseInt(c[1], 10) : (/M[ởo]\s*(slide|đầu)|Intro/i.test(m[1]) ? 0 : null);
                     if (key === null) return;
-                    out[key] = m[2].trim(); any = true;
+                    // ngôn ngữ: ghi rõ ở cuối ngoặc, vd. "[Click 2 – … | vi]", "| en", "| zh", "| ja", "| de", "| zh-TW"…; không ghi thì tự đoán theo chữ viết
+                    var lm = /\|\s*([A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?)\s*$/.exec(m[1]);
+                    var lang = lm ? Lang.norm(lm[1]) : Lang.detect(m[2]);
+                    out[key] = { t: m[2].trim(), lang: lang }; any = true;
                 });
             });
             return any ? out : null;
@@ -2107,11 +2111,82 @@
     //   Ảnh có  <p:cNvPr title='tts:{...}'>  → bấm là ĐỌC TO bằng giọng đọc của trình duyệt (Web Speech API, ưu tiên en-GB):
     //     {"t":"sheep","r":0.9}                  đọc 1 từ/câu, r = tốc độ (1 = bình thường, 0.5 = chậm)
     //     {"t":"Hi!","v":"m"}                    v = m (giọng nam, vd. Ryan) | f (giọng nữ, vd. Sonia)
+    //     {"t":"你好","lang":"zh"}                lang = ngôn ngữ đọc: vi en zh ja ko de fr es it pt ru th id hi ar tr nl pl… (có thể zh-TW, en-US…); không ghi = tiếng Anh như cũ
     //     {"seq":[{"t":"Hi!","v":"m"},{...}]}    đọc lần lượt nhiều câu (hội thoại); bấm lần nữa để dừng
     //     {"t":"uh","ph":"ə"}                    ph = âm IPA đơn lẻ → TỰ TỔNG HỢP bằng Web Audio (không đọc chữ). Không có ph thì lấy từ nhãn "Nghe riêng âm /ə/"
     //   Ảnh có hlinkClick tới tệp âm thanh trực tiếp (.mp3 .wav .ogg .m4a…) → phát tệp đó bằng <audio>.
     //   Bấm nút KHÔNG làm chuyển slide (chặn click/chạm/phím lan ra khung trình chiếu).
     // ============================================================
+    // ============================================================
+    // [BỔ SUNG] ĐA NGÔN NGỮ cho giọng đọc: mã ngôn ngữ (vi, en, zh, ja, ko, de, fr, es, it, pt, ru, th, id, hi, ar, tr, nl, pl…),
+    //   có thể kèm vùng (zh-TW, en-US, pt-PT). Dùng chung cho lời giảng trong Ghi chú và cho nút "tts:{"t":"你好","lang":"zh"}".
+    // ============================================================
+    var Lang = (function () {
+        var LOCALE = { en: 'en-GB', vi: 'vi-VN', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR', ru: 'ru-RU', th: 'th-TH', id: 'id-ID', hi: 'hi-IN', ar: 'ar-SA', tr: 'tr-TR', nl: 'nl-NL', pl: 'pl-PL', uk: 'uk-UA', sv: 'sv-SE', el: 'el-GR', cs: 'cs-CZ', ms: 'ms-MY' };
+        var NAME = { en: 'tiếng Anh', vi: 'tiếng Việt', zh: 'tiếng Trung', ja: 'tiếng Nhật', ko: 'tiếng Hàn', de: 'tiếng Đức', fr: 'tiếng Pháp', es: 'tiếng Tây Ban Nha', it: 'tiếng Ý', pt: 'tiếng Bồ Đào Nha', ru: 'tiếng Nga', th: 'tiếng Thái', id: 'tiếng Indonesia', hi: 'tiếng Hindi', ar: 'tiếng Ả Rập', tr: 'tiếng Thổ Nhĩ Kỳ', nl: 'tiếng Hà Lan', pl: 'tiếng Ba Lan', uk: 'tiếng Ukraina', sv: 'tiếng Thụy Điển', el: 'tiếng Hy Lạp', cs: 'tiếng Séc', ms: 'tiếng Mã Lai' };
+        var ALIAS = { cn: 'zh', chi: 'zh', jp: 'ja', jpn: 'ja', kr: 'ko', kor: 'ko', vn: 'vi', vie: 'vi', ger: 'de', deu: 'de', fra: 'fr', fre: 'fr', spa: 'es', eng: 'en', rus: 'ru' };
+        function norm(code) {
+            var p = String(code || '').replace('_', '-').split('-'), b = p[0].toLowerCase();
+            b = ALIAS[b] || b;
+            if (!p[1]) return b;
+            return b + '-' + (p[1].length === 4 ? p[1].charAt(0).toUpperCase() + p[1].slice(1).toLowerCase() : p[1].toUpperCase());
+        }
+        function base(tag) { return String(tag).split('-')[0]; }
+        function locale(tag) { return String(tag).indexOf('-') > 0 ? tag : (LOCALE[tag] || tag); }
+        function name(tag) { return NAME[base(tag)] || ('ngôn ngữ "' + tag + '"'); }
+        /** Đoán ngôn ngữ theo chữ viết khi không ghi rõ (Latin không dấu đặc trưng → en). */
+        function detect(text) {
+            var t = String(text || '');
+            if (/[\u3040-\u30ff]/.test(t)) return 'ja';
+            if (/[\uac00-\ud7af]/.test(t)) return 'ko';
+            if (/[\u0e00-\u0e7f]/.test(t)) return 'th';
+            if (/[\u0600-\u06ff]/.test(t)) return 'ar';
+            if (/[\u0900-\u097f]/.test(t)) return 'hi';
+            if (/[\u0400-\u04ff]/.test(t)) return 'ru';
+            if (/[\u4e00-\u9fff]/.test(t)) return 'zh';
+            if (/[ăâđơưạảãấầẩẫậắằẳẵặẹẻẽếềểễệỉĩịọỏõốồổỗộớờởỡợụủũứừửữựỳỵỷỹ]/i.test(t)) return 'vi';
+            if (/[äöüß]/i.test(t)) return 'de';
+            return 'en';
+        }
+        function vnorm(v) { return String(v.lang || '').toLowerCase().replace('_', '-'); }
+        function nice(list) {
+            return list.filter(function (v) { return /natural|online|neural/i.test(v.name); })[0]
+                || list.filter(function (v) { return /google|premium|enhanced/i.test(v.name); })[0] || list[0] || null;
+        }
+        /** Chọn giọng cho `tag`: khớp cả vùng (zh-TW) trước, rồi tới ngôn ngữ gốc (zh-*). null nếu máy không có. */
+        function pick(vs, tag) {
+            var b = base(tag), loc = locale(tag).toLowerCase(), c;
+            if (b === 'vi') {
+                c = vs.filter(function (v) { var n = vnorm(v); return n === 'vi' || n.indexOf('vi-') === 0 || /vietnam|việt|hoaimy|hoai my|namminh|nam minh/i.test(v.name); });
+                if (c.length) return nice(c);
+            }
+            c = vs.filter(function (v) { return vnorm(v) === loc; });
+            if (c.length) return nice(c);
+            var dl = (LOCALE[b] || '').toLowerCase();                  // không có đúng vùng → ưu tiên vùng mặc định (vd. zh-CN) trước khi lấy giọng khác (zh-HK = tiếng Quảng)
+            c = dl ? vs.filter(function (v) { return vnorm(v) === dl; }) : [];
+            if (c.length) return nice(c);
+            c = vs.filter(function (v) { var n = vnorm(v); return n === b || n.indexOf(b + '-') === 0; });
+            return nice(c);
+        }
+        /** Chrome nạp danh sách giọng BẤT ĐỒNG BỘ: getVoices() lần đầu thường rỗng → phải đợi 'voiceschanged'. */
+        function loadVoices(synth) {
+            return new Promise(function (res) {
+                var v = []; try { v = synth.getVoices() || []; } catch (e) { /* bỏ qua */ }
+                if (v.length) return res(v);
+                var done = false;
+                function fin() {
+                    if (done) return; done = true;
+                    try { synth.removeEventListener('voiceschanged', fin); } catch (e) { /* bỏ qua */ }
+                    var w = []; try { w = synth.getVoices() || []; } catch (e) { /* bỏ qua */ }
+                    res(w);
+                }
+                try { synth.addEventListener('voiceschanged', fin); } catch (e) { /* bỏ qua */ }
+                setTimeout(fin, 2000);
+            });
+        }
+        return { norm: norm, base: base, locale: locale, name: name, detect: detect, pick: pick, loadVoices: loadVoices };
+    })();
+
     var Speech = (function () {
         var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
         var keep = [];                       // giữ tham chiếu utterance (Chrome có thể thu dọn → mất onend)
@@ -2175,8 +2250,15 @@
         }
         function utter(item, token, done) {
             var u = new window.SpeechSynthesisUtterance(String(item.t || ''));
-            var pv = pickVoice(item.v);
-            if (pv.voice) { u.voice = pv.voice; u.lang = pv.voice.lang; } else u.lang = 'en-GB';
+            var pv;
+            if (item.lang) {                                             // [BỔ SUNG] {"t":"你好","lang":"zh"} → giọng đúng ngôn ngữ (zh, ja, de, vi, fr, ko…)
+                var tg = Lang.norm(item.lang), lv = Lang.pick(voiceList(), tg);
+                pv = { voice: lv, pitch: 1 };
+                if (lv) { u.voice = lv; u.lang = lv.lang; } else u.lang = Lang.locale(tg);
+            } else {
+                pv = pickVoice(item.v);
+                if (pv.voice) { u.voice = pv.voice; u.lang = pv.voice.lang; } else u.lang = 'en-GB';
+            }
             u.rate = item.r > 0 ? Math.max(0.1, Math.min(2, item.r)) : 1;
             u.pitch = pv.pitch; u.volume = 1;
             var fin = function () { var i = keep.indexOf(u); if (i >= 0) keep.splice(i, 1); if (token === cur.token) done(); };
@@ -2945,34 +3027,40 @@
     // ============================================================
     var Narrator = (function () {
         var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
-        var keep = [], tok = 0, warned = false;
-        function pickVi() {
-            var vs = []; try { vs = synth.getVoices() || []; } catch (e) { /* bỏ qua */ }
-            var vi = vs.filter(function (v) { return /^vi/i.test(v.lang); });
-            if (!vi.length) return null;
-            return vi.filter(function (v) { return /natural|online|google|hoaimy|namminh/i.test(v.name); })[0] || vi[0];
-        }
+        var keep = [], tok = 0, warned = {}, api = null;
         function stop() {
             tok++; keep.length = 0;
             try { if (synth && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* bỏ qua */ }
         }
-        function speak(text) {
+        /** lang: mã ngôn ngữ (vi, en, zh, ja, de, …; không ghi thì đoán theo chữ). Chọn đúng giọng; thiếu giọng → báo (onNoVoice) và để trình duyệt tự chọn theo lang. */
+        function speak(text, lang) {
             stop();
             if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined' || !text) return false;
-            var my = tok, voice = pickVi();
-            if (!voice && !warned) { warned = true; if (global.console) console.warn('[pptxPlayer] Không thấy giọng tiếng Việt (vi-VN) trong trình duyệt — dùng giọng mặc định, có thể đọc sai. Hãy dùng Chrome/Edge hoặc cài giọng Vietnamese.'); }
-            var parts = (String(text).match(/[^.!?:;\n]+[.!?:;]?/g) || [String(text)]).map(function (x) { return x.trim(); }).filter(Boolean);
-            setTimeout(function () {                      // Chrome: cancel() rồi speak() ngay dễ bị nuốt → hoãn nhẹ
+            var tag = Lang.norm(lang || Lang.detect(text)), my = tok;
+            Lang.loadVoices(synth).then(function (vs) {
                 if (my !== tok) return;
-                parts.forEach(function (x) {
-                    var u = new window.SpeechSynthesisUtterance(x);
-                    u.lang = 'vi-VN'; if (voice) u.voice = voice; u.rate = 0.95;
-                    keep.push(u); synth.speak(u);
-                });
-            }, 80);
+                var voice = Lang.pick(vs, tag);
+                if (!voice && !warned[tag]) {
+                    warned[tag] = true;
+                    if (global.console) console.warn('[pptxPlayer] Không có giọng ' + Lang.name(tag) + ' (' + Lang.locale(tag) + ') trong trình duyệt. Giọng sẵn có:', vs.map(function (v) { return v.name + ' [' + v.lang + ']'; }));
+                    if (api && api.onNoVoice) api.onNoVoice(tag);
+                }
+                var parts = (String(text).match(/[^.!?:;。！？；：\n]+[.!?:;。！？；：]?/g) || [String(text)]).map(function (x) { return x.trim(); }).filter(Boolean);
+                setTimeout(function () {                  // Chrome: cancel() rồi speak() ngay dễ bị nuốt → hoãn nhẹ
+                    if (my !== tok) return;
+                    parts.forEach(function (x) {
+                        var u = new window.SpeechSynthesisUtterance(x);
+                        u.lang = Lang.locale(tag);
+                        if (voice) { u.voice = voice; if (voice.lang) u.lang = voice.lang; }
+                        u.rate = Lang.base(tag) === 'vi' ? 0.95 : 1;
+                        keep.push(u); synth.speak(u);
+                    });
+                }, 80);
+            });
             return true;
         }
-        return { speak: speak, stop: stop, supported: !!synth };
+        api = { speak: speak, stop: stop, supported: !!synth, onNoVoice: null };
+        return api;
     })();
 
     function Player(container, deck, opts) {
@@ -3005,6 +3093,16 @@
         makeButton(b, 'Bật/tắt đọc lời giảng', function () { self.setNarration(!self.narration); });
         b.style.zIndex = '50';
         this._narrBtn = b; this.frame.appendChild(b); this._paintNarrBtn();
+        Narrator.onNoVoice = function (lang) {
+            var nm = Lang.name(lang);
+            self._toast('Máy chưa có giọng ' + nm + ' nên lời giảng có thể bị đọc bằng giọng khác hoặc đọc sai. Hãy dùng Microsoft Edge (nhiều giọng "Online (Natural)") hoặc cài thêm giọng ' + nm + ' trong cài đặt Windows/Android.');
+        };
+    };
+    Player.prototype._toast = function (msg) {
+        var t = document.createElement('div');
+        t.style.cssText = 'position:absolute;left:50%;bottom:20px;transform:translateX(-50%);max-width:70%;padding:10px 16px;border-radius:10px;background:rgba(0,0,0,.85);color:#fff;font:15px/1.4 sans-serif;z-index:60;text-align:center';
+        t.textContent = msg; this.frame.appendChild(t);
+        setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 9000);
     };
     Player.prototype._paintNarrBtn = function () {
         if (!this._narrBtn) return;
@@ -3022,7 +3120,7 @@
     Player.prototype._narrate = function (key) {
         var sl = this.deck.slides[this.cur];
         if (!this.narration || !sl || !sl.narr || !sl.narr[key]) { Narrator.stop(); return; }
-        Narrator.speak(sl.narr[key]);
+        Narrator.speak(sl.narr[key].t, sl.narr[key].lang);
     };
 
     Player.prototype.resize = function () {
