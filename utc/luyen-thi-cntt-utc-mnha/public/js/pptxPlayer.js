@@ -3031,6 +3031,26 @@
         var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
         var keep = [], tok = 0, warned = {}, api = null, audio = null;
         var cfg = { google: true };
+        /** Thẻ <audio> KHÔNG có thuộc tính referrerPolicy → tạo nó trong iframe ẩn có <meta name="referrer" content="no-referrer"> để Google Dịch không thấy địa chỉ trang (nếu thấy, nó thường từ chối). */
+        var frame = null, frameReady = null;
+        function audioCtor(cb) {
+            if (typeof document === 'undefined' || !document.body) return cb(Audio);
+            if (!frame) {
+                frame = document.createElement('iframe');
+                frame.setAttribute('aria-hidden', 'true'); frame.tabIndex = -1;
+                frame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
+                frameReady = new Promise(function (res) {
+                    frame.addEventListener('load', function () { res(true); });
+                    setTimeout(function () { res(false); }, 1500);
+                });
+                frame.srcdoc = '<!doctype html><meta name="referrer" content="no-referrer"><title>tts</title>';
+                document.body.appendChild(frame);
+            }
+            frameReady.then(function (ok) {
+                var C = null; try { C = ok && frame.contentWindow && frame.contentWindow.Audio; } catch (e) { /* bỏ qua */ }
+                cb(C || Audio);
+            });
+        }
         function stop() {
             tok++; keep.length = 0;
             if (audio) { try { audio.pause(); } catch (e) { /* bỏ qua */ } audio = null; }
@@ -3081,18 +3101,33 @@
                 });
                 if (buf) chunks.push(buf);
                 if (!chunks.length || typeof Audio === 'undefined') return fail();
-                var failed = false;
-                (function next(i) {
+                var failed = false, good = 0;
+                var ENDPOINTS = [                                   // thử lần lượt; địa chỉ nào chạy được thì nhớ cho các khúc sau
+                    function (q) { return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + tl + '&q=' + q; },
+                    function (q) { return 'https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=' + tl + '&q=' + q; },
+                    function (q) { return 'https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&tl=' + tl + '&q=' + q; }
+                ];
+                audioCtor(function (C) { (function next(i) {
                     if (my !== tok || i >= chunks.length) return;
-                    var a = new Audio(), done = false;
-                    function step(err) { if (done) return; done = true; if (audio === a) audio = null; if (err && i === 0) { if (!failed) { failed = true; fail(); } return; } next(i + 1); }
-                    audio = a; a.preload = 'auto'; a.referrerPolicy = 'no-referrer';
-                    a.onended = function () { step(false); };
-                    a.onerror = function () { step(true); };
-                    a.src = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(chunks[i]);
-                    var p = a.play();
-                    if (p && p.catch) p.catch(function (e) { var n = e && e.name; if (n === 'AbortError' || n === 'NotSupportedError') return; step(true); });
-                })(0);
+                    (function tryUrl(k, tried) {
+                        if (my !== tok) return;
+                        var a = new C(), done = false, q = encodeURIComponent(chunks[i]);
+                        function step(err, why) {
+                            if (done) return; done = true; if (audio === a) audio = null;
+                            if (!err) { good = k; return next(i + 1); }
+                            if (global.console) console.warn('[pptxPlayer] Google TTS lỗi (' + why + '): ' + ENDPOINTS[k]('…'));
+                            if (why !== 'NotAllowedError' && tried + 1 < ENDPOINTS.length) return tryUrl((k + 1) % ENDPOINTS.length, tried + 1);
+                            if (i === 0) { if (!failed) { failed = true; fail(); } return; }
+                            next(i + 1);
+                        }
+                        audio = a; a.preload = 'auto';
+                        a.onended = function () { step(false); };
+                        a.onerror = function () { step(true, 'MediaError ' + (a.error ? a.error.code : '?')); };
+                        a.src = ENDPOINTS[k](q);
+                        var p = a.play();
+                        if (p && p.catch) p.catch(function (e) { var n = e && e.name; if (n === 'AbortError' || n === 'NotSupportedError') return; step(true, n || 'play'); });
+                    })(good, 0);
+                })(0); });
             }
             function go(vs) {
                 if (my !== tok) return;
