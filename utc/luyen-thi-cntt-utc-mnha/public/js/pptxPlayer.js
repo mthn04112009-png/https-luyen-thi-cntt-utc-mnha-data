@@ -3025,26 +3025,27 @@
     // [BỔ SUNG] ĐỌC LỜI GIẢNG TIẾNG VIỆT khi chạy từng hiệu ứng (Web Speech API, giọng vi-VN của trình duyệt)
     //   Lời giảng lấy từ Ghi chú slide (xem loadNarration). Chia câu để Chrome không cắt giữa chừng khi đoạn dài.
     // ============================================================
+    // [BỔ SUNG] Thứ tự: (1) giọng TTS có sẵn của trình duyệt; (2) nếu thiếu giọng ngôn ngữ đó → đọc trực tiếp bằng Google Dịch (trình duyệt tự tải, không qua server).
+    //   Tắt (2) bằng new Player(el, deck, { googleTts: false }) hoặc window.PPTX_GOOGLE_TTS = false.
     var Narrator = (function () {
         var synth = (typeof window !== 'undefined' && window.speechSynthesis) || null;
-        var keep = [], tok = 0, warned = {}, api = null;
+        var keep = [], tok = 0, warned = {}, api = null, audio = null;
+        var cfg = { google: true };
         function stop() {
             tok++; keep.length = 0;
+            if (audio) { try { audio.pause(); } catch (e) { /* bỏ qua */ } audio = null; }
             try { if (synth && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* bỏ qua */ }
         }
-        /** lang: mã ngôn ngữ (vi, en, zh, ja, de, …; không ghi thì đoán theo chữ). Chọn đúng giọng; thiếu giọng → báo (onNoVoice) và để trình duyệt tự chọn theo lang. */
+        /** lang: mã ngôn ngữ (vi, en, zh, ja, de, …; không ghi thì đoán theo chữ). */
         function speak(text, lang) {
             stop();
-            if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined' || !text) return false;
+            if (!text) return false;
+            var canSpeech = !!synth && typeof window.SpeechSynthesisUtterance !== 'undefined';
             var tag = Lang.norm(lang || Lang.detect(text)), my = tok;
-            Lang.loadVoices(synth).then(function (vs) {
-                if (my !== tok) return;
-                var voice = Lang.pick(vs, tag);
-                if (!voice && !warned[tag]) {
-                    warned[tag] = true;
-                    if (global.console) console.warn('[pptxPlayer] Không có giọng ' + Lang.name(tag) + ' (' + Lang.locale(tag) + ') trong trình duyệt. Giọng sẵn có:', vs.map(function (v) { return v.name + ' [' + v.lang + ']'; }));
-                    if (api && api.onNoVoice) api.onNoVoice(tag);
-                }
+            if (!canSpeech && typeof Audio === 'undefined') return false;
+
+            function viaSpeech(voice) {
+                if (!canSpeech || my !== tok) return;
                 var parts = (String(text).match(/[^.!?:;。！？；：\n]+[.!?:;。！？；：]?/g) || [String(text)]).map(function (x) { return x.trim(); }).filter(Boolean);
                 setTimeout(function () {                  // Chrome: cancel() rồi speak() ngay dễ bị nuốt → hoãn nhẹ
                     if (my !== tok) return;
@@ -3056,16 +3057,61 @@
                         keep.push(u); synth.speak(u);
                     });
                 }, 80);
-            });
+            }
+            function noVoice(vs) {
+                if (warned[tag]) return;
+                warned[tag] = true;
+                if (global.console) console.warn('[pptxPlayer] Không có giọng ' + Lang.name(tag) + ' (' + Lang.locale(tag) + ') trong trình duyệt và không tải được từ Google Dịch. Giọng sẵn có:', (vs || []).map(function (v) { return v.name + ' [' + v.lang + ']'; }));
+                if (api && api.onNoVoice) api.onNoVoice(tag);
+            }
+            /** Đọc TRỰC TIẾP bằng giọng Google Dịch: trình duyệt của người dùng tải thẳng từ Google (không đi qua server/VPS → không tốn băng thông). Chia đoạn ≤180 ký tự, phát nối tiếp. */
+            function playGoogle(fail) {
+                var tl = Lang.base(tag) === 'zh' ? (/TW|HK|Hant/i.test(tag) ? 'zh-TW' : 'zh-CN') : Lang.base(tag);
+                var chunks = [], buf = '';
+                (String(text).match(/[^.!?:;。！？；：\n]+[.!?:;。！？；：]?/g) || [String(text)]).forEach(function (sn) {
+                    sn = sn.trim(); if (!sn) return;
+                    while (sn.length > 180) {                       // câu quá dài: cắt ở dấu phẩy/khoảng trắng gần nhất
+                        var cut = Math.max(sn.lastIndexOf(',', 180), sn.lastIndexOf('，', 180), sn.lastIndexOf(' ', 180));
+                        if (cut < 60) cut = 180;
+                        if (buf) { chunks.push(buf); buf = ''; }
+                        chunks.push(sn.slice(0, cut + 1).trim()); sn = sn.slice(cut + 1).trim();
+                    }
+                    if (!sn) return;
+                    if ((buf + ' ' + sn).length <= 180) buf = buf ? buf + ' ' + sn : sn; else { if (buf) chunks.push(buf); buf = sn; }
+                });
+                if (buf) chunks.push(buf);
+                if (!chunks.length || typeof Audio === 'undefined') return fail();
+                var failed = false;
+                (function next(i) {
+                    if (my !== tok || i >= chunks.length) return;
+                    var a = new Audio(), done = false;
+                    function step(err) { if (done) return; done = true; if (audio === a) audio = null; if (err && i === 0) { if (!failed) { failed = true; fail(); } return; } next(i + 1); }
+                    audio = a; a.preload = 'auto'; a.referrerPolicy = 'no-referrer';
+                    a.onended = function () { step(false); };
+                    a.onerror = function () { step(true); };
+                    a.src = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(chunks[i]);
+                    var p = a.play();
+                    if (p && p.catch) p.catch(function (e) { var n = e && e.name; if (n === 'AbortError' || n === 'NotSupportedError') return; step(true); });
+                })(0);
+            }
+            function go(vs) {
+                if (my !== tok) return;
+                var voice = canSpeech ? Lang.pick(vs, tag) : null;
+                if (voice) return viaSpeech(voice);                       // 1) giọng của trình duyệt
+                if (!cfg.google) { noVoice(vs); return viaSpeech(null); }
+                playGoogle(function () { noVoice(vs); viaSpeech(null); });  // 2) Google Dịch; lỗi → báo thiếu giọng
+            }
+            if (canSpeech) Lang.loadVoices(synth).then(go); else go([]);
             return true;
         }
-        api = { speak: speak, stop: stop, supported: !!synth, onNoVoice: null };
+        api = { speak: speak, stop: stop, supported: !!synth || typeof Audio !== 'undefined', onNoVoice: null, config: cfg };
         return api;
     })();
 
     function Player(container, deck, opts) {
         this.container = container; this.deck = deck; this.opts = opts || {};
         this.narration = this.opts.narration !== false;                 // [BỔ SUNG] false = tắt đọc lời giảng ngay từ đầu
+        Narrator.config.google = this.opts.googleTts === false || global.PPTX_GOOGLE_TTS === false ? false : true;   // đọc trực tiếp bằng Google Dịch khi thiếu giọng
         try { if (global.localStorage && global.localStorage.getItem('pp_narration') === '0') this.narration = false; } catch (e) { /* bỏ qua */ }
         this.cur = -1; this.step = 0; this.live = []; this.busy = false; this.timers = [];
         this.autoAdvance = !!this.opts.autoAdvance;
@@ -3095,7 +3141,7 @@
         this._narrBtn = b; this.frame.appendChild(b); this._paintNarrBtn();
         Narrator.onNoVoice = function (lang) {
             var nm = Lang.name(lang);
-            self._toast('Máy chưa có giọng ' + nm + ' nên lời giảng có thể bị đọc bằng giọng khác hoặc đọc sai. Hãy dùng Microsoft Edge (nhiều giọng "Online (Natural)") hoặc cài thêm giọng ' + nm + ' trong cài đặt Windows/Android.');
+            self._toast('Máy chưa có giọng ' + nm + ' và không tải được giọng đọc trực tiếp từ Google (có thể mạng chặn translate.google.com). Hãy dùng Microsoft Edge / cài thêm giọng ' + nm + ' trong Windows.');
         };
     };
     Player.prototype._toast = function (msg) {
