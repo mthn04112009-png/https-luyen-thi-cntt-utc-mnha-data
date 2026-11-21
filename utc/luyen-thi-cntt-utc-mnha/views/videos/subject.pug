@@ -60,8 +60,10 @@ block content
                                 i(data-lucide=app.icon, class="w-6 h-6 text-indigo-600")
                             div(class="flex flex-wrap justify-end gap-2")
                                 span(class="px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 text-xs font-medium") #{f.videoCount || (f.videos ? f.videos.length : 0)} video
-                                if f.isPublished === false
-                                    span(class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium") Chưa công khai
+                                if f.visibility === 'users' && user && user.role === 'admin'
+                                    span(class="px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium") Chỉ #{(f.allowedUserIds || []).length} người
+                                else if f.isPublished === false || f.visibility === 'private'
+                                    span(class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium") Không công khai
                         h2(class="mt-4 text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors")= f.title
                         if f.description
                             p(class="mt-2 text-sm text-gray-500 line-clamp-2")= f.description

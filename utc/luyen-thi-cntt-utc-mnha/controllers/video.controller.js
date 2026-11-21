@@ -6,7 +6,10 @@
 //   GET  /videos/study/:vid               Xem bài: các video xếp dọc, tự co giãn theo khung
 //   --- admin ---
 //   GET  /videos/dashboard, /dashboard/new, /dashboard/:vid/edit
-//   POST /videos/dashboard                tạo mới   { subjectId, title, description, isPublished, videos:[{id?,title,code}] }
+//   GET  /videos/dashboard/users?q=       tìm người (họ tên / email / 1 đoạn tên) để chọn "Chỉ hiển thị với"
+//   POST /videos/dashboard                tạo mới   { subjectId, title, description, visibility, allowedUserIds, videos:[{id?,title,code}] }
+//   CHẾ ĐỘ HIỂN THỊ (visibility): public = mọi sinh viên | private = chỉ admin | users = chỉ những người được chọn
+//     (id user lưu trong JSON video trên GitHub: allowedUserIds). Admin luôn thấy hết.
 //   POST /videos/dashboard/:vid           sửa
 //   POST /videos/dashboard/:vid/publish | /delete
 //
@@ -22,13 +25,14 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 
 const Subject = require('../models/Subject');
+const User = require('../models/User');
 const Video = require('../models/Video');
 const githubService = require('../services/githubService');
 const githubSync = require('../services/githubSyncService');
 const videoCrypto = require('../services/videoCryptoService');
 const { parseEmbed } = require('../services/videoEmbedService');
 const cfg = require('../config/videoConfig');
-const { getContentScope } = require('../services/userKeyService');
+const { getContentScope, getActor, buildUserListFilter } = require('../services/userKeyService');
 const { paginateArray } = require('./pagination.controller');
 const { getSearchTerm, buildSearchClause, withSearch } = require('../utils/search');
 
@@ -47,6 +51,8 @@ const isObjectId = (v) => mongoose.Types.ObjectId.isValid(String(v || '')) && St
 // JSON nhúng vào <script type="application/json">: thoát "<" để mã nhúng (<iframe…) không đóng thẻ script sớm
 const safeJson = (v) => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 const ITEM_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+const VISIBILITIES = ['public', 'private', 'users'];
+const viewerId = (req) => String((req.user && req.user._id) || '');
 
 function slugify(s) {
     const out = String(s || '')
@@ -62,11 +68,16 @@ function readForm(body) {
     const b = body || {};
     const title = String(b.title || '').trim();
     const description = String(b.description || '').trim();
-    const isPublished = !(b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0');
+    const legacyHidden = b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0';
+    // visibility mới; client cũ chỉ gửi isPublished → suy ra public/private
+    const visibility = VISIBILITIES.includes(b.visibility) ? b.visibility : (legacyHidden ? 'private' : 'public');
+    const isPublished = visibility !== 'private';
+    const allowedUserIds = visibility === 'users' && Array.isArray(b.allowedUserIds) ? b.allowedUserIds : [];
     if (!title) return { error: 'Vui lòng nhập tiêu đề.' };
     if (title.length > L.MAX_TITLE_LEN) return { error: `Tiêu đề tối đa ${L.MAX_TITLE_LEN} ký tự.` };
     if (description.length > L.MAX_DESC_LEN) return { error: `Mô tả tối đa ${L.MAX_DESC_LEN} ký tự.` };
-    return { title, description, isPublished };
+    if (visibility === 'users' && !allowedUserIds.length) return { error: 'Hãy chọn ít nhất 1 người được xem (hoặc đổi sang chế độ khác).' };
+    return { title, description, isPublished, visibility, allowedUserIds };
 }
 
 /** Giải mã 1 video đã lưu → { code } | { error } (không bao giờ ném lỗi). */
@@ -110,6 +121,30 @@ function buildVideos(list, existing) {
     return { videos: out };
 }
 
+/**
+ * Kiểm tra danh sách id người được xem: tồn tại, là sinh viên, và nằm trong phạm vi người dùng mà admin này quản lý.
+ * Trả { ids:[hex] } | { error }
+ */
+async function resolveAllowedUsers(req, rawIds) {
+    const ids = [...new Set((Array.isArray(rawIds) ? rawIds : []).map((x) => String(x || '').toLowerCase()).filter(isObjectId))];
+    if (!ids.length) return { ids: [] };
+    if (ids.length > L.MAX_ALLOWED_USERS) return { error: `Tối đa ${L.MAX_ALLOWED_USERS} người cho mỗi bài.` };
+    const actor = await getActor(req);
+    const found = await User.find({ $and: [buildUserListFilter(actor), { role: 'student' }, { _id: { $in: ids } }] }).select('_id').lean();
+    if (found.length !== ids.length) return { error: 'Có người được chọn không còn hợp lệ (không phải sinh viên của bạn). Hãy chọn lại.' };
+    return { ids };
+}
+
+/** Thông tin hiển thị (tên, email) của các id đã lưu — dùng khi mở form sửa. Id không còn tồn tại thì bỏ qua. */
+async function describeUsers(req, ids) {
+    const list = (Array.isArray(ids) ? ids : []).filter(isObjectId);
+    if (!list.length) return [];
+    const actor = await getActor(req);
+    const users = await User.find({ $and: [buildUserListFilter(actor), { _id: { $in: list } }] }).select('name email').lean();
+    const by = new Map(users.map((u) => [String(u._id), u]));
+    return list.filter((id) => by.has(id)).map((id) => ({ id, name: by.get(id).name || '', email: by.get(id).email || '' }));
+}
+
 // ------------------------------------------------------------
 // Quyền / truy vấn dùng chung
 // ------------------------------------------------------------
@@ -138,9 +173,20 @@ async function findSubject(req, scope, param) {
     return subject && scope.canAccess(subject) ? subject : null;
 }
 
-const itemFilter = (req, scope, extra) => ({
-    isDeleted: { $ne: true }, ...(isAdmin(req) ? {} : { isPublished: true }), ...scope.filter, ...(extra || {})
-});
+/** Người xem có được thấy bài này không (chế độ "users" chỉ cho những id đã chọn). Admin luôn thấy. */
+const canSeeRecord = (req, rec) => {
+    if (isAdmin(req)) return true;
+    if (!rec || rec.isPublished === false || rec.visibility === 'private') return false;
+    if (rec.visibility === 'users') return (rec.allowedUserIds || []).map(String).includes(viewerId(req));
+    return true;
+};
+
+const itemFilter = (req, scope, extra) => {
+    const base = { isDeleted: { $ne: true }, ...(isAdmin(req) ? {} : { isPublished: true }), ...scope.filter, ...(extra || {}) };
+    if (isAdmin(req)) return base;
+    // $and để không đè $or của scope.filter
+    return { $and: [base, { visibility: { $ne: 'private' } }, { $or: [{ visibility: { $ne: 'users' } }, { allowedUserIds: viewerId(req) }] }] };
+};
 
 async function countBySubject(req, scope, subjectIds) {
     if (!subjectIds.length) return {};
@@ -152,7 +198,7 @@ async function countBySubject(req, scope, subjectIds) {
 
 async function loadVisible(req, scope, vid) {
     const rec = isObjectId(vid) ? await Video.findById(vid) : null;
-    if (!rec || rec.isDeleted || (!isAdmin(req) && !rec.isPublished) || !scope.canAccess(rec)) return null;
+    if (!rec || rec.isDeleted || !canSeeRecord(req, rec) || !scope.canAccess(rec)) return null;
     const subject = await findSubject(req, scope, String(rec.subjectId));
     return subject ? { rec, subject } : null;
 }
@@ -318,6 +364,27 @@ ctrl.dashboard = async (req, res) => {
     }
 };
 
+/** GET /videos/dashboard/users?q= — tìm sinh viên theo họ tên / email / 1 đoạn tên (không phân biệt hoa-thường, có/không dấu). */
+ctrl.searchUsers = async (req, res) => {
+    try {
+        const actor = await getActor(req);
+        const q = String(req.query.q || '').trim().slice(0, 100);
+        const conds = [buildUserListFilter(actor), { role: 'student', status: 'approved' }];
+        // Mỗi từ phải khớp họ tên HOẶC email (gõ "van an", "an@", "nguyen" … đều ra)
+        q.split(/\s+/).filter(Boolean).slice(0, 6).forEach((t) => { const c = buildSearchClause(t, ['name', 'email']); if (c) conds.push(c); });
+        const filter = { $and: conds };
+        const [users, total] = await Promise.all([
+            User.find(filter).select('name email').sort({ name: 1 }).limit(30).lean(),
+            User.countDocuments(filter)
+        ]);
+        res.set({ 'Cache-Control': 'private, no-store' });
+        return res.json({ success: true, total, users: users.map((u) => ({ id: String(u._id), name: u.name || '', email: u.email || '' })) });
+    } catch (e) {
+        console.error('[videos.searchUsers]', e);
+        return fail(res, 500, 'Không tìm được người dùng.');
+    }
+};
+
 async function renderForm(req, res, rec) {
     const scope = await getContentScope(req);
     const subjects = await adminSubjects(scope);
@@ -332,6 +399,9 @@ async function renderForm(req, res, rec) {
         subjectId: rec ? String(rec.subjectId) : (isObjectId(req.query.subject) ? String(req.query.subject) : ''),
         title: rec ? rec.title : '', description: rec ? rec.description || '' : '',
         isPublished: rec ? rec.isPublished !== false : true,
+        visibility: rec ? (VISIBILITIES.includes(rec.visibility) ? rec.visibility : (rec.isPublished === false ? 'private' : 'public')) : 'public',
+        allowedUsers: rec ? await describeUsers(req, rec.allowedUserIds) : [],
+        maxUsers: L.MAX_ALLOWED_USERS,
         videos, maxVideos: L.MAX_VIDEOS, maxEmbed: L.MAX_EMBED_LEN,
         encryptionReady: videoCrypto.isConfigured(),
         sha: rec ? ((await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null)) || {}).sha || null : null
@@ -394,6 +464,8 @@ ctrl.create = async (req, res) => {
         if (notReady) return fail(res, 503, notReady);
         const v = buildVideos((req.body || {}).videos, null);
         if (v.error) return fail(res, 400, v.error);
+        const au = await resolveAllowedUsers(req, f.allowedUserIds);
+        if (au.error) return fail(res, 400, au.error);
 
         await githubSync.syncKinds([app.key]);
         let slug = slugify(f.title);
@@ -410,7 +482,8 @@ ctrl.create = async (req, res) => {
             title: f.title, slug, subjectSlug: ctx.subject.slug, description: f.description,
             videos: v.videos, videoCount: v.videos.length,
             encrypted: true, encryption: 'aes-256-gcm',
-            order: 0, isPublished: f.isPublished, isDeleted: false, deletedAt: null, deletedBy: null,
+            order: 0, isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids,
+            isDeleted: false, deletedAt: null, deletedBy: null,
             createdBy: String(req.user._id), updatedBy: String(req.user._id), createdAt: nowIso, updatedAt: nowIso
         }, `${app.name}: tạo "${f.title}"`);
 
@@ -418,7 +491,7 @@ ctrl.create = async (req, res) => {
             _id: id, githubSha: w && w.sha ? w.sha : null,
             subjectId: ctx.subject._id, title: f.title, slug, description: f.description, githubFile: jsonFile,
             videos: v.videos, videoCount: v.videos.length,
-            isPublished: f.isPublished, userKey: ctx.subject.userKey || null,
+            isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, userKey: ctx.subject.userKey || null,
             createdBy: req.user._id, updatedBy: req.user._id
         });
         return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
@@ -442,6 +515,8 @@ ctrl.update = async (req, res) => {
         if (notReady) return fail(res, 503, notReady);
         const v = buildVideos((req.body || {}).videos, rec.videos);
         if (v.error) return fail(res, 400, v.error);
+        const au = await resolveAllowedUsers(req, f.allowedUserIds);
+        if (au.error) return fail(res, 400, au.error);
 
         const file = await githubService.readJsonFileWithSha(rec.githubFile);
         if (!file) return fail(res, 404, 'Không đọc được dữ liệu trên GitHub.');
@@ -450,11 +525,13 @@ ctrl.update = async (req, res) => {
         const written = await githubService.writeJsonFileIfSha(rec.githubFile, Object.assign({}, file.data, {
             type: 'video',
             title: f.title, description: f.description, isPublished: f.isPublished,
+            visibility: f.visibility, allowedUserIds: au.ids,
             videos: v.videos, videoCount: v.videos.length, encrypted: true, encryption: 'aes-256-gcm',
             subjectSlug: ctx.subject.slug, updatedBy: String(req.user._id), updatedAt: new Date().toISOString()
         }), file.sha, `${app.name}: sửa "${f.title}"`);
 
         rec.title = f.title; rec.description = f.description; rec.isPublished = f.isPublished;
+        rec.visibility = f.visibility; rec.allowedUserIds = au.ids;
         rec.videos = v.videos; rec.videoCount = v.videos.length;
         rec.updatedBy = req.user._id;
         rec.githubSha = written && written.sha ? written.sha : rec.githubSha;
@@ -473,10 +550,13 @@ ctrl.togglePublish = async (req, res) => {
         const scope = await getContentScope(req);
         const rec = isObjectId(req.params.vid) ? await Video.findById(req.params.vid) : null;
         if (!rec || rec.isDeleted || !scope.canAccess(rec)) return fail(res, 404, `Không tìm thấy ${app.noun}.`);
-        rec.isPublished = !rec.isPublished;
+        // public → private; private → public; users (chỉ một số người) → private. Danh sách người được chọn giữ nguyên.
+        const cur = VISIBILITIES.includes(rec.visibility) ? rec.visibility : (rec.isPublished === false ? 'private' : 'public');
+        rec.visibility = cur === 'private' ? 'public' : 'private';
+        rec.isPublished = rec.visibility !== 'private';
         rec.updatedBy = req.user._id;
-        await rec.save();     // githubStore tự ghi lại file JSON (isPublished, updatedBy)
-        return res.json({ success: true, isPublished: rec.isPublished });
+        await rec.save();     // githubStore tự ghi lại file JSON (isPublished, visibility, updatedBy)
+        return res.json({ success: true, isPublished: rec.isPublished, visibility: rec.visibility });
     } catch (e) {
         console.error('[videos.togglePublish]', e);
         return fail(res, 500, 'Không đổi được trạng thái công khai.');
@@ -498,5 +578,5 @@ ctrl.remove = async (req, res) => {
     }
 };
 
-ctrl._test = { readForm, buildVideos, openItem, slugify };
+ctrl._test = { readForm, buildVideos, openItem, slugify, canSeeRecord, itemFilter };
 module.exports = ctrl;

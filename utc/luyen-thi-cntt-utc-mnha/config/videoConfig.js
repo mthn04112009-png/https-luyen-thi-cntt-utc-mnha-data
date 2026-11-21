@@ -19,7 +19,8 @@ const LIMITS = {
     MAX_DESC_LEN: 1000,
     MAX_VIDEO_TITLE_LEN: 150,
     MAX_EMBED_LEN: 4000,       // độ dài tối đa của mã nhúng dán vào
-    MAX_ENC_LEN: 8192          // độ dài tối đa của chuỗi đã mã hoá
+    MAX_ENC_LEN: 8192,         // độ dài tối đa của chuỗi đã mã hoá
+    MAX_ALLOWED_USERS: 300     // số người tối đa trong chế độ "Chỉ hiển thị với"
 };
 
 // Cho nhúng MỌI nguồn (YouTube, Vimeo, ok.ru, vk.com, Drive…) miễn là https.

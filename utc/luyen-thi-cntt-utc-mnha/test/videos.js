@@ -21,9 +21,29 @@ const SUBJ = { _id: new ObjectId(subjId), slug: 'dai-so-1', name: 'Đại số',
 subjects.push(SUBJ);
 fakeModels.Subject.findOne = async (c) => (String(c._id) === subjId || c.slug === 'dai-so-1' ? SUBJ : null);
 fakeModels.Subject.findById = async (id) => (String(id) === subjId ? SUBJ : null);
-inject('services/userKeyService.js', { getContentScope: async () => ({ filter: {}, canAccess: () => true }) });
+// Người dùng giả cho tìm kiếm / kiểm tra "Chỉ hiển thị với"
+const USERS = [
+    { _id: new ObjectId(), name: 'Nguyễn Văn An', email: 'an.nguyen@utc.edu.vn', role: 'student', status: 'approved' },
+    { _id: new ObjectId(), name: 'Trần Thị Bình', email: 'binh.tran@gmail.com', role: 'student', status: 'approved' },
+    { _id: new ObjectId(), name: 'Lê Đức Cường', email: 'cuong@utc.edu.vn', role: 'student', status: 'approved' },
+    { _id: new ObjectId(), name: 'Admin Phụ', email: 'adm@utc.edu.vn', role: 'admin', status: 'approved' }
+];
+const stripV = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+// Bộ lọc tối giản đủ cho các truy vấn của controller: $and, $or, _id.$in, role, status, regex name/email
+const userMatch = (u, f) => Object.keys(f || {}).every((k) => {
+    const c = f[k];
+    if (k === '$and') return c.every((x) => userMatch(u, x));
+    if (k === '$or') return c.some((x) => userMatch(u, x));
+    if (k === '_id') return c && c.$in ? c.$in.map(String).includes(String(u._id)) : false;
+    if (c instanceof RegExp) return c.test(stripV(u[k])) || c.test(u[k]);
+    return u[k] === c;
+});
+const userFind = (f) => { let list = USERS.filter((u) => userMatch(u, f)); const q = { select() { return q; }, sort() { list = list.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')); return q; }, limit(n) { list = list.slice(0, n); return q; }, lean: async () => list.map((u) => ({ _id: u._id, name: u.name, email: u.email })), then(res, rej) { return q.lean().then(res, rej); } }; return q; };
+inject('models/User.js', { find: userFind, countDocuments: async (f) => USERS.filter((u) => userMatch(u, f)).length });
+inject('services/userKeyService.js', { getContentScope: async () => ({ filter: {}, canAccess: () => true }), getActor: async () => ({ role: 'admin', userKey: null }), buildUserListFilter: () => ({}) });
 inject('controllers/pagination.controller.js', { paginateArray: (a) => ({ items: a, pagination: {} }) });
-inject('utils/search.js', { getSearchTerm: () => '', buildSearchClause: () => null, withSearch: (f) => f });
+const realSearch = require(R + '/utils/search');
+inject('utils/search.js', { getSearchTerm: () => '', buildSearchClause: realSearch.buildSearchClause, withSearch: (f) => f });
 h.mongooseStub.Types.ObjectId.isValid = (v) => /^[a-f0-9]{24}$/i.test(String(v));
 
 const embed = require(R + '/services/videoEmbedService');
@@ -173,6 +193,93 @@ const VK = '<iframe src="https://vk.com/video_ext.php?oid=-1&id=2&hash=abc" widt
         await sync.syncKinds(['videos'], { force: true });
         const list = await Video.find({ isDeleted: { $ne: true } }).lean();
         const r = list.find((x) => x.title === 'Hỏng'); assert.ok(r); assert.strictEqual(r.videos.length, 1); assert.strictEqual(r.videos[0].id, 'ok1');
+    });
+
+
+    console.log('Chế độ hiển thị (công khai / không công khai / chỉ một số người)');
+    let vid2, file2;
+    const [uAn, uBinh, uCuong] = USERS;
+    const asStu = (u) => Object.assign({}, u);
+    await t('tìm người: theo họ tên có dấu / không dấu / một đoạn tên / email / nhiều từ; chỉ trả sinh viên đã duyệt', async () => {
+        const ids = async (q) => (await call(ctrl.searchUsers, { query: { q } })).body.users.map((u) => u.name);
+        assert.deepStrictEqual(await ids('Nguyễn Văn'), ['Nguyễn Văn An']);
+        assert.deepStrictEqual(await ids('nguyen van'), ['Nguyễn Văn An']);
+        assert.deepStrictEqual(await ids('binh'), ['Trần Thị Bình']);
+        assert.deepStrictEqual(await ids('uong'), ['Lê Đức Cường']);              // chỉ 1 đoạn giữa tên
+        assert.deepStrictEqual(await ids('gmail'), ['Trần Thị Bình']);            // theo email
+        assert.deepStrictEqual(await ids('an utc'), ['Nguyễn Văn An']);           // nhiều từ: tên + email
+        assert.strictEqual((await ids('')).length, 3);                            // không có admin
+        assert.strictEqual((await ids('Admin')).length, 0);
+        assert.strictEqual((await ids('khong-co-ai')).length, 0);
+    });
+    await t('tạo bài "users": lưu id người được chọn vào JSON GitHub; thiếu người → 400; id lạ → 400', async () => {
+        const body = (extra) => Object.assign({ subjectId: subjId, title: 'Riêng tư cho vài người', videos: [{ code: YT }], visibility: 'users' }, extra);
+        assert.strictEqual((await call(ctrl.create, { body: body({ allowedUserIds: [] }) })).code, 400);
+        assert.strictEqual((await call(ctrl.create, { body: body({ allowedUserIds: [new ObjectId().toHexString()] }) })).code, 400);
+        assert.strictEqual((await call(ctrl.create, { body: body({ allowedUserIds: [String(uAn._id), String(USERS[3]._id)] }) })).code, 400);   // admin không phải sinh viên
+        const r = await call(ctrl.create, { body: body({ allowedUserIds: [String(uAn._id), String(uBinh._id), String(uAn._id)] }) });
+        assert.ok(r.body.success, r.body.message); vid2 = r.body.id;
+        const rec = await Video.findById(vid2); file2 = rec.githubFile;
+        const j = JSON.parse(repo.files.get(file2).text);
+        assert.strictEqual(j.visibility, 'users'); assert.strictEqual(j.isPublished, true);
+        assert.deepStrictEqual(j.allowedUserIds.sort(), [String(uAn._id), String(uBinh._id)].sort());   // không trùng
+    });
+    await t('chỉ người được chọn (và admin) xem được; người khác → 404, không thấy trong danh sách/đếm', async () => {
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uAn), params: { vid: vid2 } })).code, 200);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uBinh), params: { vid: vid2 } })).code, 200);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uCuong), params: { vid: vid2 } })).code, 404);
+        assert.strictEqual((await call(ctrl.study, { params: { vid: vid2 } })).code, 200);                  // admin
+        assert.strictEqual((await call(ctrl.play, { user: asStu(uCuong), params: { vid: vid2, item: Video && (await Video.findById(vid2)).videos[0].id } })).code, 404);
+        const list = async (u) => (await call(ctrl.getSubject, { user: u, params: { id: subjId } })).rendered[1].items.map((x) => String(x._id));
+        assert.ok((await list(asStu(uAn))).includes(vid2)); assert.ok(!(await list(asStu(uCuong))).includes(vid2)); assert.ok((await list(ADMIN)).includes(vid2));
+        const vd = (await call(ctrl.study, { user: asStu(uAn), params: { vid: vid2 } })).rendered[1].vd;
+        assert.ok(vd.siblings.some((x) => x.id === vid2));                                                 // người được chọn thấy bài trong danh sách bài cùng môn
+        const vdC = (await call(ctrl.study, { user: asStu(uBinh), params: { vid: vid2 } })).rendered[1].vd;
+        assert.ok(vdC.siblings.some((x) => x.id === vid2));
+        const hidden = (await call(ctrl.study, { user: asStu(uCuong), params: { vid: vid2 } }));
+        assert.strictEqual(hidden.code, 404); assert.ok(!JSON.stringify(hidden.rendered || '').includes('Riêng tư cho vài người'));   // không lộ tiêu đề
+    });
+    await t('nạp lại từ GitHub: giữ visibility + allowedUserIds; form sửa trả tên + email người đã chọn', async () => {
+        fakeModels.Subject.find = () => { const q = { sort() { return q; }, select() { return q; }, lean: async () => subjects.slice(), then(a, b) { return q.lean().then(a, b); } }; return q; };
+        await sync.syncKinds(['videos'], { force: true });
+        const rec = await Video.findById(vid2); assert.strictEqual(rec.visibility, 'users'); assert.strictEqual(rec.allowedUserIds.length, 2);
+        const st = JSON.parse((await call(ctrl.editForm, { params: { vid: vid2 } })).rendered[1].vfStateJson.replace(/\\u003c/g, '<'));
+        assert.strictEqual(st.visibility, 'users'); assert.strictEqual(st.allowedUsers.length, 2);
+        assert.ok(st.allowedUsers.some((u) => u.name === 'Nguyễn Văn An' && u.email === 'an.nguyen@utc.edu.vn'));
+    });
+    await t('sửa: đổi danh sách người; đổi sang công khai → xoá danh sách; JSON cũ (không visibility) vẫn đọc đúng', async () => {
+        let f = await svc.readJsonFileWithSha(file2);
+        let r = await call(ctrl.update, { params: { vid: vid2 }, body: { title: 'Riêng tư cho vài người', visibility: 'users', allowedUserIds: [String(uCuong._id)], sha: f.sha, videos: [{ code: YT }] } });
+        assert.ok(r.body.success, r.body.message);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uAn), params: { vid: vid2 } })).code, 404);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uCuong), params: { vid: vid2 } })).code, 200);
+        f = await svc.readJsonFileWithSha(file2);
+        r = await call(ctrl.update, { params: { vid: vid2 }, body: { title: 'Riêng tư cho vài người', visibility: 'public', allowedUserIds: [String(uCuong._id)], sha: f.sha, videos: [{ code: YT }] } });
+        assert.ok(r.body.success, r.body.message);
+        const j = JSON.parse(repo.files.get(file2).text); assert.strictEqual(j.visibility, 'public'); assert.deepStrictEqual(j.allowedUserIds, []);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uAn), params: { vid: vid2 } })).code, 200);
+        put('subjects/dai-so-1/videos/cu_2.json', { title: 'JSON cũ ẩn', isPublished: false, videos: [{ id: 'o1', enc: vcrypto.encryptText(YT) }] });
+        put('subjects/dai-so-1/videos/cu_3.json', { title: 'JSON cũ công khai', isPublished: true, videos: [{ id: 'o1', enc: vcrypto.encryptText(YT) }] });
+        await sync.syncKinds(['videos'], { force: true });
+        const all = await Video.find({ isDeleted: { $ne: true } }).lean();
+        assert.strictEqual(all.find((x) => x.title === 'JSON cũ ẩn').visibility, 'private');
+        assert.strictEqual(all.find((x) => x.title === 'JSON cũ công khai').visibility, 'public');
+    });
+    await t('chế độ "private" (không công khai): sinh viên không thấy, admin thấy; client cũ chỉ gửi isPublished:false vẫn hoạt động', async () => {
+        const r = await call(ctrl.create, { body: { subjectId: subjId, title: 'Không công khai', isPublished: false, videos: [{ code: YT }] } });
+        assert.ok(r.body.success, r.body.message);
+        const rec = await Video.findById(r.body.id); assert.strictEqual(rec.visibility, 'private'); assert.strictEqual(rec.isPublished, false);
+        assert.strictEqual((await call(ctrl.study, { user: asStu(uAn), params: { vid: r.body.id } })).code, 404);
+        assert.strictEqual((await call(ctrl.study, { params: { vid: r.body.id } })).code, 200);
+    });
+    await t('togglePublish: users → private (giữ danh sách), private → public', async () => {
+        let f = await svc.readJsonFileWithSha(file2);
+        await call(ctrl.update, { params: { vid: vid2 }, body: { title: 'T', visibility: 'users', allowedUserIds: [String(uAn._id)], sha: f.sha, videos: [{ code: YT }] } });
+        let r = await call(ctrl.togglePublish, { params: { vid: vid2 } });
+        assert.strictEqual(r.body.visibility, 'private'); assert.strictEqual(r.body.isPublished, false);
+        let j = JSON.parse(repo.files.get(file2).text); assert.strictEqual(j.visibility, 'private'); assert.strictEqual(j.isPublished, false); assert.deepStrictEqual(j.allowedUserIds, [String(uAn._id)]);
+        r = await call(ctrl.togglePublish, { params: { vid: vid2 } });
+        assert.strictEqual(r.body.visibility, 'public');
     });
 
     console.log(`\n${pass} test đạt`);

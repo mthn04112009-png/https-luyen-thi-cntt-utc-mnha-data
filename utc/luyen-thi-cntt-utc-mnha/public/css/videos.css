@@ -111,3 +111,31 @@
 /* ---- Chế độ thanh điều khiển GỐC của YouTube (NATIVE_CONTROLS) ----
    Lớp chắn .vd-yt-shield phủ cả khung và được khoét lỗ (clip-path đặt trong videoYtPlayer.js, biến NATIVE_HOLES) đúng chỗ các nút gốc. */
 .vd-native .vd-yt-bar { display: none !important; }
+
+/* ---------- Form: chế độ hiển thị + chọn nhiều người ---------- */
+.vf-vis { display: grid; gap: .5rem; }
+.vf-vis-opt { display: flex; align-items: flex-start; gap: .65rem; padding: .7rem .85rem; border: 1px solid #d1d5db; border-radius: .75rem; background: #fff; cursor: pointer; }
+.vf-vis-opt:hover { border-color: #a5b4fc; background: #f5f7ff; }
+.vf-vis-opt input { margin-top: .25rem; accent-color: #4f46e5; flex: none; }
+.vf-vis-opt span { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.vf-vis-opt b { font-size: .9rem; color: #111827; font-weight: 600; }
+.vf-vis-opt small { font-size: .78rem; color: #6b7280; }
+.vf-vis-opt.on { border-color: #6366f1; background: #eef2ff; box-shadow: 0 0 0 1px #6366f1 inset; }
+.vf-users { margin-top: .9rem; padding: .9rem; border: 1px dashed #c7d2fe; border-radius: .75rem; background: #f8f9ff; }
+.vf-users.hidden { display: none; }
+.vf-users .sp-item-text small { margin-left: .5rem; color: #6b7280; font-size: .78rem; }
+.vf-users .sp-item.sp-selected .sp-item-text small { color: #6366f1; }
+.vf-users .sp-list { max-height: 200px; }
+.vf-users .sp-item .sp-check { visibility: hidden; }
+.vf-users .sp-item.sp-selected .sp-check { visibility: visible; }
+.vf-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
+.vf-chips:empty { display: none; }
+.vf-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .25rem .35rem .25rem .7rem; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: .8rem; }
+.vf-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vf-chip em { font-style: normal; color: #6366f1; font-size: .72rem; }
+.vf-chip button { flex: none; width: 1.3rem; height: 1.3rem; border: 0; border-radius: 999px; background: #c7d2fe; color: #3730a3; font-size: .85rem; line-height: 1; cursor: pointer; }
+.vf-chip button:hover { background: #a5b4fc; }
+.vf-chips-clear { border: 0; background: none; color: #dc2626; font-size: .78rem; cursor: pointer; padding: .25rem .4rem; }
+.vf-chips-clear:hover { text-decoration: underline; }
+@media (max-width: 640px) { .vf-users .sp-item-text small { display: block; margin-left: 0; } .vf-users .sp-item { height: 48px; } .vf-users .sp-list { max-height: 240px; } }
+

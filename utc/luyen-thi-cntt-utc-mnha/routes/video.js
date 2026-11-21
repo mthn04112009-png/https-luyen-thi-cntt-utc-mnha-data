@@ -12,6 +12,7 @@ const admin = [requireAuth, requireRole('admin')];
 // --- ADMIN ---
 router.get('/dashboard',                ...admin, ctrl.dashboard);
 router.get('/dashboard/new',            ...admin, ctrl.newForm);
+router.get('/dashboard/users',          ...admin, ctrl.searchUsers);
 router.post('/dashboard',               ...admin, ctrl.create);
 router.get('/dashboard/:vid/edit',      ...admin, ctrl.editForm);
 router.post('/dashboard/:vid/publish',  ...admin, ctrl.togglePublish);

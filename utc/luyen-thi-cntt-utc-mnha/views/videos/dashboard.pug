@@ -50,7 +50,7 @@ block content
                                 th(class="px-4 py-3 font-medium") Tiêu đề
                                 th(class="px-4 py-3 font-medium") Môn học
                                 th(class="px-4 py-3 font-medium text-center") Số video
-                                th(class="px-4 py-3 font-medium text-center") Công khai
+                                th(class="px-4 py-3 font-medium text-center") Hiển thị
                                 th(class="px-4 py-3 font-medium text-right") Thao tác
                         tbody(class="divide-y divide-gray-100")
                             each f in items
@@ -62,11 +62,15 @@ block content
                                     td(class="px-4 py-3 text-gray-600")= f.subject ? f.subject.name : '—'
                                     td(class="px-4 py-3 text-center text-gray-700")= f.videoCount || (f.videos ? f.videos.length : 0)
                                     td(class="px-4 py-3 text-center")
+                                        - var vis = f.visibility === 'users' ? 'users' : (f.visibility === 'private' || f.isPublished === false ? 'private' : 'public')
+                                        - var nUsers = (f.allowedUserIds || []).length
                                         button(
                                             type="button",
                                             data-publish=String(f._id),
-                                            class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"))
-                                        )= f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn'
+                                            data-count=String(nUsers),
+                                            title=(vis === 'users' ? 'Chỉ hiển thị với một số người — bấm để chuyển sang Không công khai (danh sách người vẫn được giữ). Muốn đổi danh sách: bấm Sửa.' : (vis === 'private' ? 'Bấm để chuyển sang Công khai' : 'Bấm để chuyển sang Không công khai')),
+                                            class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (vis === 'public' ? "bg-green-100 text-green-700" : (vis === 'users' ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600")))
+                                        )= vis === 'public' ? 'Công khai' : (vis === 'users' ? ('Chỉ ' + nUsers + ' người') : 'Không công khai')
                                     td(class="px-4 py-3 text-right whitespace-nowrap")
                                         a(href=(app.base + "/study/" + f._id), class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200") Xem
                                         a(href=(app.base + "/dashboard/" + f._id + "/edit"), class="ml-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100") Sửa
@@ -87,8 +91,10 @@ block content
                         post(BASE + '/dashboard/' + b.getAttribute('data-publish') + '/publish').then(function (d) {
                             b.disabled = false;
                             if (!d.success) { alert(d.message || 'Không đổi được trạng thái.'); return; }
-                            b.textContent = d.isPublished ? 'Đang công khai' : 'Đang ẩn';
-                            b.className = 'sl-pub px-2.5 py-1 rounded-full text-xs font-medium ' + (d.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
+                            var pub = d.visibility ? d.visibility === 'public' : !!d.isPublished;
+                            b.textContent = pub ? 'Công khai' : 'Không công khai';
+                            b.title = pub ? 'Bấm để chuyển sang Không công khai' : 'Bấm để chuyển sang Công khai';
+                            b.className = 'sl-pub px-2.5 py-1 rounded-full text-xs font-medium ' + (pub ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
                         });
                     });
                 });
