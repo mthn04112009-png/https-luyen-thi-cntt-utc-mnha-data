@@ -166,7 +166,7 @@ block content
 
                                         if lesson.isPublished && lesson.visibility === 'users'
                                             span(class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium")
-                                                | Chỉ #{(lesson.allowedUserIds || []).length} người
+                                                | Chỉ #{[((lesson.allowedGroupIds || []).length ? (lesson.allowedGroupIds || []).length + ' nhóm' : ''), ((lesson.allowedUserIds || []).length ? (lesson.allowedUserIds || []).length + ' người' : '')].filter(Boolean).join(' + ')}
                                         else if lesson.isPublished
                                             span(class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium")
                                                 | Đã xuất bản
