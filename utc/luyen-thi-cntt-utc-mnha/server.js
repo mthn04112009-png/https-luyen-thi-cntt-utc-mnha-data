@@ -562,6 +562,9 @@ if (DATA_NODE) {
     });
 }
 
+// ★ Nạp sẵn NHÓM người dùng (userkeys/groups/index.json) vào RAM để lọc "Chỉ hiển thị với" (nhóm) chạy đồng bộ
+app.use(require("./services/groupService").warm);
+
 app.use("/auth", authRoutes);
 app.use("/subjects", subjectRoutes);
 app.use("/student/subjects", subjectRoutes);

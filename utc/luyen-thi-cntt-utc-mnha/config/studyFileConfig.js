@@ -79,7 +79,8 @@ const APPS = {
         key: 'slides', dir: 'slides', base: '/slides', idKey: 'slideId',
         name: 'Slide bài học', noun: 'slide', exts: ['pdf', 'ppt', 'pptx'],
         description: 'Xem và tải xuống slide bài học (PDF, PowerPoint) theo từng môn học.',
-        icon: 'presentation', viewer: 'slides', accept: '.pdf,.ppt,.pptx'
+        icon: 'presentation', viewer: 'slides', accept: '.pdf,.ppt,.pptx',
+        audience: true      // có "Chỉ hiển thị với" (công khai / không công khai / nhóm + tài khoản được chọn)
     },
     documents: {
         key: 'documents', dir: 'documents', base: '/documents', idKey: 'documentId',

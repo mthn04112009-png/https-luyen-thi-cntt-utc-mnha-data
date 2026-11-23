@@ -20,15 +20,17 @@ mixin audienceField(opts)
                 input(type="radio", name="auVisibility", value="users")
                 span
                     b Chỉ hiển thị với…
-                    small Chỉ những người bạn chọn (có thể chọn nhiều người) mới thấy.
+                    small Chỉ những NHÓM / TÀI KHOẢN bạn chọn mới thấy (chọn được nhiều).
         div(id="auUsersBox", class="vf-users hidden")
             div(class="flex items-center justify-between mb-2")
-                label(class="block text-sm font-medium text-gray-700") Người được xem
+                label(class="block text-sm font-medium text-gray-700") Nhóm & tài khoản được xem
                 span(id="auUsersCount", class="text-xs text-gray-500")
             div(id="auUserPicker", class="sp")
             div(id="auChips", class="vf-chips")
-            p(class="text-xs text-gray-500 mt-2") Tìm được theo họ tên (có/không dấu), email hoặc chỉ một đoạn tên. Chỉ hiện sinh viên đã được duyệt. Id người dùng được lưu trong file JSON trên GitHub.
+            div(id="auWarn", class="au-warn hidden")
+            p(class="text-xs text-gray-500 mt-2") Danh sách có 2 phần: 👥 Nhóm (tạo ở /admin/user-keys/groups) và 👤 Tài khoản. Tìm theo tên nhóm, họ tên (có/không dấu) hoặc email. Tài khoản đã nằm trong nhóm được chọn thì không cần chọn riêng (hệ thống sẽ báo lỗi và tự bỏ). Id được lưu trong file JSON trên GitHub.
         //- (tuỳ chọn) form HTML thường: 2 ô ẩn được JS cập nhật theo lựa chọn
         if o.hidden
             input(type="hidden", name="visibility", id="auHidVis")
             input(type="hidden", name="allowedUserIds", id="auHidIds")
+            input(type="hidden", name="allowedGroupIds", id="auHidGroups")

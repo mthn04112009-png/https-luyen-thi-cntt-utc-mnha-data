@@ -422,7 +422,7 @@ exports.create = async (req, res) => {
     // ★ "Ai được xem": công khai (mặc định) / không công khai / chỉ một số người
     const aud = audience.readAudience(body);
     if (aud.error) return fail(res, 400, aud.error);
-    const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+    const audUsers = await audience.resolveAudienceTargets(req, aud);
     if (audUsers.error) return fail(res, 400, audUsers.error);
 
     let slug = slugify(body.slug || c.title);
@@ -440,7 +440,7 @@ exports.create = async (req, res) => {
       type: 'quiz', lessonId: String(lessonId), title: c.title, slug, subjectSlug: subject.slug,
       duration: c.duration, promptId: c.promptId ? String(c.promptId) : null,
       analysisAiKeyIds: (c.analysisAiKeyIds || []).map(String),
-      isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids, isDeleted: false,
+      isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids, allowedGroupIds: audUsers.groupIds, isDeleted: false,
       createdBy: { id: String(req.user._id), name: req.user.name || '', email: req.user.email || '' },
       createdAt: nowIso, updatedAt: nowIso,
       contentHtml: c.contentHtml, quiz: c.built.quiz,
@@ -452,7 +452,7 @@ exports.create = async (req, res) => {
       quizCounts: c.built.counts, duration: c.duration, promptId: c.promptId,
       analysisAiKeyIds: c.analysisAiKeyIds || [],
       userKey: subject.userKey || null,
-      createdBy: req.user._id, isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids,
+      createdBy: req.user._id, isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids, allowedGroupIds: audUsers.groupIds,
     });
 
     try { await A.notifyNewLesson(lesson, subject); } catch (e) { console.warn('[quiz] notify:', e.message); }
@@ -477,11 +477,11 @@ exports.update = async (req, res) => {
     // ★ "Ai được xem": form không gửi gì → giữ nguyên chế độ hiện tại
     const aud = audience.readAudience(body);
     if (aud.error) return fail(res, 400, aud.error);
-    let audIds = (lesson.allowedUserIds || []).map(String), audVis = audience.visibilityOf(lesson), audPub = lesson.isPublished !== false;
+    let audIds = (lesson.allowedUserIds || []).map(String), audGroups = (lesson.allowedGroupIds || []).map(String), audVis = audience.visibilityOf(lesson), audPub = lesson.isPublished !== false;
     if (aud.provided) {
-      const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+      const audUsers = await audience.resolveAudienceTargets(req, aud);
       if (audUsers.error) return fail(res, 400, audUsers.error);
-      audIds = audUsers.ids; audVis = aud.visibility; audPub = aud.isPublished;
+      audIds = audUsers.ids; audGroups = audUsers.groupIds; audVis = aud.visibility; audPub = aud.isPublished;
     }
 
     const file = await A.ghRead(lesson.githubFile);
@@ -499,7 +499,7 @@ exports.update = async (req, res) => {
         subjectSlug: subj ? subj.slug : (prev.subjectSlug || null),
         duration: c.duration, promptId: c.promptId ? String(c.promptId) : null,
         analysisAiKeyIds: analysisIds.map(String),
-        isPublished: audPub, visibility: audVis, allowedUserIds: audIds,
+        isPublished: audPub, visibility: audVis, allowedUserIds: audIds, allowedGroupIds: audGroups,
         isDeleted: lesson.deletedAt ? true : (prev.isDeleted === true),
         createdAt: prev.createdAt || (lesson.createdAt ? new Date(lesson.createdAt).toISOString() : new Date().toISOString()),
         updatedAt: new Date().toISOString(),
@@ -513,7 +513,7 @@ exports.update = async (req, res) => {
     A.ghInvalidate(lesson.githubFile);
 
     lesson.title = c.title;
-    lesson.isPublished = audPub; lesson.visibility = audVis; lesson.allowedUserIds = audIds;
+    lesson.isPublished = audPub; lesson.visibility = audVis; lesson.allowedUserIds = audIds; lesson.allowedGroupIds = audGroups;
     lesson.duration = c.duration;
     lesson.promptId = c.promptId;
     lesson.quizCounts = c.built.counts;

@@ -22,6 +22,10 @@
 
     var mode = S.mode === 'theory' ? 'theory' : 'language';
     var dirty = false;
+    // "Chỉ hiển thị với…": cùng bộ chọn nhóm / tài khoản như Đề, Tài liệu, Slide (public/js/audiencePicker.js)
+    var ap = (window.AudiencePicker && S.audience) ? window.AudiencePicker.init({
+        state: S.audience, searchUrl: S.searchUrl, onError: function (m) { showMsg('err', m); }
+    }) : null;
 
     // ------------------------------------------------------------
     // Khởi tạo giá trị
@@ -322,13 +326,20 @@
         if (!els.title.value.trim()) { showMsg('err', 'Vui lòng nhập tiêu đề.'); els.title.focus(); return; }
         if (!els.content.value.trim()) { showMsg('err', 'Vui lòng nhập nội dung flashcard.'); els.content.focus(); return; }
 
+        var verr = ap && ap.validate();
+        if (verr) { showMsg('err', verr); return; }
+        var aud = ap ? ap.get() : null;
+
         var body = {
             subjectId: els.subject.value,
             title: els.title.value.trim(),
             description: els.desc.value.trim(),
             mode: mode,
             language: els.lang.value,
-            isPublished: els.pub.checked,
+            isPublished: aud ? aud.isPublished : els.pub.checked,
+            visibility: aud ? aud.visibility : undefined,
+            allowedUserIds: aud ? aud.allowedUserIds : undefined,
+            allowedGroupIds: aud ? aud.allowedGroupIds : undefined,
             content: els.content.value,
             sha: S.sha || undefined
         };

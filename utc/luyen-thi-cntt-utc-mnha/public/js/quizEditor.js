@@ -1013,7 +1013,7 @@
         // "Ai được xem" (audiencePicker.js): công khai / không công khai / chỉ một số người
         if (window.__quizAudience) {
             var au = window.__quizAudience.get();
-            body.visibility = au.visibility; body.isPublished = au.isPublished; body.allowedUserIds = au.allowedUserIds;
+            body.visibility = au.visibility; body.isPublished = au.isPublished; body.allowedUserIds = au.allowedUserIds; body.allowedGroupIds = au.allowedGroupIds;
         }
         PARTS.forEach(function (k) {
             body[k] = serializePart(k, state[k]);

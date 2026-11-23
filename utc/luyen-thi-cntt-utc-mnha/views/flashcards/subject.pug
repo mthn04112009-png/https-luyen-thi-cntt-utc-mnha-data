@@ -65,6 +65,8 @@ block content
                                     span(class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium")= "Học ngoại ngữ · " + languageName(f.language)
                                 if f.isPublished === false
                                     span(class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium") Chưa công khai
+                                else if f.visibility === 'users' && user && user.role === 'admin'
+                                    span(class="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium") Chỉ một số người
                         h2(class="mt-4 text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors")= f.title
                         if f.description
                             p(class="mt-2 text-sm text-gray-500 line-clamp-2")= f.description

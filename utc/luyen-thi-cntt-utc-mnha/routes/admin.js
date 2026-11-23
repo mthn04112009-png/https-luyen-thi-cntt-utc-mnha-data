@@ -10,6 +10,7 @@ const aiKeyController = require("../controllers/aikey.controller");
 const aiProviderController = require("../controllers/aiProvider.controller");
 const cloudinaryController = require("../controllers/cloudinary.controller");
 const userKeyController = require("../controllers/userkey.controller");
+const groupController = require("../controllers/userGroup.controller");
 const layoutController = require("../controllers/layout.controller");
 const layoutService = require("../services/layoutService");
 
@@ -248,6 +249,16 @@ router.post("/ai-keys/:id/delete", aiKeyController.deleteAIKey);
 // ============================================================
 // USER KEYS
 // ============================================================
+
+// ★ NHÓM (cho "Chỉ hiển thị với…"): MỌI admin (default + admin tổ chức) — mỗi admin chỉ thấy nhóm của tổ chức mình.
+//   PHẢI đặt TRƯỚC router.use("/user-keys", requireDefaultAdmin) bên dưới, nếu không admin tổ chức bị chặn.
+router.get("/user-keys/groups", groupController.list);
+router.get("/user-keys/groups/new", groupController.newForm);
+router.get("/user-keys/groups/users", groupController.searchMembers);
+router.get("/user-keys/groups/:id/edit", groupController.editForm);
+router.post("/user-keys/groups", groupController.create);
+router.post("/user-keys/groups/:id/delete", groupController.remove);
+router.post("/user-keys/groups/:id", groupController.update);
 
 router.use("/user-keys", requireDefaultAdmin);
 

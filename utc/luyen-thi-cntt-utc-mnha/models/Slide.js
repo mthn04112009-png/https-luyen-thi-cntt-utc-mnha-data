@@ -13,7 +13,7 @@ module.exports = createModel({
     store: githubStore.makeStore('slides'),
     defaults: githubStore.KINDS.slides.defaults(),
     fields: ['subjectId', 'title', 'slug', 'description', 'parts', 'fileExt', 'fileSize', 'originalName', 'order', 'githubFile',
-        'githubSha', 'isPublished', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
+        'githubSha', 'isPublished', 'visibility', 'allowedUserIds', 'allowedGroupIds', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
         'createdAt', 'updatedAt'],
     refs: { subjectId: 'Subject', userKey: 'UserKey', createdBy: 'User', updatedBy: 'User', deletedBy: 'User' }
 });

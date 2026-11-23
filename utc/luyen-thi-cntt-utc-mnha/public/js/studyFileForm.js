@@ -419,12 +419,12 @@
             if (!entries.length) { showMsg('err', 'Vui lòng chọn ít nhất 1 file.'); return; }
             var verr = ap && ap.validate();
             if (verr) { showMsg('err', verr); return; }
-            var aud = ap ? ap.get() : { visibility: 'public', isPublished: true, allowedUserIds: [] };
+            var aud = ap ? ap.get() : { visibility: 'public', isPublished: true, allowedUserIds: [], allowedGroupIds: [] };
 
             busy = true; els.save.disabled = true;
             var body = {
                 subjectId: els.subject.value, title: els.title.value.trim(), description: els.desc.value.trim(),
-                visibility: aud.visibility, isPublished: aud.isPublished, allowedUserIds: aud.allowedUserIds
+                visibility: aud.visibility, isPublished: aud.isPublished, allowedUserIds: aud.allowedUserIds, allowedGroupIds: aud.allowedGroupIds
             };
             if (S.id) body.sha = S.sha;
 
@@ -454,6 +454,10 @@
     }
 
     var busy = false;
+    // "Chỉ hiển thị với…" cho ứng dụng 1 file (Slide): cùng bộ chọn nhóm / tài khoản như Tài liệu
+    var ap1 = (window.AudiencePicker && S.audience) ? window.AudiencePicker.init({
+        state: S.audience, searchUrl: S.searchUrl, onError: function (m) { showMsg('err', m); }
+    }) : null;
     els.save.addEventListener('click', function () {
         if (busy) return;
         hideMsg();
@@ -464,11 +468,18 @@
         var ext = file ? extOf(file.name) : '';
         if (file && S.exts.indexOf(ext) === -1) { showMsg('err', 'Chỉ nhận ' + extList + '.'); return; }
         if (file && file.size > S.maxBytes) { showMsg('err', 'File vượt giới hạn ' + mbText(S.maxBytes) + '.'); return; }
+        var verr1 = ap1 && ap1.validate();
+        if (verr1) { showMsg('err', verr1); return; }
 
         busy = true; els.save.disabled = true;
         var body = {
             subjectId: els.subject.value, title: els.title.value.trim(), description: els.desc.value.trim(), isPublished: els.pub.checked
         };
+        if (ap1) {
+            var aud1 = ap1.get();
+            body.visibility = aud1.visibility; body.isPublished = aud1.isPublished;
+            body.allowedUserIds = aud1.allowedUserIds; body.allowedGroupIds = aud1.allowedGroupIds;
+        }
         if (S.id) body.sha = S.sha;
 
         var prepared = !file ? Promise.resolve(null)

@@ -4,7 +4,8 @@
 // Giống chế độ hiển thị của Video (/videos/dashboard/new):
 //   visibility = 'public'  → mọi sinh viên đã được duyệt (mặc định như cũ)
 //                'private' → chỉ admin
-//                'users'   → chỉ những người được chọn (allowedUserIds = id user, lưu trong JSON trên GitHub)
+//                'users'   → chỉ những người / NHÓM được chọn (allowedUserIds = id user, allowedGroupIds = id nhóm — lưu trong JSON trên GitHub;
+//                            nhóm do admin tạo ở /admin/user-keys/groups, lưu ở userkeys/groups/index.json)
 //   Admin luôn thấy hết. isPublished = (visibility !== 'private') — giữ tương thích với code cũ.
 // Bản ghi cũ KHÔNG có visibility → suy từ isPublished (false → private, còn lại → public).
 // ============================================================
@@ -13,9 +14,11 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const { getActor, buildUserListFilter } = require('./userKeyService');
 const { buildSearchClause } = require('../utils/search');
+const groupService = require('./groupService');
 
 const VISIBILITIES = ['public', 'private', 'users'];
 const MAX_ALLOWED_USERS = 300;
+const MAX_ALLOWED_GROUPS = 50;
 
 const isObjectId = (v) => mongoose.Types.ObjectId.isValid(String(v || '')) && String(v).length === 24;
 const isAdminUser = (u) => !!(u && u.role === 'admin');
@@ -47,12 +50,13 @@ function readAudience(body) {
         const off = b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0' || b.isPublished === 'off';
         visibility = off ? 'private' : 'public';
     }
-    if (!visibility) return { provided: false, visibility: 'public', isPublished: true, allowedUserIds: [] };
+    if (!visibility) return { provided: false, visibility: 'public', isPublished: true, allowedUserIds: [], allowedGroupIds: [] };
     const allowedUserIds = visibility === 'users' ? cleanIds(b.allowedUserIds) : [];
-    if (visibility === 'users' && !allowedUserIds.length) {
-        return { error: 'Hãy chọn ít nhất 1 người được xem (hoặc đổi sang chế độ khác).' };
+    const allowedGroupIds = visibility === 'users' ? cleanIds(b.allowedGroupIds) : [];
+    if (visibility === 'users' && !allowedUserIds.length && !allowedGroupIds.length) {
+        return { error: 'Hãy chọn ít nhất 1 nhóm hoặc 1 tài khoản được xem (hoặc đổi sang chế độ khác).' };
     }
-    return { provided: true, visibility, isPublished: visibility !== 'private', allowedUserIds };
+    return { provided: true, visibility, isPublished: visibility !== 'private', allowedUserIds, allowedGroupIds };
 }
 
 /**
@@ -70,6 +74,43 @@ async function resolveAllowedUsers(req, rawIds, max) {
     return { ids };
 }
 
+/**
+ * Kiểm tra CẢ người lẫn nhóm của phần "Chỉ hiển thị với…".
+ *   - nhóm phải tồn tại và thuộc tổ chức của admin này;
+ *   - người phải là sinh viên trong phạm vi admin;
+ *   - ★ người đã nằm trong 1 nhóm được chọn thì BỎ khỏi danh sách người (chỉ giữ nhóm có người đó) → tránh trùng lặp.
+ * Trả { ids, groupIds, removed: [userId…] } | { error }
+ */
+async function resolveAudienceTargets(req, aud) {
+    const a = aud || {};
+    const groupIds = cleanIds(a.allowedGroupIds);
+    if (groupIds.length > MAX_ALLOWED_GROUPS) return { error: `Tối đa ${MAX_ALLOWED_GROUPS} nhóm cho mỗi mục.` };
+    if (groupIds.length) {
+        await groupService.ensureFresh().catch(() => {});
+        const actor = await getActor(req);
+        if (!groupIds.every((id) => groupService.inScope(groupService.get(id), actor))) {
+            return { error: 'Có nhóm không còn tồn tại hoặc không thuộc tổ chức của bạn. Hãy chọn lại.' };
+        }
+    }
+    const inGroups = groupService.memberSetOf(groupIds);
+    const wanted = cleanIds(a.allowedUserIds);
+    const removed = wanted.filter((id) => inGroups.has(id));
+    const users = await resolveAllowedUsers(req, wanted.filter((id) => !inGroups.has(id)));
+    if (users.error) return users;
+    return { ids: users.ids, groupIds, removed };
+}
+
+/** Thông tin hiển thị của các nhóm đã lưu (chỉ nhóm còn tồn tại, đúng tổ chức). */
+async function describeGroups(req, ids) {
+    const list = cleanIds(ids);
+    if (!list.length) return [];
+    await groupService.ensureFresh().catch(() => {});
+    const actor = await getActor(req);
+    return list.map((id) => groupService.get(id)).filter((g) => groupService.inScope(g, actor)).map(groupInfo);
+}
+
+const groupInfo = (g) => ({ id: g.id, name: g.name, count: g.memberIds.length, memberIds: g.memberIds });
+
 /** Thông tin hiển thị (tên, email) của các id đã lưu — dùng khi mở form sửa. Id không còn tồn tại thì bỏ qua. */
 async function describeUsers(req, ids) {
     const list = cleanIds(ids);
@@ -85,9 +126,13 @@ async function formState(req, rec) {
     return {
         visibility: rec ? visibilityOf(rec) : 'public',
         allowedUsers: rec ? await describeUsers(req, rec.allowedUserIds) : [],
-        maxUsers: MAX_ALLOWED_USERS
+        allowedGroups: rec ? await describeGroups(req, rec.allowedGroupIds) : [],
+        maxUsers: MAX_ALLOWED_USERS,
+        maxGroups: MAX_ALLOWED_GROUPS
     };
 }
+
+const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
 /** GET …/users?q= — tìm sinh viên theo họ tên / email / 1 đoạn tên (không phân biệt hoa-thường, có/không dấu). */
 async function searchUsers(req, res) {
@@ -101,8 +146,17 @@ async function searchUsers(req, res) {
             User.find(filter).select('name email').sort({ name: 1 }).limit(30).lean(),
             User.countDocuments(filter)
         ]);
+        // ★ Nhóm của tổ chức này khớp từ khoá (tìm theo tên nhóm, không phân biệt hoa-thường / dấu)
+        let groups = [];
+        if (String(req.query.groups) !== '0') {
+            await groupService.ensureFresh().catch(() => {});
+            const toks = q.split(/\s+/).filter(Boolean).slice(0, 6).map(fold);
+            groups = groupService.listForScope(groupService.scopeOf(actor))
+                .filter((g) => { const n = fold(g.name); return toks.every((t) => n.includes(t)); })
+                .slice(0, 30).map(groupInfo);
+        }
         res.set({ 'Cache-Control': 'private, no-store' });
-        return res.json({ success: true, total, users: users.map((u) => ({ id: String(u._id), name: u.name || '', email: u.email || '' })) });
+        return res.json({ success: true, total, groups, users: users.map((u) => ({ id: String(u._id), name: u.name || '', email: u.email || '' })) });
     } catch (e) {
         console.error('[audience.searchUsers]', e);
         return res.status(500).json({ success: false, message: 'Không tìm được người dùng.' });
@@ -116,16 +170,23 @@ async function searchUsers(req, res) {
 function canSee(user, rec) {
     if (isAdminUser(user)) return true;
     if (!rec || rec.isPublished === false || rec.visibility === 'private') return false;
-    if (rec.visibility === 'users') return (rec.allowedUserIds || []).map(String).includes(uidOf(user));
+    if (rec.visibility === 'users') {
+        const uid = uidOf(user);
+        if ((rec.allowedUserIds || []).map(String).includes(uid)) return true;
+        const mine = groupService.groupIdsOfUser(uid);                       // ★ hoặc thuộc 1 nhóm được chọn
+        return mine.length > 0 && (rec.allowedGroupIds || []).map(String).some((g) => mine.includes(g));
+    }
     return true;
 }
 
 /** Mệnh đề lọc cho sinh viên (gộp bằng $and — KHÔNG spread cùng $or của scope.filter). */
 function audienceClause(user) {
+    const uid = uidOf(user);
+    const mine = groupService.groupIdsOfUser(uid);      // ★ nhóm mà người này là thành viên (RAM — warm() nạp sẵn)
     return {
         $and: [
             { visibility: { $ne: 'private' } },
-            { $or: [{ visibility: { $ne: 'users' } }, { allowedUserIds: uidOf(user) }] }
+            { $or: [{ visibility: { $ne: 'users' } }, { allowedUserIds: uid }, ...mine.map((g) => ({ allowedGroupIds: g }))] }
         ]
     };
 }
@@ -137,6 +198,6 @@ function withAudience(filter, user) {
 }
 
 module.exports = {
-    VISIBILITIES, MAX_ALLOWED_USERS, isObjectId, cleanIds, visibilityOf, readAudience,
-    resolveAllowedUsers, describeUsers, formState, searchUsers, canSee, audienceClause, withAudience
+    VISIBILITIES, MAX_ALLOWED_USERS, MAX_ALLOWED_GROUPS, isObjectId, cleanIds, visibilityOf, readAudience,
+    resolveAllowedUsers, resolveAudienceTargets, describeUsers, describeGroups, formState, searchUsers, canSee, audienceClause, withAudience
 };

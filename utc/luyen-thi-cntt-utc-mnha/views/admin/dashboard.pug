@@ -108,6 +108,16 @@ block content
                         h3(class="font-semibold text-gray-900") API Key
                         p(class="text-sm text-gray-500 mt-1") Quản lý khóa Gemini, Cloudinary
 
+                //- ★ Nhóm người dùng (dùng cho "Chỉ hiển thị với…") — mọi admin
+                a(
+                    href="/admin/user-keys/groups"
+                    class="bg-white border border-gray-200 rounded-xl p-5 hover:border-indigo-300 hover:shadow-md transition group"
+                )
+                    .w-10.h-10.rounded-lg.bg-violet-100.text-violet-600.flex.items-center.justify-center.mb-4
+                        i(data-lucide="users-round", class="w-5 h-5")
+                    h3(class="font-semibold text-gray-900") Quản lý nhóm
+                    p(class="text-sm text-gray-500 mt-1") Gom sinh viên thành nhóm để chọn "Chỉ hiển thị với"
+
                 //- ★ Chỉ admin default: tạo/bật-tắt tổ chức (user_key)
                 if isDefaultAdmin
                     a(

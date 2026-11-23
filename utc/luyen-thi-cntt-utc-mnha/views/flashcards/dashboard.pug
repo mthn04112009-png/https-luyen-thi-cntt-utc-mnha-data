@@ -68,11 +68,14 @@ block content
                                             span(class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium")= "Ngoại ngữ · " + languageName(f.language)
                                     td(class="px-4 py-3 text-center text-gray-700")= f.cardCount || 0
                                     td(class="px-4 py-3 text-center")
+                                        - var isUsers = f.visibility === 'users'
+                                        - var gN = (f.allowedGroupIds || []).length, uN = (f.allowedUserIds || []).length
                                         button(
                                             type="button",
                                             data-publish=String(f._id),
-                                            class=("fc-pub px-2.5 py-1 rounded-full text-xs font-medium " + (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"))
-                                        )= f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn'
+                                            title=(isUsers ? 'Bấm để chuyển sang không công khai' : null),
+                                            class=("fc-pub px-2.5 py-1 rounded-full text-xs font-medium " + (isUsers ? "bg-indigo-100 text-indigo-700" : (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")))
+                                        )= isUsers ? ('Chỉ ' + [gN ? gN + ' nhóm' : '', uN ? uN + ' người' : ''].filter(Boolean).join(' + ')) : (f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn')
                                     td(class="px-4 py-3 text-right whitespace-nowrap")
                                         a(href=("/flashcards/study/" + f._id), class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200") Xem
                                         a(href=("/flashcards/dashboard/" + f._id + "/edit"), class="ml-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100") Sửa
@@ -91,6 +94,7 @@ block content
                         post('/flashcards/dashboard/' + b.getAttribute('data-publish') + '/publish').then(function (d) {
                             b.disabled = false;
                             if (!d.success) { alert(d.message || 'Không đổi được trạng thái.'); return; }
+                            b.removeAttribute('title');
                             b.textContent = d.isPublished ? 'Đang công khai' : 'Đang ẩn';
                             b.className = 'fc-pub px-2.5 py-1 rounded-full text-xs font-medium ' + (d.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
                         });

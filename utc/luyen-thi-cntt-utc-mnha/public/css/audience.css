@@ -26,3 +26,24 @@
 .vf-chips-clear:hover { text-decoration: underline; }
 @media (max-width: 640px) { .vf-users .sp-item-text small { display: block; margin-left: 0; } .vf-users .sp-item { height: 48px; } .vf-users .sp-list { max-height: 240px; } }
 
+
+/* ---------- Nhóm + tài khoản trong cùng một danh sách chọn ---------- */
+.au-warn { margin-top: .6rem; padding: .55rem .8rem; border: 1px solid #fecaca; border-radius: .6rem; background: #fef2f2; color: #b91c1c; font-size: .8rem; line-height: 1.35; }
+.au-warn.hidden { display: none; }
+.au-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1; padding: .3rem .75rem; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.au-head span { font-weight: 600; color: #6b7280; background: #e5e7eb; border-radius: 999px; padding: 0 .45rem; }
+.vf-users .sp-item.au-row { display: flex; align-items: center; gap: .55rem; }
+.au-ico { flex: none; width: 1.6rem; height: 1.6rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .45rem; font-size: .9rem; background: #eef2ff; }
+.au-group .au-ico { background: #ede9fe; }
+.au-row .sp-item-text { flex: 1 1 auto; min-width: 0; }
+.au-badge { flex: none; padding: .05rem .5rem; border-radius: 999px; font-size: .68rem; font-weight: 600; }
+.au-badge-group { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+.au-badge-user { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
+.au-covered { opacity: .6; }
+.vf-users .au-cov-note { margin-left: .5rem; color: #b45309; }
+@media (max-width: 640px) { .vf-users .sp-item.au-row { height: auto; min-height: 48px; padding: .35rem .75rem; white-space: normal; } }
+.vf-chip.vf-chip-group { background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+.vf-chip.vf-chip-group em { color: #7c3aed; }
+.vf-chip.vf-chip-group button { background: #ddd6fe; color: #5b21b6; }
+.vf-chip.vf-chip-group button:hover { background: #c4b5fd; }
+.au-chip-ico { font-style: normal; font-size: .8rem; flex: none; }

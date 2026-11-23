@@ -14,7 +14,7 @@ module.exports = createModel({
     store: githubStore.makeStore('documents'),
     defaults: githubStore.KINDS.documents.defaults(),
     fields: ['subjectId', 'title', 'slug', 'description', 'parts', 'fileExt', 'fileSize', 'originalName', 'order', 'githubFile',
-        'githubSha', 'isPublished', 'files', 'visibility', 'allowedUserIds', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
+        'githubSha', 'isPublished', 'files', 'visibility', 'allowedUserIds', 'allowedGroupIds', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
         'createdAt', 'updatedAt'],
     refs: { subjectId: 'Subject', userKey: 'UserKey', createdBy: 'User', updatedBy: 'User', deletedBy: 'User' }
 });

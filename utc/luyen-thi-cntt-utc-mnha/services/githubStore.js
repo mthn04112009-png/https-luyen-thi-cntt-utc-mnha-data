@@ -105,10 +105,17 @@ function applyAudience(r, json) {
     r.visibility = vis;
     r.isPublished = vis !== 'private';
     r.allowedUserIds = cleanAudIds(json.allowedUserIds);
+    r.allowedGroupIds = cleanAudIds(json.allowedGroupIds);      // nhóm (services/groupService.js)
 }
+/** Chế độ hiển thị ghi ra JSON luôn khớp isPublished (code cũ chỉ đổi isPublished mà không đụng visibility): isPublished=false → private; isPublished=true mà đang private → public. */
+const audVisFor = (r) => {
+    if (r.isPublished === false) return 'private';
+    return AUD_VIS.includes(r.visibility) && r.visibility !== 'private' ? r.visibility : 'public';
+};
 const audPatch = (r) => ({
-    visibility: AUD_VIS.includes(r.visibility) ? r.visibility : (r.isPublished === false ? 'private' : 'public'),
-    allowedUserIds: Array.isArray(r.allowedUserIds) ? r.allowedUserIds : []
+    visibility: audVisFor(r),
+    allowedUserIds: Array.isArray(r.allowedUserIds) ? r.allowedUserIds : [],
+    allowedGroupIds: Array.isArray(r.allowedGroupIds) ? r.allowedGroupIds : []
 });
 
 /**
@@ -118,8 +125,9 @@ const audPatch = (r) => ({
  * Tương thích JSON cũ (bản đầu chỉ có pdfFile/pdfSize): coi như 1 phần.
  */
 function studyFileKind(dir) {
-    // Chỉ Tài liệu (/documents) có: nhiều file / bài (files) + "Chỉ hiển thị với" (visibility). Slide giữ nguyên như cũ.
+    // Chỉ Tài liệu (/documents) có: nhiều file / bài (files). "Chỉ hiển thị với" (visibility, allowedUserIds, allowedGroupIds): Tài liệu + Slide.
     const multi = dir === 'documents';
+    const aud = dir === 'documents' || dir === 'slides';
     const FILE_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
     const fileRe = /\.(pdf|ppt|pptx)$/i;
     const okPath = (p, prefix) => typeof p === 'string' && p.startsWith(prefix) && fileRe.test(p) &&
@@ -129,7 +137,8 @@ function studyFileKind(dir) {
         defaults: () => ({
             description: '', parts: [], fileExt: 'pdf', fileSize: 0, originalName: '', order: 0,
             githubFile: null, githubSha: null, isPublished: true,
-            ...(multi ? { files: [], visibility: 'public', allowedUserIds: [] } : {}),
+            ...(multi ? { files: [] } : {}),
+            ...(aud ? { visibility: 'public', allowedUserIds: [], allowedGroupIds: [] } : {}),
             userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -183,7 +192,7 @@ function studyFileKind(dir) {
             if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
             if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
-            if (multi) applyAudience(r, json);       // visibility: public | private | users (+ allowedUserIds)
+            if (aud) applyAudience(r, json);         // visibility: public | private | users (+ allowedUserIds, allowedGroupIds)
             if (json.isDeleted !== undefined) {
                 r.isDeleted = json.isDeleted === true;
                 r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
@@ -198,7 +207,8 @@ function studyFileKind(dir) {
             title: r.title, slug: r.slug, description: r.description,
             parts: r.parts || [], fileExt: r.fileExt || 'pdf', fileSize: r.fileSize || 0, originalName: r.originalName || '',
             order: r.order, isPublished: r.isPublished,
-            ...(multi ? Object.assign(audPatch(r), r.files && r.files.length > 1 ? { files: r.files } : {}) : {}),
+            ...(aud ? audPatch(r) : {}),
+            ...(multi && r.files && r.files.length > 1 ? { files: r.files } : {}),
             createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
             isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
         })
@@ -277,7 +287,7 @@ const KINDS = {
         defaults: () => ({
             description: '', sampleSolution: '', duration: 20, order: 0,
             githubFile: null, githubSha: null, promptId: null, aiKeyId: null, model: null,
-            isPublished: true, visibility: 'public', allowedUserIds: [], type: 'essay', quizCounts: { mcq: 0, tf: 0, fill: 0 },
+            isPublished: true, visibility: 'public', allowedUserIds: [], allowedGroupIds: [], type: 'essay', quizCounts: { mcq: 0, tf: 0, fill: 0 },
             analysisAiKeyIds: [], userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -332,7 +342,7 @@ const KINDS = {
         re: /^subjects\/([^/]+)\/flashcards\/([^/]+)\.json$/,
         defaults: () => ({
             description: '', mode: 'language', language: 'en-US', cardCount: 0, order: 0,
-            githubFile: null, githubSha: null, isPublished: true,
+            githubFile: null, githubSha: null, isPublished: true, visibility: 'public', allowedUserIds: [], allowedGroupIds: [],
             userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -351,6 +361,7 @@ const KINDS = {
             if (typeof json.language === 'string' && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(json.language)) r.language = json.language;
             if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            applyAudience(r, json);       // visibility: public | private | users (+ allowedUserIds, allowedGroupIds); JSON cũ → suy từ isPublished
             if (json.isDeleted !== undefined) {
                 r.isDeleted = json.isDeleted === true;
                 r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
@@ -363,6 +374,7 @@ const KINDS = {
         toPatch: (r) => ({
             flashcardId: hex(r._id), title: r.title, slug: r.slug, description: r.description,
             mode: r.mode, language: r.language, cardCount: r.cardCount, order: r.order, isPublished: r.isPublished,
+            ...audPatch(r),
             createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
             isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
         })
@@ -806,6 +818,8 @@ async function applyPush(payload) {
     if (!payload || typeof payload !== 'object') return { ok: false, reason: 'payload rỗng' };
     if (payload.ref && payload.ref !== `refs/heads/${cfg.branch}`) return { ok: true, ignored: `nhánh ${payload.ref}` };
     // Danh sách môn học (subjects/index.json) — nạp lại trước khi đọc bài học
+    try { await require('./groupService').onPush(payload); }
+    catch (e) { console.warn(`[githubStore] groupService.onPush lỗi: ${e.message}`); }
     try { await require('./subjectStore').onPush(payload); }
     catch (e) { console.warn(`[githubStore] subjectStore.onPush lỗi: ${e.message}`); }
     if (S.loading) { try { await S.loading; } catch (_) { /* lỗi đã được xử lý ở nơi gọi */ } }   // không chạy chồng lên lần đồng bộ đang diễn ra

@@ -974,7 +974,7 @@ exports.createLesson = async (req, res, next) => {
         // ★ "Ai được xem": công khai (mặc định) / không công khai / chỉ một số người
         const aud = audience.readAudience(req.body);
         if (aud.error) return res.status(400).json({ error: aud.error });
-        const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+        const audUsers = await audience.resolveAudienceTargets(req, aud);
         if (audUsers.error) return res.status(400).json({ error: audUsers.error });
 
         let slug = slugify(title);
@@ -1036,6 +1036,7 @@ exports.createLesson = async (req, res, next) => {
                     isPublished: aud.isPublished,
                     visibility: aud.visibility,
                     allowedUserIds: audUsers.ids,
+                    allowedGroupIds: audUsers.groupIds,
                     isDeleted: false,
                     createdBy: actorMeta(req),
                     createdAt: now,
@@ -1069,6 +1070,7 @@ exports.createLesson = async (req, res, next) => {
             isPublished: aud.isPublished,
             visibility: aud.visibility,
             allowedUserIds: audUsers.ids,
+            allowedGroupIds: audUsers.groupIds,
             createdBy: currentUserId(req),
             updatedBy: currentUserId(req),
             isDeleted: false,
@@ -1219,10 +1221,11 @@ exports.updateLesson = async (req, res, next) => {
             const aud = audience.readAudience(req.body);
             if (aud.error) return res.status(400).json({ error: aud.error });
             if (aud.provided) {
-                const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+                const audUsers = await audience.resolveAudienceTargets(req, aud);
                 if (audUsers.error) return res.status(400).json({ error: audUsers.error });
                 lesson.visibility = aud.visibility;
                 lesson.allowedUserIds = audUsers.ids;
+                lesson.allowedGroupIds = audUsers.groupIds;
                 lesson.isPublished = aud.isPublished;
             }
         }
@@ -1287,6 +1290,7 @@ exports.updateLesson = async (req, res, next) => {
                 isPublished: lesson.isPublished !== false,
                 visibility: audience.visibilityOf(lesson),
                 allowedUserIds: (lesson.allowedUserIds || []).map(String),
+                allowedGroupIds: (lesson.allowedGroupIds || []).map(String),
                 isDeleted: lesson.isDeleted === true,
                 updatedAt: new Date(),
             };

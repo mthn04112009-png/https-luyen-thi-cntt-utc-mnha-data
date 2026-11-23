@@ -7,7 +7,11 @@ block content
             div
                 h1(class="text-2xl sm:text-3xl font-bold text-gray-900") Quản lý User Key
                 p(class="text-gray-500 mt-1") Mỗi User Key là một tổ chức có nội dung (môn học, bài luyện tập) riêng. Chỉ admin default tạo được.
-            a(href="/admin/dashboard" class="text-sm text-indigo-600 hover:underline") ← Dashboard
+            div(class="flex items-center gap-4")
+                a(href="/admin/user-keys/groups" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-50 text-violet-700 text-sm font-medium hover:bg-violet-100")
+                    i(data-lucide="users-round", class="w-4 h-4")
+                    | Quản lý nhóm
+                a(href="/admin/dashboard" class="text-sm text-indigo-600 hover:underline") ← Dashboard
 
         if error
             div(class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700")= error

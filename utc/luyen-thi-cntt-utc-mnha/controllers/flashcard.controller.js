@@ -24,6 +24,7 @@ const mongoose = require('mongoose');
 
 const Subject = require('../models/Subject');
 const Flashcard = require('../models/Flashcard');
+const audience = require('../services/audienceService');   // ★ "Chỉ hiển thị với" (public | private | users: nhóm + tài khoản)
 const githubService = require('../services/githubService');
 const githubSync = require('../services/githubSyncService');
 const parser = require('../services/flashcardParserService');
@@ -80,12 +81,13 @@ async function findSubject(req, scope, param) {
 
 /** Điều kiện lọc bộ thẻ: còn tồn tại, trong phạm vi quyền; sinh viên chỉ thấy bộ đã công khai. */
 function flashcardFilter(req, scope, extra) {
-    return {
+    const base = {
         isDeleted: { $ne: true },
         ...(isAdmin(req) ? {} : { isPublished: true }),
         ...scope.filter,
         ...(extra || {})
     };
+    return isAdmin(req) ? base : audience.withAudience(base, req.user);   // ★ sinh viên chỉ thấy bộ được phép (công khai / có tên / thuộc nhóm được chọn)
 }
 
 async function visibleSubjectIds(req, scope) {
@@ -254,7 +256,7 @@ exports.study = async (req, res) => {
         await githubSync.syncKinds(['flashcards']);
         const scope = await getContentScope(req);
         const rec = isObjectId(req.params.fid) ? await Flashcard.findById(req.params.fid) : null;
-        if (!rec || rec.isDeleted || (!isAdmin(req) && !rec.isPublished) || !scope.canAccess(rec)) {
+        if (!rec || rec.isDeleted || (!isAdmin(req) && (!rec.isPublished || !audience.canSee(req.user, rec))) || !scope.canAccess(rec)) {
             return renderError(req, res, 404, 'Không tìm thấy bộ flashcard.');
         }
         const subject = await findSubject(req, scope, String(rec.subjectId));
@@ -350,6 +352,8 @@ async function renderForm(req, res, { rec, data }) {
         mode,
         language,
         isPublished: rec ? rec.isPublished !== false : true,
+        audience: await audience.formState(req, rec),      // ★ chế độ hiển thị + người / nhóm đã chọn
+        searchUrl: '/flashcards/dashboard/users',
         content,
         sha: rec ? (await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null) || {}).sha || null : null,
         prompts: { language: cfg.PROMPT_LANGUAGE, theory: cfg.PROMPT_THEORY },
@@ -399,15 +403,22 @@ function readForm(body) {
     const description = String(b.description || '').trim();
     const mode = b.mode === 'theory' ? 'theory' : 'language';
     const language = cfg.LANGUAGE_CODES.includes(b.language) ? b.language : cfg.DEFAULT_LANGUAGE;
-    const isPublished = !(b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0');
+    let isPublished = !(b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0');
 
     if (!title) return { error: 'Vui lòng nhập tiêu đề bộ flashcard.' };
     if (title.length > cfg.LIMITS.MAX_TITLE_LEN) return { error: `Tiêu đề tối đa ${cfg.LIMITS.MAX_TITLE_LEN} ký tự.` };
     if (description.length > cfg.LIMITS.MAX_DESC_LEN) return { error: `Mô tả tối đa ${cfg.LIMITS.MAX_DESC_LEN} ký tự.` };
 
+    const a = audience.readAudience(b);
+    if (a.error) return { error: a.error };
+    if (a.provided) isPublished = a.isPublished;
+
     const parsed = parser.parse(b.content, mode);
     if (parsed.errors.length) return { errors: parsed.errors };
-    return { title, description, mode, language, isPublished, cards: parsed.cards };
+    return {
+        title, description, mode, language, isPublished, cards: parsed.cards,
+        visibility: a.visibility, allowedUserIds: a.allowedUserIds, allowedGroupIds: a.allowedGroupIds, audienceProvided: a.provided
+    };
 }
 
 exports.parsePreview = async (req, res) => {
@@ -428,6 +439,8 @@ exports.create = async (req, res) => {
         if (f.error) return fail(res, 400, f.error);
         if (f.errors) return fail(res, 400, 'Nội dung flashcard chưa hợp lệ.', { errors: f.errors });
         if (!githubService.isConfigured) return fail(res, 503, 'GitHub chưa cấu hình nên chưa lưu được flashcard.');
+        const au = await audience.resolveAudienceTargets(req, f);        // người + nhóm (người đã nằm trong nhóm được chọn thì bỏ)
+        if (au.error) return fail(res, 400, au.error);
 
         await githubSync.syncKinds(['flashcards']);
         let slug = slugify(f.title);
@@ -443,7 +456,8 @@ exports.create = async (req, res) => {
             flashcardId: String(id),
             title: f.title, slug, subjectSlug: subject.slug, description: f.description,
             mode: f.mode, language: f.language, cardCount: f.cards.length, order: 0,
-            isPublished: f.isPublished, isDeleted: false, deletedAt: null, deletedBy: null,
+            isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds,
+            isDeleted: false, deletedAt: null, deletedBy: null,
             createdBy: String(req.user._id), updatedBy: String(req.user._id),
             createdAt: nowIso, updatedAt: nowIso,
             cards: f.cards
@@ -453,7 +467,8 @@ exports.create = async (req, res) => {
             _id: id, githubSha: written && written.sha ? written.sha : null,
             subjectId: subject._id, title: f.title, slug, description: f.description, githubFile,
             mode: f.mode, language: f.language, cardCount: f.cards.length,
-            isPublished: f.isPublished, userKey: subject.userKey || null,
+            isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds,
+            userKey: subject.userKey || null,
             createdBy: req.user._id, updatedBy: req.user._id
         });
         return res.json({ success: true, id: String(rec._id), redirect: '/flashcards/dashboard' });
@@ -474,6 +489,16 @@ exports.update = async (req, res) => {
         if (f.error) return fail(res, 400, f.error);
         if (f.errors) return fail(res, 400, 'Nội dung flashcard chưa hợp lệ.', { errors: f.errors });
 
+        // ★ "Chỉ hiển thị với": form không gửi gì → giữ nguyên chế độ hiện tại
+        let aud;
+        if (f.audienceProvided) {
+            const au = await audience.resolveAudienceTargets(req, f);
+            if (au.error) return fail(res, 400, au.error);
+            aud = { visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds, isPublished: f.isPublished };
+        } else {
+            aud = { visibility: audience.visibilityOf(rec), allowedUserIds: (rec.allowedUserIds || []).map(String), allowedGroupIds: (rec.allowedGroupIds || []).map(String), isPublished: rec.isPublished !== false };
+        }
+
         const file = await githubService.readJsonFileWithSha(rec.githubFile);
         if (!file) return fail(res, 404, 'Không đọc được bộ flashcard trên GitHub.');
         if (req.body.sha && req.body.sha !== file.sha) return fail(res, 409, 'Bộ flashcard đã bị người khác sửa. Hãy tải lại trang.');
@@ -484,7 +509,8 @@ exports.update = async (req, res) => {
             type: 'flashcard',
             title: f.title, description: f.description,
             mode: f.mode, language: f.language, cardCount: f.cards.length,
-            isPublished: f.isPublished, subjectSlug: subject ? subject.slug : (file.data || {}).subjectSlug,
+            isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: aud.allowedUserIds, allowedGroupIds: aud.allowedGroupIds,
+            subjectSlug: subject ? subject.slug : (file.data || {}).subjectSlug,
             updatedBy: String(req.user._id), updatedAt: nowIso,
             cards: f.cards
         }), file.sha, `Flashcard: sửa "${f.title}"`);
@@ -494,7 +520,8 @@ exports.update = async (req, res) => {
         rec.mode = f.mode;
         rec.language = f.language;
         rec.cardCount = f.cards.length;
-        rec.isPublished = f.isPublished;
+        rec.isPublished = aud.isPublished; rec.visibility = aud.visibility;
+        rec.allowedUserIds = aud.allowedUserIds; rec.allowedGroupIds = aud.allowedGroupIds;
         rec.updatedBy = req.user._id;
         rec.githubSha = written && written.sha ? written.sha : rec.githubSha;
         await rec.save();
@@ -512,10 +539,12 @@ exports.togglePublish = async (req, res) => {
         const scope = await getContentScope(req);
         const rec = isObjectId(req.params.fid) ? await Flashcard.findById(req.params.fid) : null;
         if (!rec || rec.isDeleted || !scope.canAccess(rec)) return fail(res, 404, 'Không tìm thấy bộ flashcard.');
-        rec.isPublished = !rec.isPublished;
+        // công khai → không công khai; không công khai → công khai; "chỉ một số người / nhóm" → không công khai (danh sách giữ nguyên)
+        rec.visibility = audience.visibilityOf(rec) === 'private' ? 'public' : 'private';
+        rec.isPublished = rec.visibility !== 'private';
         rec.updatedBy = req.user._id;
-        await rec.save();     // githubStore tự ghi lại file JSON (isPublished, updatedBy)
-        return res.json({ success: true, isPublished: rec.isPublished });
+        await rec.save();     // githubStore tự ghi lại file JSON (isPublished, visibility, updatedBy)
+        return res.json({ success: true, isPublished: rec.isPublished, visibility: rec.visibility });
     } catch (e) {
         console.error('[flashcards.togglePublish]', e);
         return fail(res, 500, 'Không đổi được trạng thái công khai.');
@@ -536,6 +565,9 @@ exports.remove = async (req, res) => {
         return fail(res, 500, 'Không xoá được bộ flashcard.');
     }
 };
+
+/** GET /flashcards/dashboard/users?q= — tìm nhóm + sinh viên cho "Chỉ hiển thị với". */
+exports.searchUsers = (req, res) => audience.searchUsers(req, res);
 
 // các hàm dùng cho test
 exports._test = { slugify, pickCards, readForm };

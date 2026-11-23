@@ -22,7 +22,7 @@ module.exports = createModel({
     store: githubStore.makeStore('lessons'),
     defaults: githubStore.KINDS.lessons.defaults(),
     fields: ['subjectId', 'title', 'slug', 'description', 'sampleSolution', 'duration', 'order', 'githubFile',
-        'githubSha', 'promptId', 'aiKeyId', 'model', 'isPublished', 'visibility', 'allowedUserIds', 'type', 'quizCounts', 'analysisAiKeyIds',
+        'githubSha', 'promptId', 'aiKeyId', 'model', 'isPublished', 'visibility', 'allowedUserIds', 'allowedGroupIds', 'type', 'quizCounts', 'analysisAiKeyIds',
         'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy', 'createdAt', 'updatedAt'],
     refs: {
         subjectId: 'Subject', promptId: 'GradingPrompt', aiKeyId: 'AIKey', analysisAiKeyIds: 'AIKey',

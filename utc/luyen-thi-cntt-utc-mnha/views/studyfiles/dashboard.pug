@@ -75,7 +75,7 @@ block content
                                             data-publish=String(f._id),
                                             title=(isUsers ? 'Bấm để chuyển sang không công khai' : null),
                                             class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (isUsers ? "bg-indigo-100 text-indigo-700" : (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")))
-                                        )= isUsers ? ('Chỉ ' + ((f.allowedUserIds || []).length) + ' người') : (f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn')
+                                        )= isUsers ? ('Chỉ ' + [((f.allowedGroupIds || []).length ? (f.allowedGroupIds || []).length + ' nhóm' : ''), ((f.allowedUserIds || []).length ? (f.allowedUserIds || []).length + ' người' : '')].filter(Boolean).join(' + ')) : (f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn')
                                     td(class="px-4 py-3 text-right whitespace-nowrap")
                                         a(href=(app.base + "/study/" + f._id), class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200") Xem
                                         a(href=(app.base + "/dashboard/" + f._id + "/edit"), class="ml-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100") Sửa

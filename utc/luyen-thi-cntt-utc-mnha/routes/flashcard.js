@@ -13,6 +13,7 @@ const admin = [requireAuth, requireRole('admin')];
 // --- ADMIN: dashboard (đặt TRƯỚC các route có :tham số) ---
 router.get ('/dashboard',            ...admin, ctrl.dashboard);
 router.get ('/dashboard/new',        ...admin, ctrl.newForm);
+router.get ('/dashboard/users',      ...admin, ctrl.searchUsers);   // tìm nhóm + người cho "Chỉ hiển thị với"
 router.post('/dashboard/parse',      ...admin, ctrl.parsePreview);
 router.post('/dashboard',            ...admin, ctrl.create);
 router.get ('/dashboard/:fid/edit',  ...admin, ctrl.editForm);

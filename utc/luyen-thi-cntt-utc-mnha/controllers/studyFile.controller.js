@@ -104,7 +104,7 @@ function readForm(body, audienceOn) {
     const a = audience.readAudience(b);
     if (a.error) return { error: a.error };
     if (a.provided) isPublished = a.isPublished;
-    return { title, description, isPublished, visibility: a.visibility, allowedUserIds: a.allowedUserIds, audienceProvided: a.provided };
+    return { title, description, isPublished, visibility: a.visibility, allowedUserIds: a.allowedUserIds, allowedGroupIds: a.allowedGroupIds, audienceProvided: a.provided };
 }
 
 // ------------------------------------------------------------
@@ -1097,7 +1097,7 @@ function createController(app, Model) {
             if (!slideCrypto.isConfigured()) return fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex).');
             let au = null;
             if (app.audience) {
-                au = await audience.resolveAllowedUsers(req, f.allowedUserIds);
+                au = await audience.resolveAudienceTargets(req, f);     // người + nhóm (người đã nằm trong nhóm được chọn thì bỏ)
                 if (au.error) return fail(res, 400, au.error);
             }
 
@@ -1124,7 +1124,7 @@ function createController(app, Model) {
                 title: f.title, slug, subjectSlug: ctx.subject.slug, description: f.description,
                 ...jsonFileFields(chk),
                 encrypted: true, encryption: 'aes-256-gcm',
-                order: 0, isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids } : {}),
+                order: 0, isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds } : {}),
                 isDeleted: false, deletedAt: null, deletedBy: null,
                 createdBy: String(req.user._id), updatedBy: String(req.user._id), createdAt: nowIso, updatedAt: nowIso
             }, `${app.name}: tạo "${f.title}"`);
@@ -1133,7 +1133,7 @@ function createController(app, Model) {
                 _id: id, githubSha: w && w.sha ? w.sha : null,
                 subjectId: ctx.subject._id, title: f.title, slug, description: f.description, githubFile: jsonFile,
                 ...recFileFields(chk),
-                isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids } : {}),
+                isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds } : {}),
                 userKey: ctx.subject.userKey || null,
                 createdBy: req.user._id, updatedBy: req.user._id
             });
@@ -1160,11 +1160,11 @@ function createController(app, Model) {
             let aud = null;
             if (app.audience) {
                 if (f.audienceProvided) {
-                    const au = await audience.resolveAllowedUsers(req, f.allowedUserIds);
+                    const au = await audience.resolveAudienceTargets(req, f);
                     if (au.error) return fail(res, 400, au.error);
-                    aud = { visibility: f.visibility, allowedUserIds: au.ids, isPublished: f.isPublished };
+                    aud = { visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds, isPublished: f.isPublished };
                 } else {
-                    aud = { visibility: audience.visibilityOf(rec), allowedUserIds: (rec.allowedUserIds || []).map(String), isPublished: rec.isPublished !== false };
+                    aud = { visibility: audience.visibilityOf(rec), allowedUserIds: (rec.allowedUserIds || []).map(String), allowedGroupIds: (rec.allowedGroupIds || []).map(String), isPublished: rec.isPublished !== false };
                 }
             }
 
@@ -1185,12 +1185,12 @@ function createController(app, Model) {
             const written = await githubService.writeJsonFileIfSha(rec.githubFile, Object.assign({}, file.data, {
                 type: app.key === 'slides' ? 'slide' : 'document',
                 title: f.title, description: f.description, isPublished,
-                ...(aud ? { visibility: aud.visibility, allowedUserIds: aud.allowedUserIds } : {}),
+                ...(aud ? { visibility: aud.visibility, allowedUserIds: aud.allowedUserIds, allowedGroupIds: aud.allowedGroupIds } : {}),
                 subjectSlug: ctx.subject.slug, updatedBy: String(req.user._id), updatedAt: new Date().toISOString()
             }, fileFields), file.sha, `${app.name}: sửa "${f.title}"`);
 
             rec.title = f.title; rec.description = f.description; rec.isPublished = isPublished;
-            if (aud) { rec.visibility = aud.visibility; rec.allowedUserIds = aud.allowedUserIds; }
+            if (aud) { rec.visibility = aud.visibility; rec.allowedUserIds = aud.allowedUserIds; rec.allowedGroupIds = aud.allowedGroupIds; }
             rec.updatedBy = req.user._id;
             if (!chk.none) {
                 const ff = recFileFields(chk);
