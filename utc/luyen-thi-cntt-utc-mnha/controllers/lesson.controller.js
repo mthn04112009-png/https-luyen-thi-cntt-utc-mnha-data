@@ -869,6 +869,39 @@ exports.getAdminLessons = async (req, res, next) => {
 };
 
 /* ============================================================
+ * ★ PROMPT CHUYỂN ĐỔI ĐỀ (guide/prompt/*.txt) — hiện trong form bài học
+ *   để admin copy dán cho AI chuyển ảnh đề tự luận → HTML.
+ *   Đọc file mỗi lần render (sửa .txt là có hiệu lực ngay).
+ *   Thiếu file (vd. chưa được bundle lên Vercel) → dùng bản dự phòng.
+ * ============================================================ */
+const CONVERT_PROMPT_FILES = [
+    {
+        id: "de",
+        file: "de.txt",
+        label: "Chỉ đề bài",
+        hint: "Dùng khi chỉ có ảnh đề → AI trả 1 đoạn HTML dán vào ô \"Nội dung đề bài\".",
+        fallback: "dựa vào các ảnh stt theo tên hãy làm ra phần html nội dung đề bài (không cần đầy đủ html vì tôi sẽ nhúng html) nhưng mà phải đúng nội dung trong ảnh không được thêm lung tung",
+    },
+    {
+        id: "de-va-loi-giai",
+        file: "de-va-loi-giai.txt",
+        label: "Đề + lời giải",
+        hint: "Dùng khi ảnh có cả đề và chữa bài → AI trả 2 HTML: dán vào \"Nội dung đề bài\" và \"Lời giải mẫu\".",
+        fallback: "dựa vào các ảnh stt theo tên hãy chia ra phần html nội dung đề bài với html nội dung chữa bài ra 2 html khác nhau (không cần đầy đủ html vì tôi sẽ nhúng html) nhưng mà phải đúng nội dung trong ảnh không được thêm lung tung và nhận xét ở lời giải đề không nhận xét vào đề",
+    },
+];
+
+function loadConvertPrompts() {
+    return CONVERT_PROMPT_FILES.map((d) => {
+        let text = "";
+        try {
+            text = fs.readFileSync(path.join(__dirname, "..", "guide", "prompt", d.file), "utf8").trim();
+        } catch (e) { /* dùng fallback */ }
+        return { id: d.id, label: d.label, hint: d.hint, text: text || d.fallback };
+    });
+}
+
+/* ============================================================
  * 6. SHOW CREATE FORM
  * ============================================================ */
 exports.showCreateLesson = async (req, res, next) => {
@@ -904,6 +937,7 @@ exports.showCreateLesson = async (req, res, next) => {
             providers: getProvidersForClient(),          // ★ mọi nhà cung cấp (AI-database/index.json)
             vilaoModels: VILAO_MODELS || [],            // ★ vilao.ai
             vilaoDefaultModel: VILAO_DEFAULT_MODEL || "", // ★ vilao.ai
+            convertPrompts: loadConvertPrompts(),       // ★ prompt chuyển đề (guide/prompt)
             isAdminView: true,
         });
     } catch (err) {
@@ -1123,6 +1157,7 @@ exports.showEditLesson = async (req, res, next) => {
             providers: getProvidersForClient(),          // ★ mọi nhà cung cấp (AI-database/index.json)
             vilaoModels: VILAO_MODELS || [],            // ★ vilao.ai
             vilaoDefaultModel: VILAO_DEFAULT_MODEL || "", // ★ vilao.ai
+            convertPrompts: loadConvertPrompts(),       // ★ prompt chuyển đề (guide/prompt)
             isAdminView: true,
         });
     } catch (err) {
