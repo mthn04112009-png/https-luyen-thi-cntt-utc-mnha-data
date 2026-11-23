@@ -93,6 +93,24 @@ const iso = (d) => (d ? new Date(d).toISOString() : null);
 // ------------------------------------------------------------
 // Định nghĩa 3 loại: path → record (fromJson) và record → patch JSON (toPatch)
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// "Ai được xem" dùng chung (Tài liệu, Đề): public | private | users (+ allowedUserIds). Xem services/audienceService.js
+// ------------------------------------------------------------
+const AUD_VIS = ['public', 'private', 'users'];
+const cleanAudIds = (arr) => [...new Set((Array.isArray(arr) ? arr : [])
+    .map((x) => String(x || '').toLowerCase()).filter((x) => /^[a-f0-9]{24}$/.test(x)))].slice(0, 1000);
+/** Đọc visibility từ JSON (bản cũ không có → suy từ isPublished) rồi gán vào record r. */
+function applyAudience(r, json) {
+    const vis = AUD_VIS.includes(json.visibility) ? json.visibility : (json.isPublished === false ? 'private' : 'public');
+    r.visibility = vis;
+    r.isPublished = vis !== 'private';
+    r.allowedUserIds = cleanAudIds(json.allowedUserIds);
+}
+const audPatch = (r) => ({
+    visibility: AUD_VIS.includes(r.visibility) ? r.visibility : (r.isPublished === false ? 'private' : 'public'),
+    allowedUserIds: Array.isArray(r.allowedUserIds) ? r.allowedUserIds : []
+});
+
 /**
  * Loại dữ liệu cho 2 ứng dụng file mã hoá: slides (/slides) và documents (/documents).
  *   subjects/{môn}/{dir}/{slug}_{unix}.json           thông tin; trường parts = các file-phần đã mã hoá
@@ -100,6 +118,9 @@ const iso = (d) => (d ? new Date(d).toISOString() : null);
  * Tương thích JSON cũ (bản đầu chỉ có pdfFile/pdfSize): coi như 1 phần.
  */
 function studyFileKind(dir) {
+    // Chỉ Tài liệu (/documents) có: nhiều file / bài (files) + "Chỉ hiển thị với" (visibility). Slide giữ nguyên như cũ.
+    const multi = dir === 'documents';
+    const FILE_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
     const fileRe = /\.(pdf|ppt|pptx)$/i;
     const okPath = (p, prefix) => typeof p === 'string' && p.startsWith(prefix) && fileRe.test(p) &&
         !p.slice(prefix.length).includes('/') && !p.includes('..');
@@ -108,6 +129,7 @@ function studyFileKind(dir) {
         defaults: () => ({
             description: '', parts: [], fileExt: 'pdf', fileSize: 0, originalName: '', order: 0,
             githubFile: null, githubSha: null, isPublished: true,
+            ...(multi ? { files: [], visibility: 'public', allowedUserIds: [] } : {}),
             userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -116,10 +138,29 @@ function studyFileKind(dir) {
             const subject = ctx.subjects.get(m[1]);
             if (!subject) return { skip: `không có môn học slug "${m[1]}"` };
             const prefix = `subjects/${m[1]}/${dir}/`;   // file phải nằm CÙNG thư mục của đúng môn này (không tin đường dẫn lạ trong JSON)
+            const mapParts = (list) => (Array.isArray(list) ? list : []).filter((x) => x && okPath(x.path, prefix))
+                .map((x) => ({ path: x.path, enc: Math.max(0, Math.round(Number(x.enc) || 0)), plain: Math.max(0, Math.round(Number(x.plain) || 0)), ...(x.store === 'r2' ? { store: 'r2' } : {}) }));
+            // Nhiều file / bài (chỉ khi có ≥ 2 file; 1 file vẫn lưu kiểu cũ: parts / fileExt / fileSize / originalName)
+            let files = [];
+            if (multi && Array.isArray(json.files)) {
+                files = json.files.map((f) => {
+                    if (!f || typeof f !== 'object' || typeof f.id !== 'string' || !FILE_ID_RE.test(f.id)) return null;
+                    const fp = mapParts(f.parts);
+                    if (!fp.length) return null;
+                    const fe = String(f.ext || (fp[0].path.match(fileRe) || ['.pdf'])[0].slice(1)).toLowerCase();
+                    return {
+                        id: f.id, name: str(f.name).slice(0, 200), ext: ['pdf', 'ppt', 'pptx'].includes(fe) ? fe : 'pdf',
+                        size: Math.max(0, Math.round(Number(f.size) || fp.reduce((n, x) => n + x.plain, 0))), parts: fp
+                    };
+                }).filter(Boolean).slice(0, 100);
+                const seen = new Set();                    // bỏ file trùng id
+                files = files.filter((f) => (seen.has(f.id) ? false : (seen.add(f.id), true)));
+            }
             let parts = [];
             if (Array.isArray(json.parts)) {
-                parts = json.parts.filter((x) => x && okPath(x.path, prefix))
-                    .map((x) => ({ path: x.path, enc: Math.max(0, Math.round(Number(x.enc) || 0)), plain: Math.max(0, Math.round(Number(x.plain) || 0)), ...(x.store === 'r2' ? { store: 'r2' } : {}) }));
+                parts = mapParts(json.parts);
+            } else if (files.length) {
+                parts = files[0].parts;
             } else if (okPath(json.pdfFile, prefix)) {
                 parts = [{ path: json.pdfFile, enc: 0, plain: Math.max(0, Math.round(Number(json.pdfSize) || 0)) }];
             }
@@ -134,9 +175,15 @@ function studyFileKind(dir) {
                 fileSize: Math.max(0, Math.round(Number(json.fileSize !== undefined ? json.fileSize : json.pdfSize) || 0)),
                 originalName: str(json.originalName).slice(0, 200)
             };
+            if (multi) {
+                r.files = files.length > 1 ? files : [];
+                if (files.length === 1 && !str(json.originalName)) r.originalName = files[0].name;
+                if (files.length > 1) r.fileSize = files.reduce((n, f) => n + f.size, 0);   // tổng dung lượng các file
+            }
             if (typeof json.description === 'string') r.description = json.description.slice(0, 1000);
             if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            if (multi) applyAudience(r, json);       // visibility: public | private | users (+ allowedUserIds)
             if (json.isDeleted !== undefined) {
                 r.isDeleted = json.isDeleted === true;
                 r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
@@ -151,6 +198,7 @@ function studyFileKind(dir) {
             title: r.title, slug: r.slug, description: r.description,
             parts: r.parts || [], fileExt: r.fileExt || 'pdf', fileSize: r.fileSize || 0, originalName: r.originalName || '',
             order: r.order, isPublished: r.isPublished,
+            ...(multi ? Object.assign(audPatch(r), r.files && r.files.length > 1 ? { files: r.files } : {}) : {}),
             createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
             isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
         })
@@ -229,7 +277,7 @@ const KINDS = {
         defaults: () => ({
             description: '', sampleSolution: '', duration: 20, order: 0,
             githubFile: null, githubSha: null, promptId: null, aiKeyId: null, model: null,
-            isPublished: true, type: 'essay', quizCounts: { mcq: 0, tf: 0, fill: 0 },
+            isPublished: true, visibility: 'public', allowedUserIds: [], type: 'essay', quizCounts: { mcq: 0, tf: 0, fill: 0 },
             analysisAiKeyIds: [], userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -255,6 +303,7 @@ const KINDS = {
             if (Number.isFinite(Number(json.order))) r.order = Number(json.order);
             if (json.model !== undefined) r.model = json.model ? String(json.model) : null;
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
+            applyAudience(r, json);       // visibility: public | private | users (+ allowedUserIds); JSON cũ → suy từ isPublished
             if (json.isDeleted !== undefined) {
                 r.isDeleted = json.isDeleted === true;
                 r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
@@ -271,7 +320,7 @@ const KINDS = {
         toPatch: (r) => ({
             lessonId: hex(r._id), title: r.title, slug: r.slug, description: r.description,
             sampleSolution: r.sampleSolution, duration: r.duration, order: r.order,
-            model: r.model || null, isPublished: r.isPublished, type: r.type,
+            model: r.model || null, isPublished: r.isPublished, ...audPatch(r), type: r.type,
             promptId: hex(r.promptId), aiKeyId: hex(r.aiKeyId),
             analysisAiKeyIds: (r.analysisAiKeyIds || []).map(hex),
             createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),

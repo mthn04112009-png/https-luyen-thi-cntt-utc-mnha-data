@@ -172,6 +172,8 @@ router.post("/sync-github", requireDefaultAdmin, async (req, res) => {
 router.get("/lessons", lessonController.getAdminLessons);
 
 router.get("/lessons/create", lessonController.showCreateLesson);
+// ★ Tìm sinh viên cho "Chỉ hiển thị với" (form Đề tự luận + Đề trắc nghiệm)
+router.get("/lessons/users", require("../services/audienceService").searchUsers);
 // ★ Vercel/proxy có thể "phát lại" POST (307/308) tới URL đích của redirect sau đồng bộ
 //   (/admin/lessons?success=...) → createLesson báo "Thiếu subjectId hoặc title".
 //   Form tạo bài thật không bao giờ có ?success / ?error → coi đó là POST bị phát lại, đổi sang GET.

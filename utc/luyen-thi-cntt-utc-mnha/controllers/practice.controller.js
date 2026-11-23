@@ -7,6 +7,7 @@ const { paginate } = require('./pagination.controller');
 // ★ USER KEY
 const { getContentScope } = require('../services/userKeyService');
 const githubSync = require('../services/githubSyncService');
+const audience = require('../services/audienceService');   // "Chỉ hiển thị với"
 // ★ Tìm kiếm (không phân biệt hoa/thường + dấu tiếng Việt)
 const { getSearchTerm, buildSearchClause, withSearch } = require('../utils/search');
 
@@ -65,7 +66,7 @@ exports.listPractice = async (req, res, next) => {
         // ★ Tìm theo tên / mô tả bài (gộp $and để không đè bộ lọc userKey)
         const searchClause = buildSearchClause(q, ['title', 'description']);
 
-        const { items: lessons, pagination } = await paginate(Lesson, withSearch(lessonQuery, searchClause), req, {
+        const { items: lessons, pagination } = await paginate(Lesson, withSearch(audience.withAudience(lessonQuery, user), searchClause), req, {
             limit: 9,
             // ★ Mới nhất → cũ nhất. Bài học lưu ở GitHub nên createdAt có thể trùng/bị đặt lại
             //   khi đồng bộ (cold start Vercel) → dùng _id (ObjectId mang mốc thời gian tạo,

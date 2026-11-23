@@ -64,14 +64,18 @@ block content
                                     td(class="px-4 py-3 text-center text-gray-700") #{(f.fileExt || 'pdf').toUpperCase()}
                                     td(class="px-4 py-3 text-center text-gray-700")
                                         | #{f.fileSize ? mb(f.fileSize) + ' MB' : '—'}
-                                        if f.parts && f.parts.length > 1
+                                        if f.files && f.files.length > 1
+                                            div(class="text-xs text-gray-400") #{f.files.length} file
+                                        else if f.parts && f.parts.length > 1
                                             div(class="text-xs text-gray-400") chia #{f.parts.length} file
+                                    - var isUsers = app.audience && f.visibility === 'users'
                                     td(class="px-4 py-3 text-center")
                                         button(
                                             type="button",
                                             data-publish=String(f._id),
-                                            class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"))
-                                        )= f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn'
+                                            title=(isUsers ? 'Bấm để chuyển sang không công khai' : null),
+                                            class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (isUsers ? "bg-indigo-100 text-indigo-700" : (f.isPublished !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")))
+                                        )= isUsers ? ('Chỉ ' + ((f.allowedUserIds || []).length) + ' người') : (f.isPublished !== false ? 'Đang công khai' : 'Đang ẩn')
                                     td(class="px-4 py-3 text-right whitespace-nowrap")
                                         a(href=(app.base + "/study/" + f._id), class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200") Xem
                                         a(href=(app.base + "/dashboard/" + f._id + "/edit"), class="ml-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100") Sửa
@@ -92,6 +96,7 @@ block content
                         post(BASE + '/dashboard/' + b.getAttribute('data-publish') + '/publish').then(function (d) {
                             b.disabled = false;
                             if (!d.success) { alert(d.message || 'Không đổi được trạng thái.'); return; }
+                            b.title = '';
                             b.textContent = d.isPublished ? 'Đang công khai' : 'Đang ẩn';
                             b.className = 'sl-pub px-2.5 py-1 rounded-full text-xs font-medium ' + (d.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
                         });

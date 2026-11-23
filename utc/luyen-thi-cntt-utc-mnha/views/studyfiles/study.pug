@@ -20,6 +20,15 @@ block content
                     span Tải xuống
                     small #{sl.ext.toUpperCase()}#{sl.size ? ' · ' + mb(sl.size) + ' MB' : ''}
 
+        //- Tài liệu có NHIỀU file: thanh chọn file (mỗi file 1 liên kết ?f=<id>) — nằm NGOÀI khung xem để không bị trình xem xoá
+        if sl.files && sl.files.length > 1
+            nav(class="sl-files", aria-label="Các file trong tài liệu")
+                each f in sl.files
+                    a(href=f.href, class=(f.active ? "on" : ""), title=f.name)
+                        span(class="n")= f.n
+                        span(class="t")= f.name
+                        small #{f.size ? mb(f.size) + ' MB' : ''}
+
         div(class="sl-grid")
             nav(class="sl-units", aria-label="Danh sách cùng môn")
                 h2 Cùng môn học

@@ -21,6 +21,7 @@ const quizParser = require('../services/quizParserService');
 const quizGrader = require('../services/quizGradingService');
 const quizAnalysis = require('../services/quizAnalysisService');
 const userKeyService = require('../services/userKeyService');
+const audience = require('../services/audienceService');
 const sanitizeService = require('../services/sanitizeService');
 const notificationService = require('../services/notificationService');
 const aiService = require('../services/aiService');
@@ -322,7 +323,7 @@ exports.newForm = async (req, res, next) => {
   try {
     const lists = await formLists(req.user);
     res.render('admin/quiz-form', Object.assign(lists, {
-      mode: 'create', subjectId: req.query.subjectId || '', quiz: null, lesson: null,
+      mode: 'create', subjectId: req.query.subjectId || '', quiz: null, lesson: null, audienceState: await audience.formState(req, null),
       rawTexts: { mcq: '', tf: '', fill: '' }, submissionCount: 0, sha: null, quizConfig,
     }));
   } catch (e) { next(e); }
@@ -362,6 +363,7 @@ exports.editForm = async (req, res, next) => {
     const submissionCount = await Submission.countDocuments({ lessonId: lesson._id, type: 'quiz' });
     res.render('admin/quiz-form', Object.assign(lists, {
       mode: 'edit', subjectId: String(lesson.subjectId), quiz: editData, lesson, rawTexts, submissionCount, sha: file.sha, quizConfig,
+      audienceState: await audience.formState(req, lesson),
     }));
   } catch (e) { next(e); }
 };
@@ -417,6 +419,12 @@ exports.create = async (req, res) => {
     if (c.error) return fail(res, 400, c.error);
     if (c.errors) return fail(res, 400, 'Đề chưa hợp lệ.', { errors: c.errors });
 
+    // ★ "Ai được xem": công khai (mặc định) / không công khai / chỉ một số người
+    const aud = audience.readAudience(body);
+    if (aud.error) return fail(res, 400, aud.error);
+    const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+    if (audUsers.error) return fail(res, 400, audUsers.error);
+
     let slug = slugify(body.slug || c.title);
     if (await Lesson.exists({ subjectId: subject._id, slug })) slug += '-' + Date.now().toString(36);
     // ★ Thêm timestamp (giây unix) ở đuôi để giảm tỉ lệ trùng tên file: <slug>_<unix>.json
@@ -432,7 +440,7 @@ exports.create = async (req, res) => {
       type: 'quiz', lessonId: String(lessonId), title: c.title, slug, subjectSlug: subject.slug,
       duration: c.duration, promptId: c.promptId ? String(c.promptId) : null,
       analysisAiKeyIds: (c.analysisAiKeyIds || []).map(String),
-      isPublished: true, isDeleted: false,
+      isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids, isDeleted: false,
       createdBy: { id: String(req.user._id), name: req.user.name || '', email: req.user.email || '' },
       createdAt: nowIso, updatedAt: nowIso,
       contentHtml: c.contentHtml, quiz: c.built.quiz,
@@ -444,7 +452,7 @@ exports.create = async (req, res) => {
       quizCounts: c.built.counts, duration: c.duration, promptId: c.promptId,
       analysisAiKeyIds: c.analysisAiKeyIds || [],
       userKey: subject.userKey || null,
-      createdBy: req.user._id, isPublished: true,
+      createdBy: req.user._id, isPublished: aud.isPublished, visibility: aud.visibility, allowedUserIds: audUsers.ids,
     });
 
     try { await A.notifyNewLesson(lesson, subject); } catch (e) { console.warn('[quiz] notify:', e.message); }
@@ -466,6 +474,16 @@ exports.update = async (req, res) => {
     if (c.error) return fail(res, 400, c.error);
     if (c.errors) return fail(res, 400, 'Đề chưa hợp lệ.', { errors: c.errors });
 
+    // ★ "Ai được xem": form không gửi gì → giữ nguyên chế độ hiện tại
+    const aud = audience.readAudience(body);
+    if (aud.error) return fail(res, 400, aud.error);
+    let audIds = (lesson.allowedUserIds || []).map(String), audVis = audience.visibilityOf(lesson), audPub = lesson.isPublished !== false;
+    if (aud.provided) {
+      const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+      if (audUsers.error) return fail(res, 400, audUsers.error);
+      audIds = audUsers.ids; audVis = aud.visibility; audPub = aud.isPublished;
+    }
+
     const file = await A.ghRead(lesson.githubFile);
     if (!file) return fail(res, 404, 'Không đọc được đề trên GitHub.');
     if (body.sha && body.sha !== file.sha) return fail(res, 409, 'Đề đã bị đổi, vui lòng tải lại trang.');
@@ -481,7 +499,8 @@ exports.update = async (req, res) => {
         subjectSlug: subj ? subj.slug : (prev.subjectSlug || null),
         duration: c.duration, promptId: c.promptId ? String(c.promptId) : null,
         analysisAiKeyIds: analysisIds.map(String),
-        isPublished: lesson.isPublished !== false, isDeleted: lesson.deletedAt ? true : (prev.isDeleted === true),
+        isPublished: audPub, visibility: audVis, allowedUserIds: audIds,
+        isDeleted: lesson.deletedAt ? true : (prev.isDeleted === true),
         createdAt: prev.createdAt || (lesson.createdAt ? new Date(lesson.createdAt).toISOString() : new Date().toISOString()),
         updatedAt: new Date().toISOString(),
         contentHtml: c.contentHtml, quiz: c.built.quiz,
@@ -494,6 +513,7 @@ exports.update = async (req, res) => {
     A.ghInvalidate(lesson.githubFile);
 
     lesson.title = c.title;
+    lesson.isPublished = audPub; lesson.visibility = audVis; lesson.allowedUserIds = audIds;
     lesson.duration = c.duration;
     lesson.promptId = c.promptId;
     lesson.quizCounts = c.built.counts;
@@ -517,6 +537,7 @@ async function loadStudentLesson(req) {
   });
   if (!lesson) return null;
   if (req.user.role === 'admin') return A.adminCanAccess(req.user, lesson) ? lesson : null;
+  if (!audience.canSee(req.user, lesson)) return null;     // ★ "Chỉ hiển thị với"
   return (await A.studentCanAccess(req.user, lesson)) ? lesson : null;
 }
 

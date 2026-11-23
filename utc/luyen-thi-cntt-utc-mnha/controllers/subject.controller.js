@@ -9,6 +9,7 @@ const { sortNewestFirst } = require('../utils/lessonOrder');
 const { getContentScope } = require('../services/userKeyService');
 // ★ GitHub là nguồn sự thật của bài học: đồng bộ trước khi đếm / liệt kê
 const githubSync = require('../services/githubSyncService');
+const audience = require('../services/audienceService');   // "Chỉ hiển thị với"
 // ★ Tìm kiếm (không phân biệt hoa/thường + dấu tiếng Việt)
 const { getSearchTerm, buildSearchClause, withSearch } = require('../utils/search');
 
@@ -72,12 +73,12 @@ function readFlash(req, key) {
 }
 
 // Đếm bài học (1 query cho cả trang thay vì N query)
-async function attachLessonCounts(subjects) {
+async function attachLessonCounts(subjects, viewer) {
     const ids = subjects.map((s) => s._id);
     if (!ids.length) return subjects;
 
     const rows = await Lesson.aggregate([
-        { $match: { subjectId: { $in: ids }, isDeleted: false } },
+        { $match: audience.withAudience({ subjectId: { $in: ids }, isDeleted: false }, viewer) },
         { $group: { _id: '$subjectId', count: { $sum: 1 } } },
     ]);
     const map = Object.fromEntries(rows.map((r) => [String(r._id), r.count]));
@@ -162,7 +163,7 @@ exports.getSubjects = async (req, res, next) => {
             }
         );
 
-        await attachLessonCounts(subjects);
+        await attachLessonCounts(subjects, req.user);
 
         return res.render('student/subjects', {
             title: 'Môn học',
@@ -220,11 +221,11 @@ exports.getSubject = async (req, res, next) => {
         // ★ Đề MỚI nhất lên đầu, không phân biệt trắc nghiệm / tự luận (xem utils/lessonOrder.js)
         const allLessons = await Lesson.find(
             withSearch(
-                {
+                audience.withAudience({
                     subjectId: subject._id,
                     isDeleted: false,
                     ...scope.filter, // ★ USER KEY: phòng thủ thêm ở cấp bài học
-                },
+                }, req.user),   // ★ "Chỉ hiển thị với": sinh viên chỉ thấy đề công khai / đề có tên mình
                 searchClause
             )
         ).populate([
@@ -308,7 +309,7 @@ exports.getAdminSubjects = async (req, res, next) => {
             ],
         });
 
-        await attachLessonCounts(subjects);
+        await attachLessonCounts(subjects, req.user);
 
         return res.render('admin/subjects', {
             title: 'Quản lý môn học',

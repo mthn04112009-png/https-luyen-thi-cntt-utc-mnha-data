@@ -1,5 +1,6 @@
 extends ../layout
 include ../partials/served-by
+include ../partials/audience-field
 
 //- ================================================================
 //-  Admin: TẠO / SỬA BÀI TRẮC NGHIỆM
@@ -180,6 +181,11 @@ block content
                     div(class="qf-cards", id="cards-" + part.k)
                     button(type="button", class="qf-btn", data-add=part.k) ＋ Thêm câu vào phần này
 
+        //- ========== Ai được xem ==========
+        section(class="qf-card")
+            h2 Ai được xem
+            +audienceField({ label: ' ' })
+
         div(class="qf-save")
             span(id="saveSummary", class="qf-msg") Chưa có câu hỏi
             button(type="button", id="btnSave", class="qf-btn primary big")= isEdit ? '💾 Lưu thay đổi' : '💾 Tạo bài trắc nghiệm'
@@ -212,5 +218,12 @@ block content
         .qf-audio-help { margin-top: 8px; font-size: 13px; color: #475569; }
         .qf-audio-help summary { cursor: pointer; color: #2563eb; }
         .qf-audio-help ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.7; }
+    script(id="auState", type="application/json")!= JSON.stringify(audienceState || { visibility: 'public', allowedUsers: [], maxUsers: 300 }).replace(/</g, '\\u003c')
+    script(src="/js/audiencePicker.js")
+    script.
+        (function () {
+            var st = JSON.parse(document.getElementById('auState').textContent);
+            window.__quizAudience = window.AudiencePicker ? window.AudiencePicker.init({ state: st, searchUrl: '/admin/lessons/users', onError: function (m) { alert(m); } }) : null;
+        })();
     script(id="qfData", type="application/json")!= safeJson
     script(src="/js/quizEditor.js")

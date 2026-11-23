@@ -1010,6 +1010,11 @@
             aiKeyIds: Array.prototype.map.call(document.querySelectorAll('input[name="aiKeyIds"]:checked'), function (x) { return x.value; }),
             sha: CFG.sha || ""
         };
+        // "Ai được xem" (audiencePicker.js): công khai / không công khai / chỉ một số người
+        if (window.__quizAudience) {
+            var au = window.__quizAudience.get();
+            body.visibility = au.visibility; body.isPublished = au.isPublished; body.allowedUserIds = au.allowedUserIds;
+        }
         PARTS.forEach(function (k) {
             body[k] = serializePart(k, state[k]);
             body["pointsPerQuestion_" + k] = partPoints(k);
@@ -1023,6 +1028,8 @@
         var errs = validateAll();
         if (errs.length) { showErrors(errs); return; }
         showErrors([]);
+        var audErr = window.__quizAudience && window.__quizAudience.validate();
+        if (audErr) { showErrors([{ msg: audErr }]); return; }
 
         saving = true;
         var btn = $("btnSave"), old = btn.textContent;

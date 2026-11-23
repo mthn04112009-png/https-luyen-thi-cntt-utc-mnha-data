@@ -33,6 +33,7 @@ module.exports = function createRouter(ctrl) {
     // --- ADMIN: dashboard (đặt TRƯỚC các route có :tham số) ---
     router.get ('/dashboard',                ...admin, ctrl.dashboard);
     router.get ('/dashboard/new',            ...admin, ctrl.newForm);
+    router.get ('/dashboard/users',          ...admin, ctrl.searchUsers);                  // tìm người cho "Chỉ hiển thị với" (chỉ /documents)
     router.post('/dashboard/upload-keys',    ...admin, uploadKeysLimit, ctrl.uploadKeys);   // cấp khoá để TRÌNH DUYỆT tự mã hoá
     router.post('/dashboard/upload-chunk',   ...admin, rawFrame, ctrl.uploadChunk);          // nhận khung ĐÃ mã hoá (octet-stream)
     router.post('/dashboard/upload-part',    ...admin, ctrl.uploadPart);

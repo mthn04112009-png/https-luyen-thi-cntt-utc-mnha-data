@@ -38,7 +38,8 @@ const EXT_MIME = {
 
 const LIMITS = {
     MAX_FILE_BYTES, FRAME_PLAIN_BYTES, FRAME_OVERHEAD, FILE_MAGIC_BYTES, PART_MAX_BYTES, SERVE_CHUNK_BYTES, MAX_FRAMES,
-    MAX_TITLE_LEN: 200, MAX_DESC_LEN: 1000, MAX_NAME_LEN: 150
+    MAX_TITLE_LEN: 200, MAX_DESC_LEN: 1000, MAX_NAME_LEN: 150,
+    MAX_FILES: 30            // số file tối đa trong 1 tài liệu (chỉ ứng dụng có multiFile — /documents)
 };
 
 /**
@@ -84,7 +85,9 @@ const APPS = {
         key: 'documents', dir: 'documents', base: '/documents', idKey: 'documentId',
         name: 'Tài liệu học tập', noun: 'tài liệu', exts: ['pdf'],
         description: 'Đọc và tải xuống tài liệu học tập (PDF) theo từng môn học: phóng to/nhỏ, cuộn xem như PDF bình thường.',
-        icon: 'file-text', viewer: 'document', accept: '.pdf'
+        icon: 'file-text', viewer: 'document', accept: '.pdf',
+        multiFile: true,    // 1 tài liệu có thể gồm NHIỀU file (1 file vẫn lưu/đọc đúng như cũ)
+        audience: true      // có "Chỉ hiển thị với" (công khai / không công khai / một số người)
     }
 };
 

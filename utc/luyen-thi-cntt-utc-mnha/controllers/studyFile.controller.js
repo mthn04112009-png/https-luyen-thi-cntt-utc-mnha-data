@@ -23,12 +23,14 @@
 //   Mỗi file đều MÃ HOÁ AES-256-GCM (services/slideCryptoService.js); chỉ giải mã khi xem/tải xuống.
 // QUYỀN: userKeyService.getContentScope(req) (giống Môn học/Flashcards).
 // ============================================================
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 
 const Subject = require('../models/Subject');
 const githubService = require('../services/githubService');
 const githubSync = require('../services/githubSyncService');
 const slideCrypto = require('../services/slideCryptoService');
+const audience = require('../services/audienceService');
 const r2 = require('../services/r2Service');
 const ghCfg = require('../config/github');
 const cfg = require('../config/studyFileConfig');
@@ -85,16 +87,24 @@ async function pool(n, size, fn) {
     }));
 }
 
-/** Đọc + kiểm tra phần thông tin của form (dùng chung tạo / sửa) */
-function readForm(body) {
+/**
+ * Đọc + kiểm tra phần thông tin của form (dùng chung tạo / sửa).
+ *   audienceOn = true (ứng dụng có "Chỉ hiển thị với", vd /documents): đọc thêm visibility + allowedUserIds.
+ *   audienceProvided = false → form không gửi gì về chế độ hiển thị (khi sửa thì giữ nguyên giá trị cũ).
+ */
+function readForm(body, audienceOn) {
     const b = body || {};
     const title = String(b.title || '').trim();
     const description = String(b.description || '').trim();
-    const isPublished = !(b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0');
+    let isPublished = !(b.isPublished === false || b.isPublished === 'false' || b.isPublished === 0 || b.isPublished === '0');
     if (!title) return { error: 'Vui lòng nhập tiêu đề.' };
     if (title.length > L.MAX_TITLE_LEN) return { error: `Tiêu đề tối đa ${L.MAX_TITLE_LEN} ký tự.` };
     if (description.length > L.MAX_DESC_LEN) return { error: `Mô tả tối đa ${L.MAX_DESC_LEN} ký tự.` };
-    return { title, description, isPublished };
+    if (!audienceOn) return { title, description, isPublished };
+    const a = audience.readAudience(b);
+    if (a.error) return { error: a.error };
+    if (a.provided) isPublished = a.isPublished;
+    return { title, description, isPublished, visibility: a.visibility, allowedUserIds: a.allowedUserIds, audienceProvided: a.provided };
 }
 
 // ------------------------------------------------------------
@@ -185,9 +195,11 @@ function createController(app, Model) {
     }
 
     /** Điều kiện lọc: còn tồn tại, trong phạm vi quyền; sinh viên chỉ thấy bản đã công khai. */
-    const itemFilter = (req, scope, extra) => ({
-        isDeleted: { $ne: true }, ...(isAdmin(req) ? {} : { isPublished: true }), ...scope.filter, ...(extra || {})
-    });
+    const itemFilter = (req, scope, extra) => {
+        const base = { isDeleted: { $ne: true }, ...(isAdmin(req) ? {} : { isPublished: true }), ...scope.filter, ...(extra || {}) };
+        // Ứng dụng có "Chỉ hiển thị với": sinh viên chỉ thấy bản công khai hoặc bản có tên mình trong danh sách
+        return app.audience ? audience.withAudience(base, req.user) : base;
+    };
 
     async function countBySubject(req, scope, subjectIds) {
         if (!subjectIds.length) return {};
@@ -199,12 +211,27 @@ function createController(app, Model) {
 
     async function loadVisible(req, scope, sid) {
         const rec = isObjectId(sid) ? await Model.findById(sid) : null;
-        if (!rec || rec.isDeleted || (!isAdmin(req) && !rec.isPublished) || !scope.canAccess(rec)) return null;
+        if (!rec || rec.isDeleted || (!isAdmin(req) && !(app.audience ? audience.canSee(req.user, rec) : rec.isPublished)) || !scope.canAccess(rec)) return null;
         const subject = await findSubject(req, scope, String(rec.subjectId));
         return subject ? { rec, subject } : null;
     }
 
-    const totalSize = (rec) => rec.fileSize || (rec.parts || []).reduce((n, p) => n + (p.plain || 0), 0);
+    const sumPlain = (parts) => (parts || []).reduce((n, p) => n + (p.plain || 0), 0);
+    const totalSize = (rec) => rec.fileSize || sumPlain(rec.parts);
+
+    /**
+     * Danh sách file của 1 bản ghi: [{ id, name, ext, size, parts }].
+     *   • 1 file (mọi bản ghi cũ, Slide, và Tài liệu chỉ có 1 file): lấy từ parts / fileExt / fileSize / originalName như cũ, id = 'main'.
+     *   • Nhiều file (chỉ Tài liệu, ≥ 2 file): rec.files.
+     */
+    function filesOf(rec) {
+        if (app.multiFile && rec && Array.isArray(rec.files) && rec.files.length > 1) {
+            return rec.files.map((f) => ({ id: f.id, name: f.name || '', ext: f.ext || 'pdf', size: f.size || sumPlain(f.parts), parts: f.parts || [] }));
+        }
+        if (!rec || !rec.parts || !rec.parts.length) return [];
+        return [{ id: 'main', name: rec.originalName || '', ext: rec.fileExt || 'pdf', size: totalSize(rec), parts: rec.parts }];
+    }
+    const allParts = (rec) => [].concat(...filesOf(rec).map((f) => f.parts));
 
     // ------------------------------------------------------------
     // GIẢI MÃ Ở TRÌNH DUYỆT: token xin khoá (HMAC, gắn tài khoản + file, hết hạn sau 2 giờ)
@@ -229,10 +256,10 @@ function createController(app, Model) {
      * Thông tin để trình duyệt tải thẳng file mã hoá từ GitHub (repo public). null → dùng cách cũ ?chunk=i
      * ★ File nằm ở repo NÀO do nhóm repo (services/githubPool.js) quyết định: repo chính hoặc <repo>-1, -2… → hỏi repoFor() từng phần.
      */
-    async function buildDirect(req, rec) {
+    async function buildDirect(req, rec, fv) {
         if (!githubService.isConfigured || !slideCrypto.isConfigured()) return null;
         const parts = [];
-        for (const p of rec.parts) {
+        for (const p of (fv ? fv.parts : rec.parts)) {
             if (p.store === 'r2') {       // file-phần nằm ở Cloudflare R2: URL public / ký sẵn
                 if (!r2.config()) return null;
                 parts.push({ path: p.path, plain: p.plain || 0, url: r2.getUrl(p.path) });
@@ -321,17 +348,26 @@ function createController(app, Model) {
             const found = await loadVisible(req, scope, req.params.sid);
             if (!found) return renderError(req, res, 404, `Không tìm thấy ${app.noun}.`);
             const { rec, subject } = found;
-            if (!rec.parts || !rec.parts.length) return renderError(req, res, 404, `${app.name} này chưa có file.`);
+            const files = filesOf(rec);
+            if (!files.length) return renderError(req, res, 404, `${app.name} này chưa có file.`);
+            const multi = files.length > 1;
+            // Nhiều file: ?f=<id file> chọn file đang xem (mặc định file đầu); 1 file: như cũ
+            const fv = (multi && req.query.f && files.find((x) => x.id === String(req.query.f))) || files[0];
 
             const siblings = await Model.find(itemFilter(req, scope, { subjectId: subject._id }))
                 .sort({ createdAt: -1, _id: -1 }).select('title').lean();
             const sl = {
                 id: String(rec._id), title: rec.title, description: rec.description || '',
-                ext: rec.fileExt || 'pdf', size: totalSize(rec), viewer: app.viewer,
-                fileName: cleanName(rec.originalName, rec.slug, rec.fileExt),
-                fileUrl: `${app.base}/file/${rec._id}`, downloadUrl: `${app.base}/file/${rec._id}?download=1`,
+                ext: fv.ext || 'pdf', size: fv.size, viewer: app.viewer,
+                fileName: cleanName(fv.name, rec.slug, fv.ext),
+                fileUrl: `${app.base}/file/${rec._id}`, fileId: multi ? fv.id : undefined,
+                downloadUrl: `${app.base}/file/${rec._id}?download=1${multi ? '&f=' + encodeURIComponent(fv.id) : ''}`,
                 chunkBytes: L.SERVE_CHUNK_BYTES,
-                direct: await buildDirect(req, rec),
+                direct: await buildDirect(req, rec, fv),
+                files: multi ? files.map((x, i) => ({
+                    id: x.id, n: i + 1, name: cleanName(x.name, rec.slug, x.ext), ext: x.ext, size: x.size, active: x.id === fv.id,
+                    href: `${app.base}/study/${rec._id}?f=${encodeURIComponent(x.id)}`
+                })) : [],
                 subject: { id: String(subject._id), name: subject.name },
                 siblings: siblings.map((s) => ({ id: String(s._id), title: s.title }))
             };
@@ -407,10 +443,11 @@ function createController(app, Model) {
 
     /** Tập salt HỢP LỆ của file (mọi file-phần). Khoá chỉ được cấp cho salt nằm trong tập này. */
     async function allowedSalts(rec) {
-        const key = `${rec._id}|${(rec.parts || []).map((p) => p.path).join(',')}|${rec.githubSha || ''}`;
+        const parts = allParts(rec);
+        const key = `${rec._id}|${parts.map((p) => p.path).join(',')}|${rec.githubSha || ''}`;
         const hit = _saltCache.get(key);
         if (hit && Date.now() - hit.at < SALT_TTL_MS) return hit.set;
-        const lists = await Promise.all((rec.parts || []).map(saltsOfPart));
+        const lists = await Promise.all(parts.map(saltsOfPart));
         const set = new Set([].concat(...lists));
         const now = Date.now();
         for (const [k, v] of _saltCache) if (now - v.at > SALT_TTL_MS) _saltCache.delete(k);
@@ -426,7 +463,7 @@ function createController(app, Model) {
             if (!(await canUse(req))) return fail(res, 403, 'Không có quyền.');
             const scope = await getContentScope(req);
             const found = await loadVisible(req, scope, req.params.sid);
-            if (!found || !found.rec.parts || !found.rec.parts.length) return fail(res, 404, 'Không tìm thấy.');
+            if (!found || !filesOf(found.rec).length) return fail(res, 404, 'Không tìm thấy.');
             const { rec } = found;
             const b = req.body || {};
 
@@ -469,9 +506,17 @@ function createController(app, Model) {
             await githubSync.syncKinds([app.key]);
             const scope = await getContentScope(req);
             const found = await loadVisible(req, scope, req.params.sid);
-            if (!found || !found.rec.parts || !found.rec.parts.length) return res.status(404).type('text/plain').send('Không tìm thấy.');
+            const files = found ? filesOf(found.rec) : [];
+            if (!found || !files.length) return res.status(404).type('text/plain').send('Không tìm thấy.');
             const { rec } = found;
-            const total = totalSize(rec);
+            // Nhiều file: ?f=<id file>; không truyền → file đầu (1 file: y như cũ)
+            let fv = files[0];
+            if (req.query.f !== undefined) {
+                fv = files.find((x) => x.id === String(req.query.f));
+                if (!fv) return res.status(404).type('text/plain').send('Không tìm thấy file.');
+            }
+            const frec = { parts: fv.parts, githubSha: rec.githubSha };      // "bản ghi 1 file" để loadPart / readRange dùng
+            const total = fv.size;
             const common = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' };
 
             try {
@@ -480,7 +525,7 @@ function createController(app, Model) {
                     const count = Math.max(1, Math.ceil(total / per));
                     const i = Number(req.query.chunk);
                     if (!Number.isInteger(i) || i < 0 || i >= count) return res.status(400).type('text/plain').send('Phần không hợp lệ.');
-                    const part = await readRange(rec, i * per, Math.min(total, (i + 1) * per));
+                    const part = await readRange(frec, i * per, Math.min(total, (i + 1) * per));
                     res.status(200).set(Object.assign({
                         'Content-Type': 'application/octet-stream', 'Content-Length': String(part.length),
                         'X-Total-Size': String(total), 'X-Chunk-Count': String(count), 'X-Chunk-Index': String(i)
@@ -488,15 +533,15 @@ function createController(app, Model) {
                     return res.end(part);
                 }
 
-                const name = cleanName(rec.originalName, rec.slug, rec.fileExt);
+                const name = cleanName(fv.name, rec.slug, fv.ext);
                 const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/[\\"]/g, '_');
                 res.status(200).set(Object.assign({
-                    'Content-Type': cfg.EXT_MIME[rec.fileExt] || 'application/octet-stream',
+                    'Content-Type': cfg.EXT_MIME[fv.ext] || 'application/octet-stream',
                     'Content-Length': String(total),
                     'Content-Disposition': `${req.query.download ? 'attachment' : 'inline'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`
                 }, common));
                 // Nối liền mạch từng file-phần (file lớn: ghi lần lượt, không giữ cả file trong RAM)
-                for (let i = 0; i < rec.parts.length; i++) res.write(await loadPart(rec, i));
+                for (let i = 0; i < frec.parts.length; i++) res.write(await loadPart(frec, i));
                 return res.end();
             } catch (e) {
                 if (res.headersSent) { console.error(`[${app.key}.file] lỗi giữa chừng:`, e.message); return res.destroy(e); }
@@ -553,6 +598,12 @@ function createController(app, Model) {
             isPublished: rec ? rec.isPublished !== false : true,
             fileName: rec ? cleanName(rec.originalName, rec.slug, rec.fileExt) : '', fileSize: rec ? totalSize(rec) : 0,
             fileParts: rec ? (rec.parts || []).length : 0,
+            // Nhiều file / tài liệu (chỉ ứng dụng multiFile): danh sách file hiện có để quản lý (xoá / đổi thứ tự / thêm)
+            multi: !!app.multiFile, maxFiles: L.MAX_FILES,
+            files: rec && app.multiFile ? filesOf(rec).map((f) => ({ id: f.id, name: cleanName(f.name, rec.slug, f.ext), size: f.size, count: f.parts.length })) : [],
+            // "Chỉ hiển thị với" (chỉ ứng dụng audience)
+            audience: app.audience ? await audience.formState(req, rec) : null,
+            searchUrl: `${app.base}/dashboard/users`,
             maxBytes: L.MAX_FILE_BYTES, frameBytes: L.FRAME_PLAIN_BYTES, frameOverhead: L.FRAME_OVERHEAD,
             magicBytes: L.FILE_MAGIC_BYTES, partMaxBytes: L.PART_MAX_BYTES, maxFrames: L.MAX_FRAMES,
             encryptionReady: slideCrypto.isConfigured(),
@@ -566,6 +617,9 @@ function createController(app, Model) {
             maxMb: mb(L.MAX_FILE_BYTES), partMb: mb(L.PART_MAX_BYTES), slStateJson: safeJson(state)
         });
     }
+
+    /** GET {base}/dashboard/users?q= — tìm sinh viên để chọn "Chỉ hiển thị với" (chỉ ứng dụng audience). */
+    ctrl.searchUsers = (req, res) => (app.audience ? audience.searchUsers(req, res) : fail(res, 404, 'Không có chức năng này.'));
 
     ctrl.newForm = async (req, res) => {
         try { return await renderForm(req, res, null); }
@@ -959,6 +1013,68 @@ function createController(app, Model) {
         return { parts, size, ext, base, originalName: cleanName(p.name, slug, ext) };
     }
 
+    /**
+     * Danh sách file của form nhiều file (ứng dụng multiFile): body.items = [{ keep: '<id file đang có>' } | { file: <thông tin file vừa up> }] theo THỨ TỰ hiển thị.
+     * Mỗi { file } được kiểm tra y như checkFile (chữ ký HMAC, đường dẫn, kích thước). Trả cùng dạng với checkFile, thêm:
+     *   files    : mảng file (chỉ khi ≥ 2 file; 1 file → null = lưu kiểu cũ)
+     *   newParts : các file-phần MỚI ghi (để dọn khi lỗi)
+     */
+    async function checkItems(body, ctx) {
+        const items = body && body.items;
+        if (!Array.isArray(items) || !items.length) return { error: `Cần ít nhất 1 file ${app.noun}.` };
+        if (items.length > L.MAX_FILES) return { error: `Mỗi ${app.noun} tối đa ${L.MAX_FILES} file.` };
+        const have = new Map(filesOf(ctx.rec).map((x) => [x.id, x]));
+        const used = new Set(), paths = new Set(), list = [], fresh = [];
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            let f;
+            if (it && typeof it.keep === 'string') {
+                const old = have.get(it.keep);
+                if (!old || used.has(it.keep)) return { error: 'File giữ lại không còn tồn tại. Hãy tải lại trang rồi thử lại.' };
+                used.add(it.keep);
+                f = { id: old.id, name: old.name, ext: old.ext, size: old.size, parts: old.parts, base: null };
+            } else if (it && it.file && typeof it.file === 'object') {
+                const chk = await checkFile({ file: it.file, title: body.title }, ctx);
+                if (chk.error) return { error: items.length > 1 ? `File ${i + 1}: ${chk.error}` : chk.error };
+                if (chk.none) return { error: 'Danh sách file không hợp lệ.' };
+                f = { id: null, name: chk.originalName, ext: chk.ext, size: chk.size, parts: chk.parts, base: chk.base };
+                fresh.push(...chk.parts);
+            } else {
+                return { error: 'Danh sách file không hợp lệ.' };
+            }
+            for (const p of f.parts) {
+                if (paths.has(p.path)) return { error: 'Có file bị trùng đường dẫn. Hãy up lại.' };
+                paths.add(p.path);
+            }
+            list.push(f);
+        }
+        // id cho file mới / file "main" cũ (khi tài liệu 1 file được thêm file thứ 2)
+        const ids = new Set(list.filter((f) => f.id && f.id !== 'main').map((f) => f.id));
+        for (const f of list) {
+            if (f.id && f.id !== 'main') continue;
+            let id;
+            do { id = 'f' + crypto.randomBytes(4).toString('hex'); } while (ids.has(id));
+            ids.add(id); f.id = id;
+        }
+        const head = list[0];
+        const firstNew = list.find((f) => f.base);
+        return {
+            parts: head.parts, ext: head.ext, originalName: head.name,
+            size: list.length > 1 ? list.reduce((n, f) => n + f.size, 0) : head.size,
+            base: firstNew ? firstNew.base : null,
+            files: list.length > 1 ? list.map((f) => ({ id: f.id, name: f.name, ext: f.ext, size: f.size, parts: f.parts })) : null,
+            newParts: fresh
+        };
+    }
+
+    /** Trường file ghi vào bản ghi (RAM): 1 file → như cũ; nhiều file → thêm files. */
+    const recFileFields = (chk) => Object.assign(
+        { parts: chk.parts, fileExt: chk.ext, fileSize: chk.size, originalName: chk.originalName },
+        app.multiFile ? { files: chk.files || [] } : {}
+    );
+    /** Trường file ghi vào JSON GitHub (1 file → không có khoá files, giống hệt định dạng cũ). */
+    const jsonFileFields = (chk) => Object.assign(recFileFields(chk), app.multiFile ? { files: chk.files || undefined } : {});
+
     const delPaths = (paths, msg) => Promise.all(paths.map((p) => githubService.deleteFile(p, msg).catch(() => {})));
     /** Xoá các file-phần (GitHub hoặc R2 tuỳ `store`). */
     const delParts = (list, msg) => Promise.all((list || []).map((x) => (x.store === 'r2'
@@ -975,16 +1091,26 @@ function createController(app, Model) {
             const ctx = await resolveContext(req, scope);
             if (ctx.error) return fail(res, ctx.error[0], ctx.error[1]);
             if (ctx.rec) return fail(res, 400, 'Yêu cầu không hợp lệ.');
-            const f = readForm(req.body);
+            const f = readForm(req.body, app.audience);
             if (f.error) return fail(res, 400, f.error);
             if (!githubService.isConfigured) return fail(res, 503, 'GitHub chưa cấu hình nên chưa lưu được file.');
             if (!slideCrypto.isConfigured()) return fail(res, 503, 'Chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex).');
+            let au = null;
+            if (app.audience) {
+                au = await audience.resolveAllowedUsers(req, f.allowedUserIds);
+                if (au.error) return fail(res, 400, au.error);
+            }
 
             await githubSync.syncKinds([app.key]);
-            const chk = await checkFile(Object.assign({}, req.body, { title: f.title }), ctx);
+            // Form nhiều file gửi items[]; form cũ / Slide gửi file (1 file)
+            const multiReq = !!app.multiFile && Array.isArray((req.body || {}).items);
+            const chk = multiReq
+                ? await checkItems(Object.assign({}, req.body, { title: f.title }), ctx)
+                : await checkFile(Object.assign({}, req.body, { title: f.title }), ctx);
             if (chk.none) return fail(res, 400, `Vui lòng chọn file ${app.noun}.`);
             if (chk.error) return fail(res, chk.error.includes('quá nặng') ? 413 : 400, chk.error);
-            written = chk.parts;
+            if (multiReq && !chk.base) return fail(res, 400, `Vui lòng chọn file ${app.noun}.`);
+            written = chk.newParts || chk.parts;
 
             const jsonFile = `${chk.base}.json`;
             if (await githubService.fileExists(jsonFile)) return fail(res, 409, 'Đã có file trùng đường dẫn trên GitHub, hãy thử lại.');
@@ -996,17 +1122,19 @@ function createController(app, Model) {
                 type: app.key === 'slides' ? 'slide' : 'document',
                 [app.idKey]: String(id),
                 title: f.title, slug, subjectSlug: ctx.subject.slug, description: f.description,
-                parts: chk.parts, fileExt: chk.ext, fileSize: chk.size, originalName: chk.originalName,
+                ...jsonFileFields(chk),
                 encrypted: true, encryption: 'aes-256-gcm',
-                order: 0, isPublished: f.isPublished, isDeleted: false, deletedAt: null, deletedBy: null,
+                order: 0, isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids } : {}),
+                isDeleted: false, deletedAt: null, deletedBy: null,
                 createdBy: String(req.user._id), updatedBy: String(req.user._id), createdAt: nowIso, updatedAt: nowIso
             }, `${app.name}: tạo "${f.title}"`);
 
             const rec = await Model.create({
                 _id: id, githubSha: w && w.sha ? w.sha : null,
                 subjectId: ctx.subject._id, title: f.title, slug, description: f.description, githubFile: jsonFile,
-                parts: chk.parts, fileExt: chk.ext, fileSize: chk.size, originalName: chk.originalName,
-                isPublished: f.isPublished, userKey: ctx.subject.userKey || null,
+                ...recFileFields(chk),
+                isPublished: f.isPublished, ...(au ? { visibility: f.visibility, allowedUserIds: au.ids } : {}),
+                userKey: ctx.subject.userKey || null,
                 createdBy: req.user._id, updatedBy: req.user._id
             });
             return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
@@ -1026,36 +1154,57 @@ function createController(app, Model) {
             if (ctx.error) return fail(res, ctx.error[0], ctx.error[1]);
             const rec = ctx.rec;
             if (!rec) return fail(res, 404, `Không tìm thấy ${app.noun}.`);
-            const f = readForm(req.body);
+            const f = readForm(req.body, app.audience);
             if (f.error) return fail(res, 400, f.error);
+            // "Chỉ hiển thị với": form không gửi gì → giữ nguyên chế độ hiện tại
+            let aud = null;
+            if (app.audience) {
+                if (f.audienceProvided) {
+                    const au = await audience.resolveAllowedUsers(req, f.allowedUserIds);
+                    if (au.error) return fail(res, 400, au.error);
+                    aud = { visibility: f.visibility, allowedUserIds: au.ids, isPublished: f.isPublished };
+                } else {
+                    aud = { visibility: audience.visibilityOf(rec), allowedUserIds: (rec.allowedUserIds || []).map(String), isPublished: rec.isPublished !== false };
+                }
+            }
 
-            const chk = await checkFile(Object.assign({}, req.body, { title: f.title }), ctx);
+            const multiReq = !!app.multiFile && Array.isArray((req.body || {}).items);
+            const chk = multiReq
+                ? await checkItems(Object.assign({}, req.body, { title: f.title }), ctx)
+                : await checkFile(Object.assign({}, req.body, { title: f.title }), ctx);
             if (chk.error) return fail(res, chk.error.includes('quá nặng') ? 413 : 400, chk.error);
-            if (!chk.none) newPaths = chk.parts.map((x) => x.path);
+            if (!chk.none) newPaths = (chk.newParts || chk.parts).map((x) => x.path);
 
             const file = await githubService.readJsonFileWithSha(rec.githubFile);
             if (!file) return fail(res, 404, 'Không đọc được dữ liệu trên GitHub.');
             if (req.body.sha && req.body.sha !== file.sha) return fail(res, 409, 'Đã bị người khác sửa. Hãy tải lại trang.');
 
-            const oldParts = (rec.parts || []).map((x) => ({ path: x.path, store: x.store }));
-            const fileFields = chk.none ? {} : {
-                parts: chk.parts, fileExt: chk.ext, fileSize: chk.size, originalName: chk.originalName,
-                encrypted: true, encryption: 'aes-256-gcm'
-            };
+            const oldParts = allParts(rec).map((x) => ({ path: x.path, store: x.store }));
+            const fileFields = chk.none ? {} : Object.assign(jsonFileFields(chk), { encrypted: true, encryption: 'aes-256-gcm' });
+            const isPublished = aud ? aud.isPublished : f.isPublished;
             const written = await githubService.writeJsonFileIfSha(rec.githubFile, Object.assign({}, file.data, {
                 type: app.key === 'slides' ? 'slide' : 'document',
-                title: f.title, description: f.description, isPublished: f.isPublished,
+                title: f.title, description: f.description, isPublished,
+                ...(aud ? { visibility: aud.visibility, allowedUserIds: aud.allowedUserIds } : {}),
                 subjectSlug: ctx.subject.slug, updatedBy: String(req.user._id), updatedAt: new Date().toISOString()
             }, fileFields), file.sha, `${app.name}: sửa "${f.title}"`);
 
-            rec.title = f.title; rec.description = f.description; rec.isPublished = f.isPublished;
+            rec.title = f.title; rec.description = f.description; rec.isPublished = isPublished;
+            if (aud) { rec.visibility = aud.visibility; rec.allowedUserIds = aud.allowedUserIds; }
             rec.updatedBy = req.user._id;
-            if (!chk.none) { rec.parts = chk.parts; rec.fileExt = chk.ext; rec.fileSize = chk.size; rec.originalName = chk.originalName; }
+            if (!chk.none) {
+                const ff = recFileFields(chk);
+                rec.parts = ff.parts; rec.fileExt = ff.fileExt; rec.fileSize = ff.fileSize; rec.originalName = ff.originalName;
+                if (app.multiFile) rec.files = ff.files;
+            }
             rec.githubSha = written && written.sha ? written.sha : rec.githubSha;
             await rec.save();
 
             // File cũ không còn dùng → xoá (JSON đã trỏ sang file mới nên lỗi ở đây không làm hỏng dữ liệu)
-            if (!chk.none) await delParts(oldParts.filter((x) => !newPaths.includes(x.path)), `${app.name}: xoá file cũ`);
+            if (!chk.none) {
+                const keep = new Set(allParts(rec).map((x) => x.path));       // file còn dùng (giữ lại + mới) — KHÔNG được xoá
+                await delParts(oldParts.filter((x) => !keep.has(x.path)), `${app.name}: xoá file cũ`);
+            }
             // Legacy: JSON cũ còn pdfFile/pdfSize → bỏ đi cho gọn
             return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
         } catch (e) {
@@ -1071,6 +1220,14 @@ function createController(app, Model) {
             const scope = await getContentScope(req);
             const rec = isObjectId(req.params.sid) ? await Model.findById(req.params.sid) : null;
             if (!rec || rec.isDeleted || !scope.canAccess(rec)) return fail(res, 404, `Không tìm thấy ${app.noun}.`);
+            if (app.audience) {
+                // công khai → không công khai; không công khai → công khai; "chỉ một số người" → không công khai (danh sách người giữ nguyên)
+                rec.visibility = audience.visibilityOf(rec) === 'private' ? 'public' : 'private';
+                rec.isPublished = rec.visibility !== 'private';
+                rec.updatedBy = req.user._id;
+                await rec.save();
+                return res.json({ success: true, isPublished: rec.isPublished, visibility: rec.visibility });
+            }
             rec.isPublished = !rec.isPublished;
             rec.updatedBy = req.user._id;
             await rec.save();     // githubStore tự ghi lại file JSON (isPublished, updatedBy)
@@ -1089,7 +1246,7 @@ function createController(app, Model) {
             if (!rec || rec.isDeleted || !scope.canAccess(rec)) return fail(res, 404, `Không tìm thấy ${app.noun}.`);
             // JSON trước: nếu xoá file lỗi thì chỉ còn file mã hoá mồ côi, không có bản ghi nào "hỏng"
             await githubService.deleteFile(rec.githubFile, `${app.name}: xoá "${rec.title}"`);
-            for (const p of rec.parts || []) {
+            for (const p of allParts(rec)) {
                 if (p.store === 'r2') { await r2.remove(p.path).catch((e) => console.warn(`[${app.key}.remove] không xoá được R2 ${p.path}:`, e.message)); continue; }
                 await githubService.deleteFile(p.path, `${app.name}: xoá file "${rec.title}"`).catch((e) => {
                     console.warn(`[${app.key}.remove] không xoá được ${p.path}:`, e.message);
@@ -1103,7 +1260,7 @@ function createController(app, Model) {
         }
     };
 
-    ctrl._test = { checkFile, readRange, loadPart, resolveSlug };
+    ctrl._test = { checkFile, checkItems, filesOf, readRange, loadPart, resolveSlug };
     return ctrl;
 }
 

@@ -277,7 +277,7 @@ const createSubmission = async (req, res) => {
         // ★ USER KEY: chỉ nộp được bài học trong phạm vi tổ chức của mình
         const scope = await getContentScope(req);
 
-        if (!lesson || !scope.canAccess(lesson)) {
+        if (!lesson || !scope.canAccess(lesson) || !require('../services/audienceService').canSee(req.user, lesson)) {
             if (wantsJson(req)) {
                 return res.status(404).json({ success: false, message: 'Không tìm thấy bài học.' });
             }

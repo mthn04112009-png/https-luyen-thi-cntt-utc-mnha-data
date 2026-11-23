@@ -60,8 +60,12 @@ block content
                                 i(data-lucide=app.icon, class="w-6 h-6 text-indigo-600")
                             div(class="flex flex-wrap justify-end gap-2")
                                 span(class=("px-2.5 py-1 rounded-full text-xs font-medium " + (f.fileExt === 'pdf' ? "bg-rose-50 text-rose-700" : "bg-orange-50 text-orange-700")))= (f.fileExt || 'pdf').toUpperCase()
+                                if f.files && f.files.length > 1
+                                    span(class="px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 text-xs font-medium") #{f.files.length} file
                                 if f.isPublished === false
                                     span(class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium") Chưa công khai
+                                else if user && user.role === 'admin' && f.visibility === 'users'
+                                    span(class="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium") Chỉ #{(f.allowedUserIds || []).length} người
                         h2(class="mt-4 text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors")= f.title
                         if f.description
                             p(class="mt-2 text-sm text-gray-500 line-clamp-2")= f.description

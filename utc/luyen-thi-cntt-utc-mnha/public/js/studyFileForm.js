@@ -106,13 +106,20 @@
     }
     function hideMsg() { els.msg.className = 'hidden'; }
     function servedTag() { var n = window.MnhaData && window.MnhaData.label(); return n ? '  · qua web kết nối: ' + n : ''; }
+    // Nhiều file: mỗi file chiếm 1 đoạn của thanh tiến độ (pr.base … pr.base + pr.span) và có nhãn "File i/n"
+    var pr = { base: 0, span: 100, label: '' };
     function setProgress(pct, text) {
         els.prog.classList.remove('hidden');
-        els.bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-        els.progText.textContent = (text || '') + (text ? servedTag() : '');
+        var p = pr.base + Math.max(0, Math.min(100, pct)) * pr.span / 100;
+        els.bar.style.width = Math.max(0, Math.min(100, p)) + '%';
+        els.progText.textContent = (text ? (pr.label ? pr.label + ' — ' : '') + text + servedTag() : '');
     }
+    // ts của mỗi file phải KHÁC nhau (đường dẫn file = <slug>_<ts>…) kể cả khi up nhiều file trong cùng 1 giây
+    var lastTs = 0;
+    function nextTs() { var t = Math.floor(Date.now() / 1000); if (t <= lastTs) t = lastTs + 1; lastTs = t; return t; }
 
     if (!S.encryptionReady) showMsg('err', 'Máy chủ chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa thể mã hoá và lưu file.');
+    if (S.multi) { initMulti(); return; }       // Tài liệu: form nhiều file + "Chỉ hiển thị với" (các hàm bên dưới được dùng chung)
 
     els.file.addEventListener('change', function () {
         var f = els.file.files && els.file.files[0];
@@ -195,7 +202,7 @@
         if (!SUBTLE) return Promise.reject(new Error('Trình duyệt không hỗ trợ Web Crypto (cần mở trang bằng HTTPS hoặc localhost) nên chưa mã hoá được file.'));
         var sizes = frameSizes(file.size, S), total = sizes.length;
         var groups = groupFrames(sizes, S);
-        var uid = randomHex(16), ts = Math.floor(Date.now() / 1000);
+        var uid = randomHex(16), ts = nextTs();
         var shas = [], parts = [];
 
         var KEY_BATCH = 16, pre = {};      // pre[i] = { salt, key } — khoá xin theo lô để đỡ phải gọi từng khung
@@ -340,6 +347,110 @@
             var m = e && e.name === 'AbortError' ? 'quá 5 phút' : (e && e.message === 'Failed to fetch' ? 'không kết nối được ' + S.converterUrl + ' (đã chạy converter/server.py chưa?)' : (e && e.message) || e);
             throw new Error('Không đổi được PPTX sang PDF: ' + m);
         });
+    }
+
+    // ============================================================
+    // NHIỀU FILE / tài liệu (S.multi) + "Ai được xem" (S.audience)
+    //   entries: [{ kind:'keep', id, name, size } | { kind:'new', file, ext, name, size }] theo thứ tự hiển thị.
+    //   Lưu: mỗi file MỚI được up như cũ (uploadFile) → POST { …, items:[{keep:id} | {file:info}] }.
+    //   Còn đúng 1 file → server lưu y như định dạng cũ (1 file).
+    // ============================================================
+    function initMulti() {
+        var entries = (S.files || []).map(function (f) { return { kind: 'keep', id: f.id, name: f.name, size: f.size }; });
+        var listEl = $('slFileList'), countEl = $('slFilesCount');
+        var maxFiles = S.maxFiles || 30;
+        var ap = (window.AudiencePicker && S.audience) ? window.AudiencePicker.init({
+            state: S.audience, searchUrl: S.searchUrl, onError: function (m) { showMsg('err', m); }
+        }) : null;
+
+        function btn(label, title, fn) {
+            var b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = title;
+            b.className = 'px-2 py-1 rounded border border-gray-300 bg-white text-xs text-gray-700 hover:bg-indigo-50 disabled:opacity-40';
+            b.addEventListener('click', fn); return b;
+        }
+        function render() {
+            listEl.textContent = '';
+            entries.forEach(function (e, i) {
+                var row = document.createElement('div');
+                row.className = 'flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 bg-gray-50';
+                var n = document.createElement('span'); n.textContent = String(i + 1);
+                n.className = 'flex-none w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold inline-flex items-center justify-center';
+                var name = document.createElement('span'); name.className = 'flex-1 min-w-0 truncate text-sm text-gray-800'; name.textContent = e.name || '(không tên)'; name.title = e.name || '';
+                var meta = document.createElement('span'); meta.className = 'flex-none text-xs ' + (e.kind === 'new' ? 'text-emerald-700' : 'text-gray-500');
+                meta.textContent = (e.size ? mbText(e.size) + ' · ' : '') + (e.kind === 'new' ? 'mới' : 'đã lưu');
+                var up = btn('↑', 'Lên', function () { move(i, -1); }); up.disabled = i === 0;
+                var dn = btn('↓', 'Xuống', function () { move(i, 1); }); dn.disabled = i === entries.length - 1;
+                var del = btn('Xoá', 'Bỏ file này khỏi tài liệu', function () { entries.splice(i, 1); render(); });
+                del.className += ' text-red-600';
+                [n, name, meta, up, dn, del].forEach(function (x) { row.appendChild(x); });
+                listEl.appendChild(row);
+            });
+            countEl.textContent = entries.length + ' / ' + maxFiles + ' file';
+            if (!entries.length) {
+                var empty = document.createElement('p'); empty.className = 'text-sm text-gray-500'; empty.textContent = 'Chưa có file nào — chọn file PDF ở khung bên dưới.';
+                listEl.appendChild(empty);
+            }
+        }
+        function move(i, d) { var j = i + d; if (j < 0 || j >= entries.length) return; var t = entries[i]; entries[i] = entries[j]; entries[j] = t; render(); }
+
+        els.info.textContent = hint;
+        els.file.addEventListener('change', function () {
+            var bad = [];
+            Array.prototype.forEach.call(els.file.files || [], function (f) {
+                var ext = extOf(f.name);
+                if (S.exts.indexOf(ext) === -1) { bad.push(f.name + ' (chỉ nhận ' + extList + ')'); return; }
+                if (f.size > S.maxBytes) { bad.push(f.name + ' (vượt ' + mbText(S.maxBytes) + ')'); return; }
+                if (!f.size) { bad.push(f.name + ' (file rỗng)'); return; }
+                if (entries.length >= maxFiles) { bad.push(f.name + ' (tối đa ' + maxFiles + ' file)'); return; }
+                if (entries.some(function (e) { return e.kind === 'new' && e.file.name === f.name && e.file.size === f.size && e.file.lastModified === f.lastModified; })) return;
+                entries.push({ kind: 'new', file: f, ext: ext, name: f.name, size: f.size });
+            });
+            els.file.value = '';
+            els.info.textContent = bad.length ? '❌ Bỏ qua: ' + bad.join('; ') : hint;
+            render();
+        });
+
+        var busy = false;
+        els.save.addEventListener('click', function () {
+            if (busy) return;
+            hideMsg();
+            if (!els.subject.value) { showMsg('err', 'Vui lòng chọn môn học.'); els.subject.focus(); return; }
+            if (!els.title.value.trim()) { showMsg('err', 'Vui lòng nhập tiêu đề.'); els.title.focus(); return; }
+            if (!entries.length) { showMsg('err', 'Vui lòng chọn ít nhất 1 file.'); return; }
+            var verr = ap && ap.validate();
+            if (verr) { showMsg('err', verr); return; }
+            var aud = ap ? ap.get() : { visibility: 'public', isPublished: true, allowedUserIds: [] };
+
+            busy = true; els.save.disabled = true;
+            var body = {
+                subjectId: els.subject.value, title: els.title.value.trim(), description: els.desc.value.trim(),
+                visibility: aud.visibility, isPublished: aud.isPublished, allowedUserIds: aud.allowedUserIds
+            };
+            if (S.id) body.sha = S.sha;
+
+            var fresh = entries.filter(function (e) { return e.kind === 'new'; }), done = 0;
+            function next() {
+                if (done >= fresh.length) return Promise.resolve();
+                var e = fresh[done];
+                pr = { base: done / fresh.length * 95, span: 95 / fresh.length, label: fresh.length > 1 ? 'File ' + (done + 1) + '/' + fresh.length + ' (' + e.name + ')' : '' };
+                return uploadFile(e.file, e.ext, body).then(function (info) { e.info = info; done++; return next(); });
+            }
+            next().then(function () {
+                pr = { base: 0, span: 100, label: '' };
+                body.items = entries.map(function (e) { return e.kind === 'keep' ? { keep: e.id } : { file: e.info }; });
+                setProgress(fresh.length ? 99 : 50, '⏳ Đang lưu thông tin…');
+                return postJson(S.id ? S.base + '/dashboard/' + S.id : S.base + '/dashboard', body);
+            }).then(function (d) {
+                setProgress(100, '✓ Hoàn tất');
+                window.location.href = d.redirect || (S.base + '/dashboard');
+            }).catch(function (e) {
+                pr = { base: 0, span: 100, label: '' };
+                busy = false; els.save.disabled = false;
+                els.prog.classList.add('hidden');
+                showMsg('err', e.message || 'Không lưu được.');
+            });
+        });
+        render();
     }
 
     var busy = false;

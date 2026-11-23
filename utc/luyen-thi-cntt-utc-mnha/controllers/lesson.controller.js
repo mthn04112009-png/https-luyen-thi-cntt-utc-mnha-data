@@ -14,6 +14,7 @@ const githubSync = require("../services/githubSyncService");
 const { resolvePrompt, findUnknownPlaceholders } = require("../services/promptService");
 const { sanitizeExplanationHtml } = require("../services/sanitizeService");
 const { getContentScope } = require("../services/userKeyService");
+const audience = require("../services/audienceService");   // ★ "Chỉ hiển thị với" (public | private | users)
 const { formatAiLabel } = require("../utils/aiLabel");
 const { paginate, paginateArray } = require("./pagination.controller");
 const { sortNewestFirst } = require("../utils/lessonOrder");
@@ -217,7 +218,7 @@ exports.listSubjects = async (req, res, next) => {
         const subjectIds = subjects.map((s) => s._id);
 
         const lessonCounts = await Lesson.aggregate([
-            { $match: { subjectId: { $in: subjectIds }, isDeleted: false } },
+            { $match: audience.withAudience({ subjectId: { $in: subjectIds }, isDeleted: false }, req.user) },
             { $group: { _id: "$subjectId", count: { $sum: 1 } } },
         ]);
 
@@ -268,10 +269,10 @@ exports.listLessons = async (req, res, next) => {
         await githubSync.syncKinds(["lessons"]);
 
         // ★ Đề mới nhất lên đầu (mới → cũ)
-        const lessons = sortNewestFirst(await Lesson.find({
+        const lessons = sortNewestFirst(await Lesson.find(audience.withAudience({
             subjectId: subject._id,
             isDeleted: false,
-        }).populate("createdBy", "name").lean());
+        }, req.user)).populate("createdBy", "name").lean());
 
         const submittedMap = {};
         if (req.user) {
@@ -330,7 +331,7 @@ exports.listAllLessons = async (req, res, next) => {
             if (currentSubject) filter.subjectId = currentSubject._id;
         }
 
-        const lessons = sortNewestFirst(await Lesson.find(filter)
+        const lessons = sortNewestFirst(await Lesson.find(audience.withAudience(filter, user))
             .populate("createdBy", "name email")
             .populate("updatedBy", "name email")
             .lean());
@@ -406,6 +407,11 @@ exports.showLesson = async (req, res, next) => {
             return renderNotFound(req, res, "Bài học không tồn tại");
         }
 
+        // ★ "Chỉ hiển thị với": đề ẩn / chỉ dành cho người khác → như không tồn tại (admin luôn xem được)
+        if (!audience.canSee(req.user, lesson)) {
+            return renderNotFound(req, res, "Bài học không tồn tại");
+        }
+
         if (lesson.isDeleted) {
             return renderDeletedLessonPage(req, res, lesson);
         }
@@ -459,6 +465,8 @@ exports.showLessonHistory = async (req, res, next) => {
         if (!scope.canAccess(lesson)) {
             return renderNotFound(req, res, "Bài học không tồn tại");
         }
+
+        if (!audience.canSee(user, lesson)) return renderNotFound(req, res, "Bài học không tồn tại");   // ★ "Chỉ hiển thị với"
 
         // Bài đã vào thùng rác → về trang bài học (đang hiển thị trang "đã bị xoá")
         if (lesson.isDeleted) return res.redirect(`/lessons/${lesson._id}`);
@@ -884,6 +892,7 @@ exports.showCreateLesson = async (req, res, next) => {
         res.render("admin/lesson-form", {
             title: "Thêm Bài học",
             user: req.user,
+            audienceState: await audience.formState(req, null),
             lesson: null,
             content: null,
             subjects,
@@ -927,6 +936,12 @@ exports.createLesson = async (req, res, next) => {
         if (!subject || !scope.canAccess(subject)) {
             return res.status(404).json({ error: "Môn học không tồn tại" });
         }
+
+        // ★ "Ai được xem": công khai (mặc định) / không công khai / chỉ một số người
+        const aud = audience.readAudience(req.body);
+        if (aud.error) return res.status(400).json({ error: aud.error });
+        const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+        if (audUsers.error) return res.status(400).json({ error: audUsers.error });
 
         let slug = slugify(title);
 
@@ -984,7 +999,9 @@ exports.createLesson = async (req, res, next) => {
                     model: model ? String(model).trim() : null,
                     promptId: safePromptId ? String(safePromptId) : null,
                     aiKeyId: safeAiKeyId ? String(safeAiKeyId) : null,
-                    isPublished: true,
+                    isPublished: aud.isPublished,
+                    visibility: aud.visibility,
+                    allowedUserIds: audUsers.ids,
                     isDeleted: false,
                     createdBy: actorMeta(req),
                     createdAt: now,
@@ -1015,6 +1032,9 @@ exports.createLesson = async (req, res, next) => {
             duration: durationValue,
             aiKeyId: safeAiKeyId,
             model: model ? String(model).trim() : null,
+            isPublished: aud.isPublished,
+            visibility: aud.visibility,
+            allowedUserIds: audUsers.ids,
             createdBy: currentUserId(req),
             updatedBy: currentUserId(req),
             isDeleted: false,
@@ -1091,6 +1111,7 @@ exports.showEditLesson = async (req, res, next) => {
         res.render("admin/lesson-form", {
             title: "Sửa Bài học",
             user: req.user,
+            audienceState: await audience.formState(req, lesson),
             lesson,
             content,
             subjects,
@@ -1158,6 +1179,18 @@ exports.updateLesson = async (req, res, next) => {
         }
         if (typeof description === "string") lesson.description = description;
         if (typeof sampleSolution === "string") lesson.sampleSolution = sampleSolution;
+        // ★ "Ai được xem": form không gửi gì → giữ nguyên chế độ hiện tại
+        {
+            const aud = audience.readAudience(req.body);
+            if (aud.error) return res.status(400).json({ error: aud.error });
+            if (aud.provided) {
+                const audUsers = await audience.resolveAllowedUsers(req, aud.allowedUserIds);
+                if (audUsers.error) return res.status(400).json({ error: audUsers.error });
+                lesson.visibility = aud.visibility;
+                lesson.allowedUserIds = audUsers.ids;
+                lesson.isPublished = aud.isPublished;
+            }
+        }
         // ★ USER KEY: chỉ admin default được đổi đường dẫn GitHub
         if (scope.isDefaultAdmin && typeof githubFile === "string" && githubFile) lesson.githubFile = githubFile;
         if (promptId !== undefined) {
@@ -1217,6 +1250,8 @@ exports.updateLesson = async (req, res, next) => {
                 promptId: lesson.promptId ? String(lesson.promptId) : null,
                 aiKeyId: lesson.aiKeyId ? String(lesson.aiKeyId) : null,
                 isPublished: lesson.isPublished !== false,
+                visibility: audience.visibilityOf(lesson),
+                allowedUserIds: (lesson.allowedUserIds || []).map(String),
                 isDeleted: lesson.isDeleted === true,
                 updatedAt: new Date(),
             };

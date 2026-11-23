@@ -1,5 +1,6 @@
 extends ../layout
 include ../partials/served-by
+include ../partials/audience-field
 
 block content
     +servedByBadge('Tải lên')
@@ -235,16 +236,8 @@ block content
                             class="w-full px-3 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         )
 
-                    div(class="flex items-end pb-2.5")
-                        label(class="flex items-center gap-2 cursor-pointer")
-                            input(
-                                type="checkbox"
-                                name="isPublished"
-                                checked=(!lesson || lesson.isPublished)
-                                class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            )
-                            span(class="text-sm text-gray-700")
-                                | Công khai cho sinh viên
+                //- ★ Ai được xem: công khai / không công khai / chỉ một số người
+                +audienceField({ hidden: true })
 
                 //- Audit
                 if lesson
@@ -277,6 +270,13 @@ block content
                             | Tạo bài học
 
     //- JS: auto-fill model theo key
+    script#auState(type="application/json")!= JSON.stringify(audienceState || { visibility: 'public', allowedUsers: [], maxUsers: 300 }).replace(/</g, '\\u003c')
+    script(src="/js/audiencePicker.js")
+    script.
+        (function () {
+            var st = JSON.parse(document.getElementById('auState').textContent);
+            if (window.AudiencePicker) window.AudiencePicker.init({ state: st, searchUrl: '/admin/lessons/users', onError: function (m) { alert(m); } });
+        })();
     script.
         (function () {
             var keySelect = document.getElementById('aiKeySelect');
