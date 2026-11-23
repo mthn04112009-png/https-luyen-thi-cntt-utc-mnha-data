@@ -63,14 +63,15 @@ block content
                                     td(class="px-4 py-3 text-center text-gray-700")= f.videoCount || (f.videos ? f.videos.length : 0)
                                     td(class="px-4 py-3 text-center")
                                         - var vis = f.visibility === 'users' ? 'users' : (f.visibility === 'private' || f.isPublished === false ? 'private' : 'public')
-                                        - var nUsers = (f.allowedUserIds || []).length
+                                        - var nUsers = (f.allowedUserIds || []).length + (f.allowedGroupIds || []).length
+                                        - var audLabel = [((f.allowedGroupIds || []).length ? (f.allowedGroupIds || []).length + ' nhóm' : ''), ((f.allowedUserIds || []).length ? (f.allowedUserIds || []).length + ' người' : '')].filter(Boolean).join(' + ')
                                         button(
                                             type="button",
                                             data-publish=String(f._id),
                                             data-count=String(nUsers),
                                             title=(vis === 'users' ? 'Chỉ hiển thị với một số người — bấm để chuyển sang Không công khai (danh sách người vẫn được giữ). Muốn đổi danh sách: bấm Sửa.' : (vis === 'private' ? 'Bấm để chuyển sang Công khai' : 'Bấm để chuyển sang Không công khai')),
                                             class=("sl-pub px-2.5 py-1 rounded-full text-xs font-medium " + (vis === 'public' ? "bg-green-100 text-green-700" : (vis === 'users' ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600")))
-                                        )= vis === 'public' ? 'Công khai' : (vis === 'users' ? ('Chỉ ' + nUsers + ' người') : 'Không công khai')
+                                        )= vis === 'public' ? 'Công khai' : (vis === 'users' ? ('Chỉ ' + audLabel) : 'Không công khai')
                                     td(class="px-4 py-3 text-right whitespace-nowrap")
                                         a(href=(app.base + "/study/" + f._id), class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200") Xem
                                         a(href=(app.base + "/dashboard/" + f._id + "/edit"), class="ml-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100") Sửa

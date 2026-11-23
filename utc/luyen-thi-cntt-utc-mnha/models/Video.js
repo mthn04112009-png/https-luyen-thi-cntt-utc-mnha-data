@@ -13,12 +13,12 @@ module.exports = createModel({
     defaults: githubStore.KINDS.videos ? githubStore.KINDS.videos.defaults() : {
         description: '', videos: [], videoCount: 0, order: 0,
         githubFile: null, githubSha: null, isPublished: true,
-        visibility: 'public', allowedUserIds: [],
+        visibility: 'public', allowedUserIds: [], allowedGroupIds: [],
         userKey: null, createdBy: null, updatedBy: null,
         isDeleted: false, deletedAt: null, deletedBy: null, slug: null
     },
     fields: ['subjectId', 'title', 'slug', 'description', 'videos', 'videoCount', 'order', 'githubFile',
-        'githubSha', 'isPublished', 'visibility', 'allowedUserIds', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
+        'githubSha', 'isPublished', 'visibility', 'allowedUserIds', 'allowedGroupIds', 'userKey', 'createdBy', 'updatedBy', 'isDeleted', 'deletedAt', 'deletedBy',
         'createdAt', 'updatedAt'],
     refs: { subjectId: 'Subject', userKey: 'UserKey', createdBy: 'User', updatedBy: 'User', deletedBy: 'User' }
 });

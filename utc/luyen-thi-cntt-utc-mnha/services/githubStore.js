@@ -234,7 +234,7 @@ function videoKind() {
         defaults: () => ({
             description: '', videos: [], videoCount: 0, order: 0,
             githubFile: null, githubSha: null, isPublished: true,
-            visibility: 'public', allowedUserIds: [],
+            visibility: 'public', allowedUserIds: [], allowedGroupIds: [],
             userKey: null, createdBy: null, updatedBy: null,
             isDeleted: false, deletedAt: null, deletedBy: null, slug: null
         }),
@@ -254,11 +254,7 @@ function videoKind() {
             if (typeof json.isPublished === 'boolean') r.isPublished = json.isPublished;
             // Chế độ hiển thị: public (mọi sinh viên) | private (chỉ admin) | users (chỉ những người được chọn — lưu id user)
             // JSON cũ không có `visibility` → suy từ isPublished.
-            const vis = ['public', 'private', 'users'].includes(json.visibility)
-                ? json.visibility : (json.isPublished === false ? 'private' : 'public');
-            r.visibility = vis;
-            r.isPublished = vis !== 'private';
-            r.allowedUserIds = cleanUserIds(json.allowedUserIds);
+            applyAudience(r, json);       // visibility + allowedUserIds + allowedGroupIds (nhóm)
             if (json.isDeleted !== undefined) {
                 r.isDeleted = json.isDeleted === true;
                 r.deletedAt = r.isDeleted ? (toDate(json.deletedAt) || new Date()) : null;
@@ -273,8 +269,7 @@ function videoKind() {
             title: r.title, slug: r.slug, description: r.description,
             videos: r.videos || [], videoCount: (r.videos || []).length,
             order: r.order, isPublished: r.isPublished,
-            visibility: r.visibility || (r.isPublished === false ? 'private' : 'public'),
-            allowedUserIds: Array.isArray(r.allowedUserIds) ? r.allowedUserIds : [],
+            ...audPatch(r),
             createdBy: hex(r.createdBy), updatedBy: hex(r.updatedBy),
             isDeleted: !!r.isDeleted, deletedAt: iso(r.deletedAt), deletedBy: hex(r.deletedBy)
         })

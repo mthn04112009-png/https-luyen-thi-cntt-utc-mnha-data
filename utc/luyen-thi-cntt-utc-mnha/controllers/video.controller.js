@@ -28,6 +28,7 @@ const Subject = require('../models/Subject');
 const User = require('../models/User');
 const Video = require('../models/Video');
 const githubService = require('../services/githubService');
+const audience = require('../services/audienceService');   // ★ "Chỉ hiển thị với" (nhóm + tài khoản)
 const githubSync = require('../services/githubSyncService');
 const videoCrypto = require('../services/videoCryptoService');
 const { parseEmbed } = require('../services/videoEmbedService');
@@ -73,11 +74,12 @@ function readForm(body) {
     const visibility = VISIBILITIES.includes(b.visibility) ? b.visibility : (legacyHidden ? 'private' : 'public');
     const isPublished = visibility !== 'private';
     const allowedUserIds = visibility === 'users' && Array.isArray(b.allowedUserIds) ? b.allowedUserIds : [];
+    const allowedGroupIds = visibility === 'users' && Array.isArray(b.allowedGroupIds) ? b.allowedGroupIds : [];
     if (!title) return { error: 'Vui lòng nhập tiêu đề.' };
     if (title.length > L.MAX_TITLE_LEN) return { error: `Tiêu đề tối đa ${L.MAX_TITLE_LEN} ký tự.` };
     if (description.length > L.MAX_DESC_LEN) return { error: `Mô tả tối đa ${L.MAX_DESC_LEN} ký tự.` };
-    if (visibility === 'users' && !allowedUserIds.length) return { error: 'Hãy chọn ít nhất 1 người được xem (hoặc đổi sang chế độ khác).' };
-    return { title, description, isPublished, visibility, allowedUserIds };
+    if (visibility === 'users' && !allowedUserIds.length && !allowedGroupIds.length) return { error: 'Hãy chọn ít nhất 1 nhóm hoặc 1 tài khoản được xem (hoặc đổi sang chế độ khác).' };
+    return { title, description, isPublished, visibility, allowedUserIds, allowedGroupIds };
 }
 
 /** Giải mã 1 video đã lưu → { code } | { error } (không bao giờ ném lỗi). */
@@ -177,15 +179,14 @@ async function findSubject(req, scope, param) {
 const canSeeRecord = (req, rec) => {
     if (isAdmin(req)) return true;
     if (!rec || rec.isPublished === false || rec.visibility === 'private') return false;
-    if (rec.visibility === 'users') return (rec.allowedUserIds || []).map(String).includes(viewerId(req));
-    return true;
+    return audience.canSee(req.user, rec);      // public | users (người HOẶC thuộc nhóm được chọn)
 };
 
 const itemFilter = (req, scope, extra) => {
     const base = { isDeleted: { $ne: true }, ...(isAdmin(req) ? {} : { isPublished: true }), ...scope.filter, ...(extra || {}) };
     if (isAdmin(req)) return base;
     // $and để không đè $or của scope.filter
-    return { $and: [base, { visibility: { $ne: 'private' } }, { $or: [{ visibility: { $ne: 'users' } }, { allowedUserIds: viewerId(req) }] }] };
+    return { $and: [base, audience.audienceClause(req.user)] };
 };
 
 async function countBySubject(req, scope, subjectIds) {
@@ -364,26 +365,8 @@ ctrl.dashboard = async (req, res) => {
     }
 };
 
-/** GET /videos/dashboard/users?q= — tìm sinh viên theo họ tên / email / 1 đoạn tên (không phân biệt hoa-thường, có/không dấu). */
-ctrl.searchUsers = async (req, res) => {
-    try {
-        const actor = await getActor(req);
-        const q = String(req.query.q || '').trim().slice(0, 100);
-        const conds = [buildUserListFilter(actor), { role: 'student', status: 'approved' }];
-        // Mỗi từ phải khớp họ tên HOẶC email (gõ "van an", "an@", "nguyen" … đều ra)
-        q.split(/\s+/).filter(Boolean).slice(0, 6).forEach((t) => { const c = buildSearchClause(t, ['name', 'email']); if (c) conds.push(c); });
-        const filter = { $and: conds };
-        const [users, total] = await Promise.all([
-            User.find(filter).select('name email').sort({ name: 1 }).limit(30).lean(),
-            User.countDocuments(filter)
-        ]);
-        res.set({ 'Cache-Control': 'private, no-store' });
-        return res.json({ success: true, total, users: users.map((u) => ({ id: String(u._id), name: u.name || '', email: u.email || '' })) });
-    } catch (e) {
-        console.error('[videos.searchUsers]', e);
-        return fail(res, 500, 'Không tìm được người dùng.');
-    }
-};
+/** GET /videos/dashboard/users?q= — tìm NHÓM + sinh viên (họ tên / email / 1 đoạn tên) cho "Chỉ hiển thị với". */
+ctrl.searchUsers = (req, res) => audience.searchUsers(req, res);
 
 async function renderForm(req, res, rec) {
     const scope = await getContentScope(req);
@@ -400,8 +383,8 @@ async function renderForm(req, res, rec) {
         title: rec ? rec.title : '', description: rec ? rec.description || '' : '',
         isPublished: rec ? rec.isPublished !== false : true,
         visibility: rec ? (VISIBILITIES.includes(rec.visibility) ? rec.visibility : (rec.isPublished === false ? 'private' : 'public')) : 'public',
-        allowedUsers: rec ? await describeUsers(req, rec.allowedUserIds) : [],
-        maxUsers: L.MAX_ALLOWED_USERS,
+        audience: await audience.formState(req, rec),      // ★ chế độ hiển thị + nhóm / người đã chọn
+        searchUrl: app.base + '/dashboard/users',
         videos, maxVideos: L.MAX_VIDEOS, maxEmbed: L.MAX_EMBED_LEN,
         encryptionReady: videoCrypto.isConfigured(),
         sha: rec ? ((await githubService.readJsonFileWithSha(rec.githubFile).catch(() => null)) || {}).sha || null : null
@@ -464,7 +447,7 @@ ctrl.create = async (req, res) => {
         if (notReady) return fail(res, 503, notReady);
         const v = buildVideos((req.body || {}).videos, null);
         if (v.error) return fail(res, 400, v.error);
-        const au = await resolveAllowedUsers(req, f.allowedUserIds);
+        const au = await audience.resolveAudienceTargets(req, f);      // người + nhóm (người đã nằm trong nhóm được chọn thì bỏ)
         if (au.error) return fail(res, 400, au.error);
 
         await githubSync.syncKinds([app.key]);
@@ -482,7 +465,7 @@ ctrl.create = async (req, res) => {
             title: f.title, slug, subjectSlug: ctx.subject.slug, description: f.description,
             videos: v.videos, videoCount: v.videos.length,
             encrypted: true, encryption: 'aes-256-gcm',
-            order: 0, isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids,
+            order: 0, isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds,
             isDeleted: false, deletedAt: null, deletedBy: null,
             createdBy: String(req.user._id), updatedBy: String(req.user._id), createdAt: nowIso, updatedAt: nowIso
         }, `${app.name}: tạo "${f.title}"`);
@@ -491,7 +474,7 @@ ctrl.create = async (req, res) => {
             _id: id, githubSha: w && w.sha ? w.sha : null,
             subjectId: ctx.subject._id, title: f.title, slug, description: f.description, githubFile: jsonFile,
             videos: v.videos, videoCount: v.videos.length,
-            isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, userKey: ctx.subject.userKey || null,
+            isPublished: f.isPublished, visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds, userKey: ctx.subject.userKey || null,
             createdBy: req.user._id, updatedBy: req.user._id
         });
         return res.json({ success: true, id: String(rec._id), redirect: `${app.base}/dashboard` });
@@ -515,7 +498,7 @@ ctrl.update = async (req, res) => {
         if (notReady) return fail(res, 503, notReady);
         const v = buildVideos((req.body || {}).videos, rec.videos);
         if (v.error) return fail(res, 400, v.error);
-        const au = await resolveAllowedUsers(req, f.allowedUserIds);
+        const au = await audience.resolveAudienceTargets(req, f);
         if (au.error) return fail(res, 400, au.error);
 
         const file = await githubService.readJsonFileWithSha(rec.githubFile);
@@ -525,13 +508,13 @@ ctrl.update = async (req, res) => {
         const written = await githubService.writeJsonFileIfSha(rec.githubFile, Object.assign({}, file.data, {
             type: 'video',
             title: f.title, description: f.description, isPublished: f.isPublished,
-            visibility: f.visibility, allowedUserIds: au.ids,
+            visibility: f.visibility, allowedUserIds: au.ids, allowedGroupIds: au.groupIds,
             videos: v.videos, videoCount: v.videos.length, encrypted: true, encryption: 'aes-256-gcm',
             subjectSlug: ctx.subject.slug, updatedBy: String(req.user._id), updatedAt: new Date().toISOString()
         }), file.sha, `${app.name}: sửa "${f.title}"`);
 
         rec.title = f.title; rec.description = f.description; rec.isPublished = f.isPublished;
-        rec.visibility = f.visibility; rec.allowedUserIds = au.ids;
+        rec.visibility = f.visibility; rec.allowedUserIds = au.ids; rec.allowedGroupIds = au.groupIds;
         rec.videos = v.videos; rec.videoCount = v.videos.length;
         rec.updatedBy = req.user._id;
         rec.githubSha = written && written.sha ? written.sha : rec.githubSha;

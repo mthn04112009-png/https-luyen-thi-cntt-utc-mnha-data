@@ -6,7 +6,7 @@
 - Đọc vào RAM (TTL 20s, `GROUPS_CACHE_TTL_MS`), middleware `groupService.warm` trong `server.js` nạp sẵn để lọc đồng bộ.
 
 ## Chỉ hiển thị với…
-- Có ở: Đề tự luận (`/admin/lessons/:id/edit`), Đề trắc nghiệm, Tài liệu, **Slide**, **Flashcards**.
+- Có ở: Đề tự luận (`/admin/lessons/:id/edit`), Đề trắc nghiệm, Tài liệu, **Slide**, **Flashcards**, **Video** (`/videos/dashboard/:id/edit`).
 - JSON mỗi mục lưu: `visibility` (`public|private|users`), `allowedUserIds[]`, `allowedGroupIds[]`.
 - Sinh viên thấy mục khi: công khai, hoặc có id trong `allowedUserIds`, hoặc thuộc 1 nhóm trong `allowedGroupIds`.
 - Bộ chọn có 2 phần **👥 Nhóm** và **👤 Tài khoản** (huy hiệu riêng, chip khác màu).
