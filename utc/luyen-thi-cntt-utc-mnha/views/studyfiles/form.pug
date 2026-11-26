@@ -15,6 +15,62 @@ block content
 
         div(id="slMsg", class="hidden mb-4 p-4 rounded-xl text-sm")
 
+        //- ===== HƯỚNG DẪN LÀM FILE .PPTX (chỉ hiện ở mục cho up .pptx, tức Slide bài học). Code đọc các thứ này: public/js/pptxPlayer.js =====
+        if app.exts.indexOf('pptx') !== -1
+            details(class="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 text-sm text-gray-700", open=!editing)
+                summary(class="cursor-pointer select-none px-5 py-3 font-semibold text-indigo-800") 📘 Hướng dẫn làm file PPTX để trình chiếu trên web (chuyển cảnh, hiệu ứng, giọng đọc, âm thanh…)
+                div(class="px-5 pb-5 space-y-4")
+                    p
+                        | File .pptx được web tự dựng lại và trình chiếu ngay trong trình duyệt bằng
+                        code(class="mx-1 px-1 rounded bg-white border border-gray-200") public/js/pptxPlayer.js
+                        | (file không gửi đi đâu để xử lý). Những gì player đọc được từ file PPTX:
+
+                    div
+                        p(class="font-semibold text-gray-900") 1. Hiển thị &amp; trình chiếu
+                        ul(class="list-disc pl-5 space-y-1")
+                            li Bố cục / layout / master, màu và font của theme, nền (màu, gradient, ảnh); hình cơ bản, đường, mũi tên, freeform; chữ (cỡ, đậm/nghiêng, màu, bullet, căn lề); ảnh (PNG/JPG/GIF/SVG/WebP, cả EMF/WMF); nhóm, bảng; biểu đồ cột / đường / vùng / tròn / vành khuyên.
+                            li Chuyển cảnh: fade, push, cover, pull, wipe, split, zoom, circle, diamond, plus, cut, random (nhóm của PowerPoint 2010+ được quy về kiểu gần nhất).
+                            li Hiệu ứng (entrance / exit / emphasis / motion path): appear, fly, fade, wipe, zoom, box, circle, diamond, split, spin, grow/shrink, pulse… đúng thứ tự click / cùng lúc / sau hiệu ứng trước, đúng độ trễ và thời lượng; hiệu ứng theo từng đoạn văn.
+                            li Tự chuyển slide theo thời gian (advance after) → có nút ⏱ bật/tắt. Zoom 50–300% (nút − +, phím + / − / 0, Ctrl + lăn chuột), mức zoom được nhớ cho lần sau.
+
+                    div
+                        p(class="font-semibold text-gray-900") 2. Lời giảng đọc tự động — viết trong Ghi chú (Notes) của slide
+                        p Mỗi đoạn Ghi chú bắt đầu bằng [ … ] sẽ được đọc to khi tới đúng bước (đoạn không có [ … ] ở đầu bị bỏ qua nên vẫn ghi chú thường được):
+                        pre(class="mt-1 p-3 rounded-lg bg-white border border-gray-200 text-xs overflow-x-auto whitespace-pre-wrap").
+                            [Mở slide – giới thiệu] Chào các bạn, hôm nay ta học về tiến trình.
+                            [Click 1 – định nghĩa] Tiến trình là chương trình đang chạy.
+                            [Click 2 – ví dụ | en] A process is a program in execution.
+                        ul(class="list-disc pl-5 space-y-1 mt-1")
+                            li [Mở slide …] (hoặc [Intro …]) = đọc khi slide vừa hiện; [Click N …] = đọc khi bấm hiệu ứng thứ N.
+                            li Thêm | mã-ngôn-ngữ ở cuối ngoặc để chỉ rõ tiếng: vi, en, zh, ja, ko, de, fr, es, it, pt, ru, th, id, hi, ar, tr, nl, pl… (có thể kèm vùng: zh-TW, en-US). Không ghi thì tự đoán theo chữ viết.
+                            li Thứ tự đọc: (1) giọng TTS có sẵn của trình duyệt (Web Speech API); (2) máy thiếu giọng ngôn ngữ đó → tự đọc bằng Google Dịch (translate_tts, trình duyệt tự tải; mạng chặn translate.google.com thì không đọc được).
+                            li Thanh công cụ có nút 🔊 / 🔇 bật–tắt đọc lời giảng (chỉ hiện khi file có lời giảng; lựa chọn được nhớ).
+
+                    div
+                        p(class="font-semibold text-gray-900") 3. Nút phát âm / đọc to ngay trên slide
+                        p Gắn vào một hình ảnh (vd. biểu tượng loa) thuộc tính title của hình (p:cNvPr title) = tts: + JSON. Bấm hình là đọc, bấm lần nữa để dừng; bấm không làm chuyển slide:
+                        pre(class="mt-1 p-3 rounded-lg bg-white border border-gray-200 text-xs overflow-x-auto whitespace-pre-wrap").
+                            tts:{"t":"sheep","r":0.9}                    đọc 1 từ/câu, r = tốc độ (1 bình thường, 0.5 chậm)
+                            tts:{"t":"Hi!","v":"m"}                      v = m (giọng nam) | f (giọng nữ); mặc định ưu tiên en-GB
+                            tts:{"t":"你好","lang":"zh"}                  lang = ngôn ngữ đọc (vi en zh ja ko de fr es it pt ru th id hi ar tr nl pl…)
+                            tts:{"seq":[{"t":"Hi!","v":"m"},{"t":"Hello","v":"f"}]}   đọc lần lượt nhiều câu (hội thoại)
+                            tts:{"t":"uh","ph":"ə"}                      ph = âm IPA đơn lẻ → tự tổng hợp bằng Web Audio (không đọc chữ)
+                            tts:{"t":"...","label":"Nghe thử"}           label = chú thích khi rê chuột / đọc màn hình
+
+                    div
+                        p(class="font-semibold text-gray-900") 4. Âm thanh, video, liên kết
+                        ul(class="list-disc pl-5 space-y-1")
+                            li Hình có liên kết (hyperlink) tới tệp âm thanh trực tiếp (https://… đuôi .mp3 .wav .ogg .oga .m4a .aac) → bấm là phát tại chỗ bằng thẻ audio. Link Google Drive / trang web thường không phát được, chỉ mở tab mới.
+                            li Hình có liên kết YouTube (watch?v=, youtu.be, /embed/, /shorts/, /live/; hỗ trợ &amp;t=) hoặc video YouTube của PowerPoint → bấm là phát ngay trong slide, kèm nút ↗ mở YouTube.
+                            li Hình có liên kết web thường (https://…) → bấm mở tab mới.
+
+                    div
+                        p(class="font-semibold text-gray-900") 5. Chưa hỗ trợ / lưu ý
+                        ul(class="list-disc pl-5 space-y-1")
+                            li Chưa hỗ trợ đúng: biểu đồ radar / scatter / bubble / 3D, SmartArt, video &amp; âm thanh nhúng thẳng trong file (hãy dùng link), WordArt; hiệu ứng blinds / checker / strips / wheel / wedge được thay bằng fade.
+                            li File .ppt (cũ) chỉ tải xuống, không trình chiếu được — hãy lưu lại thành .pptx.
+                            li Nếu quản trị đã bật dịch vụ đổi PPTX → PDF (biến môi trường PPTX_CONVERTER_URL), form sẽ tự đổi file sang PDF khi up → xem như PDF, KHÔNG còn hiệu ứng / lời giảng / nút phát âm. Muốn giữ những thứ này, hãy tắt converter.
+
         div(class="bg-white rounded-2xl border border-gray-200 p-6 space-y-5")
             div(class="grid grid-cols-1 md:grid-cols-2 gap-5")
                 div

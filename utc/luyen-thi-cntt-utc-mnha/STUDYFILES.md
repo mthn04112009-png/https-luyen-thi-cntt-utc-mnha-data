@@ -113,3 +113,12 @@ Tắt đường GitHub trực tiếp: `GH_DIRECT=off` (hoặc `STUDYFILE_DIRECT=
 Cách tạo App: GitHub → Settings → Developer settings → GitHub Apps → New (tắt Webhook), *Repository permissions → Contents: Read and write*; tạo private key `.pem`; **Install App** lên tài khoản chứa repo, chọn *All repositories* (để repo `-1`, `-2`… cũng được cấp token).
 
 Test: `node test/studyfiles.direct-gh.js`.
+
+## Hướng dẫn làm file PPTX cho trình chiếu (giọng đọc, âm thanh, …)
+Bản đầy đủ nằm ở đầu `public/js/pptxPlayer.js`; bản rút gọn hiện thành khung **📘 Hướng dẫn** trên trang up Slide (`/slides/dashboard/new`, `views/studyfiles/form.pug`, chỉ hiện ở mục có `pptx` trong `exts`).
+- **Lời giảng tự đọc**: viết trong *Ghi chú* của slide, mỗi đoạn bắt đầu `[Mở slide – …]` hoặc `[Click N – …]`; thêm `| vi|en|zh|ja|…` cuối ngoặc để chỉ rõ tiếng. Đọc bằng giọng TTS của trình duyệt, thiếu giọng thì dùng Google Dịch (`translate_tts`). Nút 🔊/🔇 bật–tắt.
+- **Nút đọc to** trên hình ảnh: `title="tts:{JSON}"` — `{"t":"sheep","r":0.9}`, `"v":"m|f"`, `"lang":"zh"`, `{"seq":[…]}`, `"ph":"ə"` (âm IPA tự tổng hợp), `"label"`.
+- **Âm thanh**: hình có hyperlink tới tệp trực tiếp `.mp3 .wav .ogg .oga .m4a .aac` → phát tại chỗ. **YouTube**: hình có hyperlink YouTube → phát ngay trong slide.
+- Chuyển cảnh / hiệu ứng / tự chuyển slide: làm bằng PowerPoint như bình thường.
+- Chưa hỗ trợ: radar/scatter/bubble/3D, SmartArt, video & âm thanh nhúng trong file, WordArt; `.ppt` chỉ tải xuống.
+- Nếu đặt `PPTX_CONVERTER_URL`, form tự đổi PPTX → PDF khi up → mất hiệu ứng / lời giảng / nút phát âm.

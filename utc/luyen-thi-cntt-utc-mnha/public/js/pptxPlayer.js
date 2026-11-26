@@ -17,6 +17,26 @@
  * Dùng:  var deck = await PptxPlayer.load(arrayBuffer, JSZip);
  *        var player = new PptxPlayer.Player(containerEl, deck, { onChange: fn });  await player.show(0);
  *        player.next(); player.prev(); player.goto(i); player.resize(); player.setZoom(1.35); player.destroy();
+ *
+ * ------------------------------------------------------------
+ * HƯỚNG DẪN LÀM FILE .PPTX ĐỂ DÙNG HẾT TÍNH NĂNG (bản rút gọn cũng hiện ở trang up: /slides/dashboard/new — views/studyfiles/form.pug)
+ * ------------------------------------------------------------
+ * 1) LỜI GIẢNG TỰ ĐỌC — viết trong GHI CHÚ (Notes) của slide, mỗi đoạn bắt đầu bằng [ … ]   (xem loadNarration, Narrator)
+ *      [Mở slide – giới thiệu] nội dung…        đọc khi slide vừa hiện (cũng nhận "[Intro …]", "[Mở đầu …]")
+ *      [Click 3 – ý thứ ba] nội dung…           đọc khi bấm hiệu ứng thứ 3
+ *      [Click 2 – ví dụ | en] A process is…     "| mã" cuối ngoặc = ngôn ngữ đọc (vi en zh ja ko de fr es it pt ru th id hi ar tr nl pl uk sv el cs ms;
+ *                                               có thể kèm vùng zh-TW, en-US); không ghi → tự đoán theo chữ viết (Lang.detect)
+ *      Đoạn Ghi chú không có [ … ] ở đầu bị bỏ qua. Nút 🔊/🔇 trên thanh công cụ bật–tắt (nhớ ở localStorage 'pp_narration').
+ *      Thứ tự đọc (Narrator): (a) giọng TTS của trình duyệt (speechSynthesis); (b) thiếu giọng ngôn ngữ đó → Google Dịch translate_tts
+ *      (<audio> trong iframe no-referrer; tắt bằng opts.googleTts=false hoặc window.PPTX_GOOGLE_TTS=false).
+ * 2) NÚT ĐỌC TO / PHÁT ÂM trên slide — đặt vào <p:cNvPr title="tts:{JSON}"> của một HÌNH ẢNH (vd. icon loa)   (xem attachSpeak, Speech)
+ *      {"t":"sheep","r":0.9}   {"t":"Hi!","v":"m|f"}   {"t":"你好","lang":"zh"}   {"seq":[{…},{…}]}   {"t":"uh","ph":"ə"} (âm IPA → Web Audio)   {"label":"Nghe thử"}
+ * 3) ÂM THANH — ảnh có hyperlink tới tệp trực tiếp https://….(mp3|wav|ogg|oga|m4a|aac) → phát bằng <audio> (xem attachYouTube → Speech.audio).
+ * 4) VIDEO — ảnh có hyperlink YouTube (watch?v= / youtu.be / embed / shorts / live, có &t=) hoặc a:videoFile YouTube → phát tại chỗ (iframe) + nút ↗ YouTube.
+ *    Ảnh có hyperlink web thường → mở tab mới. Âm thanh/video NHÚNG THẲNG trong file chưa hỗ trợ — hãy dùng link.
+ * 5) CHUYỂN CẢNH / HIỆU ỨNG / TỰ CHUYỂN SLIDE (advTm) — làm bình thường bằng PowerPoint, player đọc theo đúng file (xem danh sách ở đầu file).
+ * 6) Lưu ý khi up: nếu server đặt PPTX_CONVERTER_URL thì public/js/studyFileForm.js tự đổi .pptx → PDF trước khi up → xem như PDF,
+ *    KHÔNG còn hiệu ứng / lời giảng / nút phát âm. Muốn dùng những thứ trên hãy để trống PPTX_CONVERTER_URL.
  * ============================================================ */
 (function (global) {
     'use strict';
