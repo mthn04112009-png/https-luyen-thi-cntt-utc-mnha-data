@@ -54,6 +54,8 @@ block content
                                     p(class="text-xs text-gray-500 mt-0.5") CLOUDINARY_CLOUD_NAME
                             if acc.source === 'env'
                                 span(class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium") Từ .env
+                            else if acc.source === 'repo'
+                                span(class="px-2.5 py-1 rounded-full bg-sky-100 text-sky-700 text-xs font-medium") Nhập ở /connect
                             else
                                 span(class="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium") Đã mã hóa
 
@@ -69,11 +71,13 @@ block content
                             p(class="text-xs text-gray-500")
                                 if acc.source === 'env'
                                     | Cấu hình trong biến môi trường (không xóa được ở đây)
+                                else if acc.source === 'repo'
+                                    | Quản lý ở trang /connect (mục Cloudinary)
                                 else
                                     | Cập nhật:
                                     = ' ' + (acc.updatedAt ? new Date(acc.updatedAt).toLocaleString('vi-VN') : '—')
 
-                            if acc.source !== 'env'
+                            if acc.source === 'db'
                                 div(class="flex items-center gap-2")
                                     button(
                                         type="button"

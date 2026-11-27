@@ -636,6 +636,7 @@ block content
                         div(class="p-3 rounded-lg bg-gray-50 text-sm text-gray-700 whitespace-pre-wrap")
                             = lastSubmission.feedback
 
+    script(src="/js/directImage.js")
     script(src="/js/drawingPad.js")
     script(src="/js/photoToPaint.js")
     script(src="/js/pdfToImage.js")
@@ -804,16 +805,27 @@ block content
                 syncPhotoBtn();
                 try {
                     setPhotoStatus("busy", "⏳ Đang kiểm duyệt ảnh (" + cloudNames.join(", ") + ")...");
-                    const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
-                        method: "POST",
-                        headers: { "Content-Type": file.type, "Accept": "application/json", "X-Cloudinary-Names": cloudNames.join(",") },
-                        body: file
-                    });
-                    let data = null;
-                    try { data = await res.json(); } catch (e) { /* server không trả JSON */ }
-                    if (!res.ok || !data || !data.success) {
-                        throw new Error((data && data.message) || "Không tải được ảnh (HTTP " + res.status + ").");
-                    }
+                    // Luồng CŨ (dự phòng): gửi ảnh thô qua máy chủ — chỉ dùng khi không up thẳng được
+                    const legacyPhoto = async function () {
+                        const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
+                            method: "POST",
+                            headers: { "Content-Type": file.type, "Accept": "application/json", "X-Cloudinary-Names": cloudNames.join(",") },
+                            body: file
+                        });
+                        let d = null;
+                        try { d = await res.json(); } catch (e) { /* server không trả JSON */ }
+                        if (!res.ok || !d || !d.success) {
+                            throw new Error((d && d.message) || "Không tải được ảnh (HTTP " + res.status + ").");
+                        }
+                        return d;
+                    };
+                    // ★ Up THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm; lỗi hạ tầng → legacyPhoto()
+                    const data = window.MnhaDirectImage
+                        ? await window.MnhaDirectImage.run({
+                            base: "/submissions/drawing-upload", file: file, names: cloudNames, legacy: legacyPhoto,
+                            status: function (t) { setPhotoStatus("busy", t); }
+                        })
+                        : await legacyPhoto();
 
                     setPhotoStatus("busy", "🧠 Ảnh hợp lệ — đang chuyển thành nét vẽ (CNN)...");
                     const out = await PhotoToPaint.convert(file, {});
@@ -888,16 +900,27 @@ block content
                     }
 
                     setPdfStatus("busy", "⏳ Đang kiểm duyệt ảnh (" + cloudName + ")...");
-                    const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
-                        method: "POST",
-                        headers: { "Content-Type": "image/jpeg", "Accept": "application/json", "X-Cloudinary-Names": cloudName },
-                        body: r.blob
-                    });
-                    let data = null;
-                    try { data = await res.json(); } catch (e) { /* server không trả JSON */ }
-                    if (!res.ok || !data || !data.success) {
-                        throw new Error((data && data.message) || "Không tải được PDF (HTTP " + res.status + ").");
-                    }
+                    // Luồng CŨ (dự phòng): gửi ảnh thô qua máy chủ — chỉ dùng khi không up thẳng được
+                    const legacyPdf = async function () {
+                        const res = await (window.MnhaData ? window.MnhaData.fetch : fetch)("/submissions/drawing-upload", {
+                            method: "POST",
+                            headers: { "Content-Type": "image/jpeg", "Accept": "application/json", "X-Cloudinary-Names": cloudName },
+                            body: r.blob
+                        });
+                        let d = null;
+                        try { d = await res.json(); } catch (e) { /* server không trả JSON */ }
+                        if (!res.ok || !d || !d.success) {
+                            throw new Error((d && d.message) || "Không tải được PDF (HTTP " + res.status + ").");
+                        }
+                        return d;
+                    };
+                    // ★ Up THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm; lỗi hạ tầng → legacyPdf()
+                    const data = window.MnhaDirectImage
+                        ? await window.MnhaDirectImage.run({
+                            base: "/submissions/drawing-upload", file: r.blob, names: [cloudName], legacy: legacyPdf,
+                            status: function (t) { setPdfStatus("busy", t); }
+                        })
+                        : await legacyPdf();
 
                     pdfImage = r;
                     pdfToken = data.token;

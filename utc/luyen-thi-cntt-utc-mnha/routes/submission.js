@@ -4,6 +4,7 @@ const router = express.Router();
 
 const submissionController = require('../controllers/submission.controller');
 const drawingUpload = require('../controllers/drawingUpload.controller');
+const directImage = require('../controllers/directImage.controller');
 const requireApproved = require('../middleware/requireApproved');
 
 // ============================================================
@@ -26,6 +27,12 @@ router.post(
     drawingUpload.rawBodyErrorHandler,
     drawingUpload.uploadDrawingPhoto
 );
+
+// ★ Up ảnh viết tay THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm — đặt TRƯỚC '/:id'
+router.get('/drawing-upload/direct-config', directImage.drawing.config);
+router.post('/drawing-upload/direct-init', directImage.drawing.init);
+router.post('/drawing-upload/direct-verify', directImage.drawing.verify);
+router.post('/drawing-upload/direct-done', directImage.drawing.done);
 
 // ★ Ảnh bản vẽ tay (JS Paint) của bài nộp — đặt TRƯỚC '/:id'
 router.get('/:id/drawing', submissionController.getSubmissionDrawing);

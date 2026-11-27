@@ -833,31 +833,44 @@
         if (btn) btn.disabled = true;
         setUpStatus(card, "busy", "⏳ Đang chuẩn bị ảnh…");
 
-        var sentMime = file.type;
-        fileToBlobUnder(file, sendLimit).then(function (blob) {
-            sentMime = blob.type || file.type;
-            return blobToBase64(blob);
-        }).then(function (b64) {
-            setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
-            return (window.MnhaData ? window.MnhaData.fetch : fetch)("/admin/quiz/upload-image", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ mime: sentMime, data: b64, names: names.join(",") })
+        // Luồng CŨ (dự phòng): ảnh đi qua máy chủ dưới dạng base64 — chỉ dùng khi không up thẳng được
+        function legacyUpload() {
+            var sentMime = file.type;
+            return fileToBlobUnder(file, sendLimit).then(function (blob) {
+                sentMime = blob.type || file.type;
+                return blobToBase64(blob);
+            }).then(function (b64) {
+                setUpStatus(card, "busy", "⏳ Đang kiểm duyệt ảnh bằng " + cloud + " rồi lưu lên GitHub…");
+                return (window.MnhaData ? window.MnhaData.fetch : fetch)("/admin/quiz/upload-image", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({ mime: sentMime, data: b64, names: names.join(",") })
+                });
+            }).then(function (res) {
+                // Vercel có thể trả text/HTML (413, timeout…) → đọc text rồi tự parse để thấy lý do thật
+                return res.text().then(function (txt) {
+                    var data = null;
+                    try { data = JSON.parse(txt); } catch (e) { data = null; }
+                    if (!res.ok || !data || !data.success) {
+                        var why = (data && data.message) ||
+                            (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB)." :
+                             "Máy chủ trả HTTP " + res.status + (txt ? ": " + txt.replace(/<[^>]+>/g, " ").trim().slice(0, 140) : ""));
+                        throw new Error(why);
+                    }
+                    return data;
+                });
             });
-        }).then(function (res) {
-            // Vercel có thể trả text/HTML (413, timeout…) → đọc text rồi tự parse để thấy lý do thật
-            return res.text().then(function (txt) {
-                var data = null;
-                try { data = JSON.parse(txt); } catch (e) { data = null; }
-                if (!res.ok || !data || !data.success) {
-                    var why = (data && data.message) ||
-                        (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB)." :
-                         "Máy chủ trả HTTP " + res.status + (txt ? ": " + txt.replace(/<[^>]+>/g, " ").trim().slice(0, 140) : ""));
-                    throw new Error(why);
-                }
-                return data;
-            });
+        }
+
+        // ★ Up THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm (không qua máy chủ); lỗi hạ tầng → legacyUpload()
+        (window.MnhaDirectImage ? window.MnhaDirectImage.run({
+            base: "/admin/quiz/upload-image", file: file, names: names, maxBytes: upCfg.maxBytes,
+            compress: fileToBlobUnder, legacy: legacyUpload,
+            status: function (t) { setUpStatus(card, "busy", t); }
+        }) : legacyUpload()).then(function (data) {
+            if (!data.moderatedBy) data.moderatedBy = names;
+            return data;
         }).then(function (data) {
             // Tự điền link raw vào ô link ảnh (dùng tham chiếu câu, không dùng chỉ số — phòng khi đã đổi thứ tự)
             if (isCluster) { if (q.cluster) q.cluster.image = data.url; }

@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/quiz.controller');
 const quizImage = require('../controllers/quizImageUpload.controller');
+const directImage = require('../controllers/directImage.controller');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, studentOrAdmin } = require('../middleware/role');
 const rateLimit = require('express-rate-limit');
@@ -77,6 +78,11 @@ router.post('/admin/quiz/parse',          requireAuth, requireRole('admin'), par
 // ★ Up ảnh câu hỏi (kiểm duyệt Cloudinary → GitHub cache/image/<timestamp>.<đuôi>) — đứng TRƯỚC /:lessonId
 router.get ('/admin/quiz/upload-image/config', requireAuth, requireRole('admin'), quizImage.getConfig);
 router.post('/admin/quiz/upload-image',        requireAuth, requireRole('admin'), quizImage.rawImageBody, quizImage.rawBodyErrorHandler, quizImage.uploadQuizImage);
+// ★ Up ảnh THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm; máy chủ chỉ ký / kiểm (JSON nhỏ) — services/directImageService.js
+router.get ('/admin/quiz/upload-image/direct-config', requireAuth, requireRole('admin'), directImage.quiz.config);
+router.post('/admin/quiz/upload-image/direct-init',   requireAuth, requireRole('admin'), directImage.quiz.init);
+router.post('/admin/quiz/upload-image/direct-verify', requireAuth, requireRole('admin'), directImage.quiz.verify);
+router.post('/admin/quiz/upload-image/direct-done',   requireAuth, requireRole('admin'), directImage.quiz.done);
 router.post('/admin/quiz',                requireAuth, requireRole('admin'), ctrl.create);
 router.post('/admin/quiz/:lessonId',      requireAuth, requireRole('admin'), ctrl.update);
 

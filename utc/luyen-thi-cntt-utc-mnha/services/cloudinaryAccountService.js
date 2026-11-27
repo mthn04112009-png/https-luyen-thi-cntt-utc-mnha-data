@@ -10,6 +10,8 @@
 
 const CloudinaryAccount = require('../models/CloudinaryAccount');
 const { encrypt, decrypt, maskKey } = require('./cryptoService');
+// Tài khoản nhập ở trang /connect (mã hoá, lưu repo chính — giống GitHub App). Nạp muộn để test/harness không bắt buộc có.
+const repoStore = () => require('./connect/cloudinaryStore');
 
 const MAX_SELECTED = 5; // tối đa số tài khoản dùng kiểm duyệt cho 1 ảnh (mỗi tài khoản = 1 lần upload)
 
@@ -36,9 +38,14 @@ async function listCloudNames() {
     } catch (e) {
         console.error('[cloudinaryAccount] Không đọc được danh sách từ MongoDB:', e.message);
     }
+    try {
+        for (const n of await repoStore().names()) if (!names.includes(n)) names.push(n);
+    } catch (e) {
+        console.error('[cloudinaryAccount] Không đọc được danh sách ở repo chính:', e.message);
+    }
     const env = envAccount();
     if (env && !names.includes(env.cloudName)) names.push(env.cloudName);
-    return names;
+    return names.sort();
 }
 
 /** Danh sách cho trang quản trị (kèm 4 ký tự cuối key). Không trả secret. */
@@ -56,6 +63,16 @@ async function listForAdmin() {
         updatedAt: d.updatedAt,
         source: 'db'
     }));
+    try {
+        const rs = await repoStore().summary();
+        for (const a of rs.accounts) {
+            if (rows.some(r => r.cloudName === a.cloudName)) continue;
+            rows.push({
+                _id: null, cloudName: a.cloudName, maskedKey: '••••••••' + (a.keyHint || ''),
+                createdBy: null, createdAt: null, updatedAt: a.updatedAt, source: 'repo'
+            });
+        }
+    } catch (_) { /* repo chính chưa đọc được → bỏ qua */ }
     const env = envAccount();
     if (env && !rows.some(r => r.cloudName === env.cloudName)) {
         rows.push({
@@ -144,6 +161,8 @@ async function resolveAccounts(selected) {
                 console.error(`[cloudinaryAccount] Giải mã "${name}" lỗi:`, e.message);
                 throw fail(`Không đọc được cấu hình Cloudinary "${name}". Hãy nhập lại key trong trang quản trị.`, 503);
             }
+        } else if (await repoStore().get(name)) {
+            out.push(await repoStore().get(name));
         } else if (env && env.cloudName === name) {
             out.push(env);
         } else {

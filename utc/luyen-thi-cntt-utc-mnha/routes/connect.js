@@ -20,5 +20,8 @@ router.post('/node/:id/vercel', c.vercel);
 router.post('/github-app', c.githubAppSave);
 router.post('/github-app/test', c.githubAppTest);
 router.post('/github-app/clear', c.githubAppClear);
+router.post('/cloudinary', c.cloudinarySave);
+router.post('/cloudinary/test', c.cloudinaryTest);
+router.post('/cloudinary/remove', c.cloudinaryRemove);
 
 module.exports = router;

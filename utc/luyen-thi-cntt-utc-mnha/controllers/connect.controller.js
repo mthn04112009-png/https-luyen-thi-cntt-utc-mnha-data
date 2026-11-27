@@ -11,6 +11,7 @@
 const registry = require('../services/connect/registry');
 const nodes = require('../services/connect/nodes');
 const githubApp = require('../services/connect/githubApp');
+const cloudinaryStore = require('../services/connect/cloudinaryStore');
 const usage = require('../services/connect/usage');
 const { envTemplate, DIFFERENT_KEYS } = require('../services/connect/envTemplate');
 
@@ -63,6 +64,24 @@ exports.githubAppTest = wrap(async (req, res) => {
     res.redirect('/connect#githubApp');
 });
 
+// ---- Cloudinary (kiểm duyệt ảnh trước khi lưu GitHub; trình duyệt gửi ảnh THẲNG lên Cloudinary): apiKey/apiSecret mã hoá lưu ở repo chính — services/connect/cloudinaryStore.js
+exports.cloudinarySave = wrap(async (req, res) => {
+    const b = req.body || {};
+    await cloudinaryStore.saveAccount({ cloudName: b.cloudName, apiKey: b.apiKey, apiSecret: b.apiSecret });
+    flash(req, 'success', 'Đã lưu Cloudinary "' + String(b.cloudName || '').trim() + '" (API key + secret đã mã hoá). Bấm "Thử" để kiểm tra đăng nhập.');
+    res.redirect('/connect#cloudinary');
+});
+exports.cloudinaryTest = wrap(async (req, res) => {
+    const r = await cloudinaryStore.test((req.body || {}).cloudName);
+    flash(req, 'success', 'Cloudinary "' + r.cloudName + '" đăng nhập được — dùng để kiểm duyệt ảnh được.');
+    res.redirect('/connect#cloudinary');
+});
+exports.cloudinaryRemove = wrap(async (req, res) => {
+    await cloudinaryStore.removeAccount((req.body || {}).cloudName);
+    flash(req, 'success', 'Đã xoá Cloudinary "' + String((req.body || {}).cloudName || '').trim() + '" khỏi repo chính.');
+    res.redirect('/connect#cloudinary');
+});
+
 exports.index = wrap(async (req, res) => {
     // Ghi bộ đếm đang giữ (nếu có) rồi mới đọc số liệu.
     await usage.flush().catch(() => { /* đã log */ });
@@ -103,7 +122,8 @@ exports.index = wrap(async (req, res) => {
         registryPath: registry.PATH(), usagePath: usage.FILE(),
         fmt: usage.formatBytes, gb: usage.bytesToGb,
         flash: takeFlash(req),
-        githubApp: await githubApp.summary().catch(() => null)
+        githubApp: await githubApp.summary().catch(() => null),
+        cloudinary: await cloudinaryStore.summary().catch(() => null)
     });
 });
 

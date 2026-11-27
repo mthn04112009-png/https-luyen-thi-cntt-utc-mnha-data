@@ -57,6 +57,42 @@ block content
                     if githubApp && githubApp.source === 'repo'
                         button(type="submit", formaction="/connect/github-app/clear", formnovalidate, class="px-4 py-2 rounded-lg border border-red-300 text-sm text-red-700 hover:bg-red-50") Xoá cấu hình
 
+        //- Cloudinary: kiểm duyệt ảnh trước khi lưu GitHub — trình duyệt gửi ảnh THẲNG lên Cloudinary (không qua Vercel); khoá mã hoá lưu ở repo chính
+        section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5", id="cloudinary")
+            h2(class="text-lg font-semibold text-gray-900") Cloudinary — kiểm duyệt ảnh rồi lưu thẳng lên GitHub
+            p(class="mt-1 text-sm text-gray-600")
+                | Ảnh câu hỏi / flashcard / ảnh viết tay được trình duyệt gửi <b>thẳng</b> lên Cloudinary để kiểm duyệt, sau đó lưu <b>thẳng</b> lên GitHub bằng token tạm của GitHub App (mục trên) — không đi qua Vercel.
+                | API key + secret được <b>mã hoá</b> rồi lưu trong repo chính (<code>#{cloudinary ? cloudinary.path : 'v-s/cloudinary.json'}</code>); máy chủ chỉ ký tham số upload, secret không bao giờ xuống trình duyệt.
+            if cloudinary && cloudinary.accounts && cloudinary.accounts.length
+                ul(class="mt-3 divide-y divide-gray-100 text-sm")
+                    each a in cloudinary.accounts
+                        li(class="py-2 flex flex-wrap items-center gap-2")
+                            span(class="font-medium text-gray-900 break-all")= a.cloudName
+                            span(class="text-xs text-gray-500") API key …#{a.keyHint}
+                            form(method="post", action="/connect/cloudinary/test", class="ml-auto")
+                                input(type="hidden", name="cloudName", value=a.cloudName)
+                                button(type="submit", class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-700 hover:bg-gray-50") Thử
+                            form(method="post", action="/connect/cloudinary/remove", onsubmit="return confirm('Xoá Cloudinary này khỏi repo chính?')")
+                                input(type="hidden", name="cloudName", value=a.cloudName)
+                                button(type="submit", class="px-3 py-1.5 rounded-lg border border-red-300 text-xs text-red-700 hover:bg-red-50") Xoá
+            else
+                p(class="mt-3 text-sm text-amber-700") Chưa có tài khoản nào nhập ở đây (tài khoản ở Quản trị → API Key → Cloudinary hoặc .env vẫn dùng được như trước).
+            details(class="mt-3 text-xs text-gray-600")
+                summary(class="cursor-pointer text-indigo-600") Cách lấy thông tin Cloudinary (1 lần)
+                ol(class="mt-2 list-decimal pl-5 space-y-1")
+                    li Cloudinary Console → <b>Dashboard</b>: ghi lại <b>Cloud name</b>, <b>API Key</b>, <b>API Secret</b>.
+                    li Console → <b>Add-ons</b> → bật <b>Amazon Rekognition AI Moderation</b> (có gói free). Chưa bật thì ảnh bị chặn (mặc định an toàn).
+                    li Dán 3 thông tin vào form dưới → <b>Lưu</b> → <b>Thử</b>. Cloud name có thể nhập nhiều tài khoản; người up ảnh chọn tài khoản khi up.
+            form(method="post", action="/connect/cloudinary", class="mt-4 grid gap-3 sm:grid-cols-3")
+                label(class="text-xs text-gray-600") Cloud name
+                    input(name="cloudName", required, autocomplete="off", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm")
+                label(class="text-xs text-gray-600") API key (để trống = giữ key đã lưu)
+                    input(name="apiKey", autocomplete="off", inputmode="numeric", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono")
+                label(class="text-xs text-gray-600") API secret (để trống = giữ secret đã lưu)
+                    input(name="apiSecret", type="password", autocomplete="new-password", class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono")
+                div(class="sm:col-span-3")
+                    button(type="submit", class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700") Lưu (mã hoá vào repo chính)
+
         //- thêm web
         section(class="mt-6 bg-white rounded-2xl border border-gray-200 p-5")
             h2(class="text-lg font-semibold text-gray-900") Thêm web dữ liệu

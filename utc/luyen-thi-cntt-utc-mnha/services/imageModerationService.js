@@ -246,12 +246,37 @@ function verifyUploadToken(token, userId) {
     return { uploadId, ext };
 }
 
+// ---------------- phiếu JSON ký HMAC (dùng cho luồng up THẲNG: services/directImageService.js) ----------------
+/** token = base64url(JSON) + "." + HMAC — chỉ máy chủ tạo/kiểm được; JSON phải có `exp` (ms) để hết hạn. */
+function sealJson(obj) {
+    const body = Buffer.from(JSON.stringify(obj)).toString('base64url');
+    return `${body}.${hmac(body)}`;
+}
+
+/** @returns {null | object} null nếu sai chữ ký / hết hạn / quá dài */
+function openJson(token) {
+    if (typeof token !== 'string' || token.length > 4000) return null;
+    const [body, sig] = token.split('.');
+    if (!body || !sig) return null;
+    const a = Buffer.from(sig);
+    const b = Buffer.from(hmac(body));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    let obj;
+    try { obj = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')); } catch (_) { return null; }
+    if (!obj || typeof obj !== 'object' || !(Number(obj.exp) > Date.now())) return null;
+    return obj;
+}
+
 module.exports = {
     MAX_UPLOAD_BYTES,
+    MODERATION,
     MIME_EXT,
     sniffMime,
     sniffImage,
+    verdictOf,
     moderate,
     signUploadToken,
-    verifyUploadToken
+    verifyUploadToken,
+    sealJson,
+    openJson
 };

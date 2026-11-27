@@ -1,3 +1,5 @@
+👉 Người/AI sửa code: đọc AI-NOTES.md trước (quy tắc giao đủ 2 file zip sau mỗi lần sửa, up ảnh thẳng Cloudinary→GitHub, bản đồ code).
+
 https://luyen-thi-cntt-utc-mnha.vercel.app/
 
 NHIỀU REPO GITHUB DỮ LIỆU (services/githubPool.js)

@@ -286,28 +286,38 @@
         els.upStatus.classList.remove('hidden');
         upStatus('busy', '⏳ Đang chuẩn bị ảnh…');
 
-        fileToBlobUnder(file, limit).then(function (blob) {
-            sentMime = blob.type || file.type;
-            return blobToBase64(blob);
-        }).then(function (b64) {
-            upStatus('busy', '⏳ Đang kiểm duyệt ảnh bằng ' + cloud + ' rồi lưu lên GitHub…');
-            return (window.MnhaData ? window.MnhaData.fetch : fetch)('/admin/quiz/upload-image', {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ mime: sentMime, data: b64, names: cloud })
+        // Luồng CŨ (dự phòng): ảnh đi qua máy chủ dưới dạng base64 — chỉ dùng khi không up thẳng được
+        function legacyUpload() {
+            return fileToBlobUnder(file, limit).then(function (blob) {
+                sentMime = blob.type || file.type;
+                return blobToBase64(blob);
+            }).then(function (b64) {
+                upStatus('busy', '⏳ Đang kiểm duyệt ảnh bằng ' + cloud + ' rồi lưu lên GitHub…');
+                return (window.MnhaData ? window.MnhaData.fetch : fetch)('/admin/quiz/upload-image', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ mime: sentMime, data: b64, names: cloud })
+                });
+            }).then(function (res) {
+                return res.text().then(function (txt) {
+                    var data = null;
+                    try { data = JSON.parse(txt); } catch (e) { data = null; }
+                    if (!res.ok || !data || !data.success) {
+                        throw new Error((data && data.message) ||
+                            (res.status === 413 ? 'Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB).' :
+                                'Máy chủ trả HTTP ' + res.status + (txt ? ': ' + txt.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) : '')));
+                    }
+                    return data;
+                });
             });
-        }).then(function (res) {
-            return res.text().then(function (txt) {
-                var data = null;
-                try { data = JSON.parse(txt); } catch (e) { data = null; }
-                if (!res.ok || !data || !data.success) {
-                    throw new Error((data && data.message) ||
-                        (res.status === 413 ? 'Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB).' :
-                            'Máy chủ trả HTTP ' + res.status + (txt ? ': ' + txt.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) : '')));
-                }
-                return data;
-            });
-        }).then(function (data) {
+        }
+
+        // ★ Up THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm (không qua máy chủ); lỗi hạ tầng → legacyUpload()
+        (window.MnhaDirectImage ? window.MnhaDirectImage.run({
+            base: '/admin/quiz/upload-image', file: file, names: [cloud], maxBytes: upCfg.maxBytes,
+            compress: fileToBlobUnder, legacy: legacyUpload,
+            status: function (t) { upStatus('busy', t); }
+        }) : legacyUpload()).then(function (data) {
             if (!insertImageLine(data.url)) throw new Error('Không tìm thấy dòng "+)" để chèn ảnh.');
             upStatus('ok', '✓ Đã kiểm duyệt và lưu ảnh (' + data.path + '). Link đã được chèn dưới dòng "+)" của thẻ.' + (data.warning ? ' ⚠ ' + data.warning : ''));
             els.upBtn.disabled = !upCfg.enabled;
