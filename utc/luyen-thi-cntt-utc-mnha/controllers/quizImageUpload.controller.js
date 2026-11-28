@@ -20,6 +20,7 @@ const express = require('express');
 const githubService = require('../services/githubService');
 const moderation = require('../services/imageModerationService');
 const cloudinaryAccounts = require('../services/cloudinaryAccountService');
+const imgCrypto = require('../services/quizImageCryptoService');
 
 const IMAGE_DIR = 'cache/image';
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/avif'];
@@ -109,6 +110,8 @@ const getConfig = async (req, res) => {
         success: true,
         enabled: accounts.length > 0 && !!githubService.isConfigured,
         githubReady: !!githubService.isConfigured,
+        // ★ Chế độ "mã hoá": không cần Cloudinary, chỉ cần GitHub + ENCRYPTION_MASTER_KEY
+        encEnabled: !!githubService.isConfigured && imgCrypto.isConfigured(),
         accounts,
         maxSelected: cloudinaryAccounts.MAX_SELECTED,
         maxBytes: moderation.MAX_UPLOAD_BYTES,
@@ -185,4 +188,82 @@ const uploadQuizImage = async (req, res) => {
     }
 };
 
-module.exports = { rawImageBody, rawBodyErrorHandler, getConfig, uploadQuizImage };
+// ============================================================
+// ★ ẢNH MÃ HOÁ (không kiểm duyệt) — trình duyệt tự mã hoá, máy chủ chỉ cấp khoá + lưu bản mã lên GitHub (cache/image/<ts>.enc)
+// ============================================================
+function jsonError(res, tag, e) {
+    const status = e.status || 500;
+    if (status >= 500 && !e.status) console.error(`[${tag}]`, e);
+    res.set('Cache-Control', 'no-store');
+    return res.status(status).json({
+        success: false,
+        message: status >= 500 && !e.status ? 'Không xử lý được ảnh. Vui lòng thử lại.' : e.message
+    });
+}
+
+// POST /admin/quiz/upload-image/enc-key   { salt: <base64url 16 byte> }  → { key }   (admin: xin khoá để mã hoá 1 ảnh)
+const encKey = (req, res) => {
+    try {
+        const b = req.body || {};
+        res.set('Cache-Control', 'no-store');
+        return res.json({ success: true, key: imgCrypto.deriveKey(b.salt) });
+    } catch (e) { return jsonError(res, 'quizImageEnc.key', e); }
+};
+
+// POST /admin/quiz/upload-image/enc   { data: <base64 của "QIM1"|salt|iv|tag|ciphertext> }
+const uploadEncryptedImage = async (req, res) => {
+    try {
+        const user = req.user || (req.session && req.session.user);
+        if (!user) return res.status(401).json({ success: false, message: 'Chưa đăng nhập.' });
+        const userId = String(user.id || user._id);
+        if (!githubService.isConfigured) {
+            return res.status(503).json({ success: false, message: 'GitHub chưa cấu hình nên chưa lưu được ảnh.' });
+        }
+        if (!imgCrypto.isConfigured()) {
+            return res.status(503).json({ success: false, message: 'Máy chủ chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa lưu được ảnh mã hoá.' });
+        }
+        const b = req.body || {};
+        if (typeof b.data !== 'string' || !b.data) {
+            return res.status(400).json({ success: false, message: 'Không nhận được dữ liệu ảnh mã hoá.' });
+        }
+        const blob = Buffer.from(b.data.replace(/^data:[^;]+;base64,/, ''), 'base64');
+        if (blob.length > moderation.MAX_UPLOAD_BYTES + imgCrypto.HEAD) {
+            return res.status(413).json({ success: false, message: 'Ảnh quá nặng.' });
+        }
+        // Giải mã thử: đúng GCM + đúng là ảnh thật (không ai nhét file rác / file khác vào kho ảnh)
+        const plain = imgCrypto.decrypt(blob);
+        const kind = moderation.sniffImage(plain);
+        if (!kind) {
+            return res.status(400).json({ success: false, message: 'File không phải ảnh hợp lệ (PNG / JPEG / WEBP / GIF / BMP / AVIF).' });
+        }
+        if (rateLimited(userId)) {
+            return res.status(429).json({ success: false, message: 'Bạn tải ảnh quá nhiều lần. Vui lòng thử lại sau ít phút.' });
+        }
+
+        const path = await freePath('enc');
+        await githubService.writeBinaryFile(path, blob, `[Quiz image enc] ${path}`);
+        const url = rawUrl(path);
+        const reach = await checkRawReachable(url);
+        console.log(`[quizImageEnc] đã lưu ${path} (${blob.length} bytes mã hoá, ảnh gốc ${plain.length} bytes) → raw: ${JSON.stringify(reach)}`);
+        let warning;
+        if (reach.ok === false && (reach.status === 404 || reach.status === 403)) {
+            warning = `Link raw trả HTTP ${reach.status}: kiểm tra repo GitHub có đang ở chế độ PUBLIC và đúng GITHUB_OWNER/REPO/BRANCH trên Vercel không.`;
+        }
+        res.set('Cache-Control', 'no-store');
+        return res.json({ success: true, warning, url, path, mime: kind.mime, bytes: blob.length, encrypted: true });
+    } catch (e) { return jsonError(res, 'quizImageEnc.upload', e); }
+};
+
+// POST /api/quiz-image/keys   { salts: [<base64url>, …] } → { keys: [...] }   (người đã đăng nhập + được duyệt: xin khoá để xem ảnh mã hoá)
+const viewerKeys = (req, res) => {
+    try {
+        const salts = Array.isArray((req.body || {}).salts) ? req.body.salts : [];
+        if (!salts.length || salts.length > 24) {
+            return res.status(400).json({ success: false, message: 'Danh sách salt không hợp lệ (1–24 mục).' });
+        }
+        res.set('Cache-Control', 'no-store');
+        return res.json({ success: true, keys: imgCrypto.deriveKeys(salts.map(String)) });
+    } catch (e) { return jsonError(res, 'quizImageEnc.viewerKeys', e); }
+};
+
+module.exports = { rawImageBody, rawBodyErrorHandler, getConfig, uploadQuizImage, encKey, uploadEncryptedImage, viewerKeys };

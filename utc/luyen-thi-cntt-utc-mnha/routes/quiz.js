@@ -5,6 +5,7 @@ const ctrl = require('../controllers/quiz.controller');
 const quizImage = require('../controllers/quizImageUpload.controller');
 const directImage = require('../controllers/directImage.controller');
 const { requireAuth } = require('../middleware/auth');
+const requireApproved = require('../middleware/requireApproved');
 const { requireRole, studentOrAdmin } = require('../middleware/role');
 const rateLimit = require('express-rate-limit');
 
@@ -78,6 +79,11 @@ router.post('/admin/quiz/parse',          requireAuth, requireRole('admin'), par
 // ★ Up ảnh câu hỏi (kiểm duyệt Cloudinary → GitHub cache/image/<timestamp>.<đuôi>) — đứng TRƯỚC /:lessonId
 router.get ('/admin/quiz/upload-image/config', requireAuth, requireRole('admin'), quizImage.getConfig);
 router.post('/admin/quiz/upload-image',        requireAuth, requireRole('admin'), quizImage.rawImageBody, quizImage.rawBodyErrorHandler, quizImage.uploadQuizImage);
+// ★ Up ảnh MÃ HOÁ (không kiểm duyệt): trình duyệt tự mã hoá bằng khoá máy chủ cấp → lưu GitHub cache/image/<ts>.enc — services/quizImageCryptoService.js
+router.post('/admin/quiz/upload-image/enc-key', requireAuth, requireRole('admin'), quizImage.encKey);
+router.post('/admin/quiz/upload-image/enc',     requireAuth, requireRole('admin'), quizImage.uploadEncryptedImage);
+// Sinh viên / admin đã đăng nhập xin khoá để trình duyệt tự giải mã ảnh câu hỏi (public/js/quizEncImage.js)
+router.post('/api/quiz-image/keys', requireAuth, requireApproved, quizImage.viewerKeys);
 // ★ Up ảnh THẲNG: trình duyệt → Cloudinary (duyệt) → GitHub bằng token tạm; máy chủ chỉ ký / kiểm (JSON nhỏ) — services/directImageService.js
 router.get ('/admin/quiz/upload-image/direct-config', requireAuth, requireRole('admin'), directImage.quiz.config);
 router.post('/admin/quiz/upload-image/direct-init',   requireAuth, requireRole('admin'), directImage.quiz.init);

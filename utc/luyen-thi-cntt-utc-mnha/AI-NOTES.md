@@ -46,6 +46,15 @@ done    POST <base>/direct-done     máy chủ đọc lại file, so kích thư�
 - **CHƯA kiểm thử với Cloudinary / GitHub thật** (sandbox không có mạng, test dùng fetch giả): 2 giả định cần xác nhận trên web thật — (1) `GET /resources/image/private/<id>?moderation=true` trả `moderation[]` hoặc `moderation_status`; (2) `etag` của ảnh = MD5 file gốc. Sai (1) → log `kết quả kiểm duyệt "missing"` và web tự dùng luồng cũ (an toàn, chỉ mất lợi ích) → bật `IMAGE_DIRECT_TRUST_CLIENT_MODERATION=1` nếu muốn. Sai (2) → log `ẢNH KHÔNG KHỚP … md5=` → đặt `IMAGE_DIRECT_STRICT_HASH=off`.
 - Bảo mật cần nhớ: token tạm ghi được MỌI đường dẫn trong repo (quyền Contents:write của cả repo) trong 1 giờ — chỉ cấp sau khi ảnh đã được duyệt, và người nhận là admin (quiz) / người đã đăng nhập (drawing, giới hạn 12 ảnh/10 phút). Đây là cùng mức rủi ro với up Slide thẳng GitHub.
 
+### 3b. Ảnh câu hỏi MÃ HOÁ (không kiểm duyệt) — nút thứ 2 ở `/admin/quiz/new|edit`
+Mỗi câu / chùm có **2 nút**: `⬆ Tải ảnh lên (kiểm duyệt)` (MẶC ĐỊNH, luồng mục 3) và `🔒 Tải ảnh lên (mã hoá)`.
+- Mã hoá: trình duyệt nén (≤ 3MB trên Vercel) → xin khoá `POST /admin/quiz/upload-image/enc-key {salt}` → tự mã hoá AES-256-GCM → `POST /admin/quiz/upload-image/enc {data}` → máy chủ giải mã thử (đúng GCM + đúng là ảnh) rồi ghi `cache/image/<ts>.enc` lên GitHub → link raw điền vào ô link ảnh. KHÔNG qua Cloudinary.
+- Định dạng: `"QIM1" | salt(16) | iv(12) | tag(16) | ciphertext`, AAD = "QIM1", khoá = HKDF(ENCRYPTION_MASTER_KEY, salt, "luyen-thi-cntt:quiz-image:v1") (INFO riêng, khoá này không mở được slide/tài liệu). Code: `services/quizImageCryptoService.js`, 3 hàm cuối của `controllers/quizImageUpload.controller.js`, route trong `routes/quiz.js`.
+- Xem ảnh: `public/js/quizEncImage.js` (nạp ở `views/layout.pug`) theo dõi mọi `<img>` có link `…/cache/image/*.enc` → `POST /api/quiz-image/keys {salts}` (cần đăng nhập + được duyệt) → giải mã bằng Web Crypto → gán blob. Chạy ở trang làm bài, xem lại, kết quả, xem trước của trình soạn — không cần sửa từng nơi hiển thị.
+- `GET /admin/quiz/upload-image/config` trả thêm `encEnabled` (= GitHub đã cấu hình + `ENCRYPTION_MASTER_KEY` hợp lệ). Đổi `ENCRYPTION_MASTER_KEY` thì mọi ảnh `.enc` cũ không giải mã được.
+- Ảnh mã hoá đi qua máy chủ dạng base64 (chưa up thẳng GitHub như luồng kiểm duyệt) nên vẫn bị trần Vercel 4.5MB → trình duyệt nén ≤ 3MB.
+- Test: `node test/quiz-image-enc.js`. CHƯA thử trên web thật (pug / trình duyệt thật / GitHub thật).
+
 ## 4. Bẫy đã gặp / lưu ý
 - `.json` luôn ở repo chính; ảnh/PDF có thể ở repo `-1`, `-2…` (githubPool). Với ảnh up thẳng, link raw dùng đúng repo trong phiếu `done` (không đoán lại bằng `repoForSync`).
 - Route `/admin/quiz/upload-image/direct-*` và `/submissions/drawing-upload/direct-*` phải đứng TRƯỚC `/:id`, `/:lessonId`.
@@ -54,3 +63,4 @@ done    POST <base>/direct-done     máy chủ đọc lại file, so kích thư�
 ## 5. Lịch sử thay đổi
 - **Up ảnh thẳng Cloudinary → GitHub** (mục 3): thêm `directImageService`, `directImage.controller`, `directImage.js`, `cloudinaryStore` (nhập Cloudinary ở `/connect`), 3 route direct-* ×2, sửa 4 nơi gọi ở trình duyệt, view admin Cloudinary hiện nguồn "Nhập ở /connect", test `direct-image.js` + `direct-image.client.js`.
 - **Fix mất link ảnh sau khi up ảnh rồi Lưu** (`public/js/quizEditor.js`): `syncTextareasToState` trước đây so ô dán với text lúc mở form, nên up ảnh (chỉ đổi `state`) xong bấm Lưu thì bị parse lại từ ô dán cũ → đè mất link ảnh (cả `/admin/quiz/new` lẫn `/admin/quiz/:id/edit`). Nay có cờ `taDirty[k]` (chỉ true khi người dùng gõ vào ô dán; reset khi Chuyển/Xuất/sync) + `keepImages()` giữ link ảnh nếu phải parse lại. Máy chủ (`buildQuiz`/`parsePart`) không lỗi. Flashcard không bị (ảnh chèn thẳng vào ô nội dung). CHƯA thử trên web thật.
+- **Ảnh câu hỏi mã hoá** (mục 3b): thêm nút `🔒 Tải ảnh lên (mã hoá)` cạnh nút kiểm duyệt (mặc định vẫn kiểm duyệt); thêm `quizImageCryptoService`, `quizEncImage.js`, 3 route (`enc-key`, `enc`, `/api/quiz-image/keys`), `test/quiz-image-enc.js`; sửa `quizEditor.js`, `quiz-form.pug`, `layout.pug`, `quiz-form.css`.

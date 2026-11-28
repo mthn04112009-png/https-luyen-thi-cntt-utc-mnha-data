@@ -413,7 +413,8 @@
     function upBlock(act, fileF) {
         return '<div class="qc-uprow"><label class="qc-cldlabel">🛡 Kiểm duyệt bằng:' +
             '<select class="qc-cld" title="Chọn CLOUDINARY_CLOUD_NAME dùng để kiểm duyệt ảnh">' + cloudOptionsHtml() + "</select></label>" +
-            '<button type="button" class="qf-btn qc-upbtn" data-act="' + act + '"' + (cloudUsable() ? "" : " disabled") + ">⬆ Tải ảnh lên</button>" +
+            '<button type="button" class="qf-btn qc-upbtn" data-act="' + act + '"' + (cloudUsable() ? "" : " disabled") + ' title="Mặc định: ảnh đi qua Cloudinary kiểm duyệt rồi mới lưu GitHub">⬆ Tải ảnh lên (kiểm duyệt)</button>' +
+            '<button type="button" class="qf-btn qc-upenc" data-act="' + act + 'enc"' + (encUsable() ? "" : " disabled") + ' title="Ảnh được mã hoá ngay trong trình duyệt rồi lưu GitHub — không cần kiểm duyệt; sinh viên mở tới câu này ảnh tự giải mã">🔒 Tải ảnh lên (mã hoá)</button>' +
             '<input type="file" data-f="' + fileF + '" accept="' + UP_ACCEPT + '" hidden>' +
             '<span class="qc-upstatus"></span></div>';
     }
@@ -641,7 +642,10 @@
         var f = e.target.getAttribute("data-f");
         if (f === "imgfile" || f === "climgfile") {
             var file = e.target.files && e.target.files[0];
-            if (file) uploadQuizImage(file, c, f === "climgfile");
+            if (file) {
+                if (e.target.getAttribute("data-mode") === "enc") uploadEncryptedQuizImage(file, c, f === "climgfile");
+                else uploadQuizImage(file, c, f === "climgfile");   // MẶC ĐỊNH: có kiểm duyệt
+            }
             return;
         }
         if (f === "correct") {
@@ -666,9 +670,10 @@
         if (!c) return;
         var act = btn.getAttribute("data-act"), list = state[c.part];
 
-        if (act === "upimg" || act === "upclimg") {
-            var fi = c.card.querySelector('input[data-f="' + (act === "upimg" ? "imgfile" : "climgfile") + '"]');
-            if (fi) { fi.value = ""; fi.click(); }
+        if (act === "upimg" || act === "upclimg" || act === "upimgenc" || act === "upclimgenc") {
+            var isClu = act.indexOf("upcl") === 0;
+            var fi = c.card.querySelector('input[data-f="' + (isClu ? "climgfile" : "imgfile") + '"]');
+            if (fi) { fi.value = ""; fi.setAttribute("data-mode", /enc$/.test(act) ? "enc" : "mod"); fi.click(); }
             return; // không render lại thẻ
         }
 
@@ -724,14 +729,15 @@
         });
         if (!parts.length) { box.hidden = true; box.innerHTML = ""; return; }
         box.innerHTML = "🖼 <b>Các câu cần ảnh (chưa có link):</b> " + parts.join(" · ") +
-            ". Bấm “⬆ Tải ảnh lên” ở từng câu — ảnh được kiểm duyệt rồi tự điền link raw.";
+            ". Ở từng câu bấm “⬆ Tải ảnh lên (kiểm duyệt)” hoặc “🔒 Tải ảnh lên (mã hoá)” — link ảnh tự điền.";
         box.hidden = false;
     }
 
-    var upCfg = { loaded: false, enabled: false, accounts: [], maxBytes: 10 * 1024 * 1024, githubReady: true };
+    var upCfg = { loaded: false, enabled: false, accounts: [], maxBytes: 10 * 1024 * 1024, githubReady: true, encEnabled: false };
     var curCloud = ""; // CLOUDINARY_CLOUD_NAME đang chọn (dùng chung cho mọi ô chọn trên trang)
 
     function cloudUsable() { return upCfg.enabled && upCfg.accounts.length > 0; }
+    function encUsable() { return !!upCfg.encEnabled; }
 
     function cloudOptionsHtml() {
         if (!upCfg.loaded) return '<option value="">Đang tải…</option>';
@@ -749,6 +755,10 @@
             b.disabled = !cloudUsable();
             b.title = cloudUsable() ? "" : (upCfg.accounts.length ? "GitHub chưa cấu hình nên chưa lưu được ảnh" : "Chưa có tài khoản Cloudinary — thêm ở Quản trị → API Key → Cloudinary");
         });
+        document.querySelectorAll(".qc-upenc").forEach(function (b) {
+            b.disabled = !encUsable();
+            if (!encUsable()) b.title = upCfg.githubReady ? "Máy chủ chưa cấu hình ENCRYPTION_MASTER_KEY (64 ký tự hex) nên chưa mã hoá được ảnh" : "GitHub chưa cấu hình nên chưa lưu được ảnh";
+        });
     }
 
     function loadUploadConfig() {
@@ -756,7 +766,7 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (d && d.success) {
-                    upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, uploadMaxBytes: d.uploadMaxBytes || d.maxBytes || upCfg.maxBytes, githubReady: d.githubReady !== false };
+                    upCfg = { loaded: true, enabled: !!d.enabled, accounts: d.accounts || [], maxBytes: d.maxBytes || upCfg.maxBytes, uploadMaxBytes: d.uploadMaxBytes || d.maxBytes || upCfg.maxBytes, githubReady: d.githubReady !== false, encEnabled: !!d.encEnabled };
                 } else { upCfg.loaded = true; }
                 refreshCloudSelects();
             })
@@ -882,6 +892,88 @@
             if (btn) btn.disabled = false;
             fail(e.message || "Không tải được ảnh.");
         });
+    }
+
+    // ============================================================
+    // ★ ẢNH MÃ HOÁ (không cần kiểm duyệt): mã hoá ngay trong trình duyệt (AES-256-GCM, khoá do máy chủ cấp theo salt)
+    //   → POST bản mã lên máy chủ → lưu GitHub cache/image/<ts>.enc → link tự điền. Sinh viên mở câu hỏi: public/js/quizEncImage.js tự giải mã.
+    //   Định dạng: "QIM1" | salt(16) | iv(12) | tag(16) | ciphertext ; AAD = "QIM1" (services/quizImageCryptoService.js)
+    // ============================================================
+    function b64uEncode(u8) {
+        var s = ""; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+        return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    function b64uDecode(str) {
+        var b = atob(String(str).replace(/-/g, "+").replace(/_/g, "/"));
+        var u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+        return u;
+    }
+    function u8ToBase64(u8) {
+        var s = "", step = 0x8000;
+        for (var i = 0; i < u8.length; i += step) s += String.fromCharCode.apply(null, u8.subarray(i, i + step));
+        return btoa(s);
+    }
+    function fetchJson(url, body) {
+        return (window.MnhaData ? window.MnhaData.fetch : fetch)(url, {
+            method: "POST", credentials: "same-origin", cache: "no-store",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify(body)
+        }).then(function (res) {
+            return res.text().then(function (txt) {
+                var data = null;
+                try { data = JSON.parse(txt); } catch (e) { data = null; }
+                if (!res.ok || !data || !data.success) {
+                    throw new Error((data && data.message) ||
+                        (res.status === 413 ? "Ảnh quá nặng so với giới hạn máy chủ (Vercel ≤ 4.5MB)." :
+                         "Máy chủ trả HTTP " + res.status + (txt ? ": " + txt.replace(/<[^>]+>/g, " ").trim().slice(0, 140) : "")));
+                }
+                return data;
+            });
+        });
+    }
+
+    function uploadEncryptedQuizImage(file, c, isCluster) {
+        var card = c.card, q = c.q, part = c.part;
+        var btn = card.querySelector(isCluster ? '[data-act="upclimgenc"]' : '[data-act="upimgenc"]');
+        function fail(msg) { if (btn) btn.disabled = !encUsable(); setUpStatus(card, "err", "❌ " + msg); }
+
+        if (!upCfg.encEnabled) { fail(upCfg.githubReady ? "Máy chủ chưa cấu hình ENCRYPTION_MASTER_KEY nên chưa mã hoá được ảnh." : "Chưa lưu được ảnh (GitHub chưa cấu hình)."); return; }
+        if (!window.crypto || !window.crypto.subtle) { fail("Trình duyệt không hỗ trợ mã hoá (cần mở web bằng HTTPS)."); return; }
+        if (!/^image\/(png|jpeg|webp|gif|bmp|avif)$/.test(file.type)) { fail("Chỉ nhận ảnh PNG / JPEG / WEBP / GIF / BMP / AVIF."); return; }
+
+        var MAGIC = new Uint8Array([0x51, 0x49, 0x4d, 0x31]);   // "QIM1"
+        var sendLimit = upCfg.uploadMaxBytes || upCfg.maxBytes;
+        if (btn) btn.disabled = true;
+        setUpStatus(card, "busy", "⏳ Đang chuẩn bị ảnh…");
+
+        fileToBlobUnder(file, sendLimit).then(function (blob) {
+            return blob.arrayBuffer ? blob.arrayBuffer() : new Promise(function (ok, no) {
+                var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = function () { no(new Error("Không đọc được file ảnh.")); }; r.readAsArrayBuffer(blob);
+            });
+        }).then(function (plain) {
+            setUpStatus(card, "busy", "⏳ Đang mã hoá ảnh trong trình duyệt…");
+            var salt = new Uint8Array(16), iv = new Uint8Array(12);
+            window.crypto.getRandomValues(salt); window.crypto.getRandomValues(iv);
+            return fetchJson("/admin/quiz/upload-image/enc-key", { salt: b64uEncode(salt) }).then(function (k) {
+                return window.crypto.subtle.importKey("raw", b64uDecode(k.key), { name: "AES-GCM" }, false, ["encrypt"]);
+            }).then(function (key) {
+                return window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv, additionalData: MAGIC, tagLength: 128 }, key, plain);
+            }).then(function (buf) {
+                var out = new Uint8Array(buf), ctLen = out.length - 16;            // Web Crypto trả ciphertext || tag
+                var file2 = new Uint8Array(4 + 16 + 12 + 16 + ctLen);
+                file2.set(MAGIC, 0); file2.set(salt, 4); file2.set(iv, 20); file2.set(out.subarray(ctLen), 32); file2.set(out.subarray(0, ctLen), 48);
+                return file2;
+            });
+        }).then(function (enc) {
+            setUpStatus(card, "busy", "⏳ Đang lưu ảnh đã mã hoá lên GitHub…");
+            return fetchJson("/admin/quiz/upload-image/enc", { data: u8ToBase64(enc) });
+        }).then(function (data) {
+            if (isCluster) { if (q.cluster) q.cluster.image = data.url; }
+            else q.image = data.url;
+            renderPart(part);
+            showOk("✓ Đã mã hoá và lưu ảnh (không cần kiểm duyệt): " + data.path + " — link đã điền vào ô link ảnh; sinh viên mở tới câu này ảnh tự giải mã. Nhớ bấm Lưu." +
+                (data.warning ? " ⚠ " + data.warning : ""));
+        }).catch(function (e) { fail((e && e.message) || "Không tải được ảnh."); });
     }
 
     $("btnParse").addEventListener("click", function () {

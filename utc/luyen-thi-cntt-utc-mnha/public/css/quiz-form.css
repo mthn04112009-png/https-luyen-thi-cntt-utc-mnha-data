@@ -112,7 +112,7 @@
 
 /* ★ Up ảnh câu hỏi + chọn Cloudinary + câu cần ảnh (//image) */
 .qc-uprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-.qc-upbtn { padding: 7px 12px; }
+.qc-upbtn, .qc-upenc { padding: 7px 12px; }
 .qc-upstatus { font-size: 12px; font-weight: 600; color: #475569; }
 .qc-upstatus:empty { display: none; }
 .qc-upstatus.busy { color: #1c4385; }
