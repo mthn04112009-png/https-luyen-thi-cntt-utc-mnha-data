@@ -896,6 +896,7 @@
             }
             if (state[k].length && !confirm(PART_TITLES[k] + " đang có " + state[k].length + " câu. Thay bằng " + r.questions.length + " câu từ text đã dán?")) return;
             state[k] = r.questions;
+            taDirty[k] = false;   // ô dán đã khớp state
             (r.imageNums || []).forEach(function (n) {
                 if (n >= 1 && n <= state[k].length) state[k][n - 1].needImage = true;
                 else missingImg.push(PART_TITLES[k] + ": câu " + n);
@@ -911,7 +912,7 @@
     });
 
     $("btnExport").addEventListener("click", function () {
-        PARTS.forEach(function (k) { $("paste-" + k).value = serializePart(k, state[k]); });
+        PARTS.forEach(function (k) { $("paste-" + k).value = serializePart(k, state[k]); taDirty[k] = false; });
         $("syncHint").textContent = "✓ Đã xuất câu hỏi ra text (có thể copy / sửa rồi chuyển lại)";
     });
 
@@ -986,17 +987,36 @@
     //      (Không sync nếu textarea giống CFG.raw → giữ nguyên state đã sửa
     //       qua cards, tránh ghi đè nhầm.)
     // ============================================================
+    // ★ FIX 2 (mất link ảnh sau khi up ảnh rồi Lưu): trước đây so ô dán với text LÚC MỞ FORM.
+    //   Up ảnh chỉ đổi `state` (không đổi ô dán) → ô dán vẫn "khác bản đầu" (bài mới: bản đầu rỗng;
+    //   bài sửa: đã dán/Chuyển/Xuất) → lúc Lưu bị parse lại từ text cũ, ĐÈ MẤT link ảnh vừa up.
+    //   Nay chỉ sync khi người dùng THỰC SỰ gõ vào ô dán kể từ lần đồng bộ cuối (taDirty).
+    var taDirty = {};
+    PARTS.forEach(function (k) {
+        taDirty[k] = false;
+        var ta = $("paste-" + k);
+        if (ta) ta.addEventListener("input", function () { taDirty[k] = true; });
+    });
+    // Parse lại từ ô dán nhưng GIỮ link ảnh đã có trong state nếu câu (cùng vị trí + cùng nội dung) chưa có ảnh trong text
+    function keepImages(oldList, newList) {
+        newList.forEach(function (q, i) {
+            var o = oldList[i];
+            if (!o || String(o.text || "").trim() !== String(q.text || "").trim()) return;
+            if (!String(q.image || "").trim() && String(o.image || "").trim()) q.image = o.image;
+            if (q.cluster && o.cluster && !String(q.cluster.image || "").trim() && String(o.cluster.image || "").trim()) q.cluster.image = o.cluster.image;
+        });
+        return newList;
+    }
     function syncTextareasToState() {
         PARTS.forEach(function (k) {
             var ta = $("paste-" + k);
-            if (!ta) return;
-            var initial = (CFG.raw && CFG.raw[k]) || "";
+            if (!ta || !taDirty[k]) return;                  // người dùng không gõ ô dán → KHÔNG đụng state (giữ ảnh đã up)
             var current = ta.value;
             if (!current.trim()) return;
-            if (current.trim() === initial.trim()) return;   // textarea không đổi → không đụng state
             var r = parsePart(k, current);
             if (r.errors.length) return;                     // có lỗi → để validateAll bắt, không sync
-            state[k] = r.questions;
+            state[k] = keepImages(state[k], r.questions);
+            taDirty[k] = false;
             if (k === "fill" && r.note && $("fillNote") && !$("fillNote").value.trim()) {
                 $("fillNote").value = r.note.slice(0, 300);
             }

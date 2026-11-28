@@ -53,3 +53,4 @@ done    POST <base>/direct-done     máy chủ đọc lại file, so kích thư�
 
 ## 5. Lịch sử thay đổi
 - **Up ảnh thẳng Cloudinary → GitHub** (mục 3): thêm `directImageService`, `directImage.controller`, `directImage.js`, `cloudinaryStore` (nhập Cloudinary ở `/connect`), 3 route direct-* ×2, sửa 4 nơi gọi ở trình duyệt, view admin Cloudinary hiện nguồn "Nhập ở /connect", test `direct-image.js` + `direct-image.client.js`.
+- **Fix mất link ảnh sau khi up ảnh rồi Lưu** (`public/js/quizEditor.js`): `syncTextareasToState` trước đây so ô dán với text lúc mở form, nên up ảnh (chỉ đổi `state`) xong bấm Lưu thì bị parse lại từ ô dán cũ → đè mất link ảnh (cả `/admin/quiz/new` lẫn `/admin/quiz/:id/edit`). Nay có cờ `taDirty[k]` (chỉ true khi người dùng gõ vào ô dán; reset khi Chuyển/Xuất/sync) + `keepImages()` giữ link ảnh nếu phải parse lại. Máy chủ (`buildQuiz`/`parsePart`) không lỗi. Flashcard không bị (ảnh chèn thẳng vào ô nội dung). CHƯA thử trên web thật.
